@@ -180,7 +180,11 @@ keeps working.
   resolution: this file, another file, an empty file (the part is left out),
   the built-in text, or the Emails module's database template, which wins over
   every file (a red notice says so). An email your app sends itself
-  (`sent_by`) says the files are what it uses.
+  (`sent_by`) says the files are what it uses. Turning that database row into
+  the files is offered only while the email has none ("Create file from the
+  database template"); once it has, there is no button to overwrite them from
+  the row — the row is exported by the Emails module's own task and the files
+  merged by hand. Not done yet: decided, not forgotten.
 - **Variables.** Beside the form, the variables of the part's kind of
   template, with a sample and your `describe_variables` text: an email's own
   (its catalogue samples, or `sample_variables`), the branding (`logo_url`,
@@ -216,13 +220,19 @@ keeps working.
   `block_placeholders` alone in a paragraph comes out of the `<p>`.
 - **Files changed on disk.** Where the files are edited (or `watch: true`), the
   module looks at them every 2 s and drops PhoenixKit's cached templates when
-  they change — a hand edit or a `git pull` shows in the next email.
+  they change — a hand edit or a `git pull` shows in the next email. It then
+  broadcasts `{:templates_editor, :files_changed}` on
+  `PhoenixKitTemplatesEditor.Watcher.topic/0` through PhoenixKit's PubSub, for
+  a page of your own that shows something made of the files (the tab itself
+  does not listen: core's page has no `handle_info` for it).
 - **Preview emails.** With `catalog: true` your emails (names under
   `name_prefixes`, no leading `_`) appear in PhoenixKit's *Preview emails* —
   provided `root` is the directory PhoenixKit reads emails from
   (`config :phoenix_kit, :template_paths`); otherwise the tab says so.
 - **What is never read.** A template file that is a symbolic link, leads out of
-  the root or is larger than 256 KiB is shown as unavailable, never read.
+  the root or is larger than 256 KiB is shown as unavailable, never read. A
+  template with such a file is not previewed, sent to you or copied, and its
+  layout's are not either: PhoenixKit's own lookup follows links.
 
 ## What this module does NOT do
 
