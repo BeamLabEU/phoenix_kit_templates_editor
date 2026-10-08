@@ -24,9 +24,10 @@ defmodule PhoenixKitTemplatesEditor.Preview do
   ## A header, footer or layout (`_header-<g>`, `_footer-<g>`, `_layout-<g>`)
 
   The first email (`PhoenixKitTemplatesEditor.Catalog.emails/2`, whatever
-  `catalog` says) in the group of the part's own name — or, with no email, a
-  Lorem ipsum. A shared `_header`/`_footer`/`_layout`, or any other name with
-  a `_`, is shown the same way in `layout_group`.
+  `catalog` says) that uses the layout of the part's own name — else the
+  first email at all, else a Lorem ipsum — in that layout. A shared
+  `_header`/`_footer`/`_layout` is shown the same way in no group (the
+  shared chrome); any other name with a `_`, in `layout_group`.
 
   ## What it refuses
 
@@ -52,13 +53,12 @@ defmodule PhoenixKitTemplatesEditor.Preview do
   alias PhoenixKitTemplatesEditor.Config
   alias PhoenixKitTemplatesEditor.Files
   alias PhoenixKitTemplatesEditor.HtmlText
+  alias PhoenixKitTemplatesEditor.Names
 
   @lorem_subject "Lorem ipsum"
   @lorem_text "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor " <>
                 "incididunt ut labore et dolore magna aliqua.\n\nUt enim ad minim veniam, quis " <>
                 "nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
-
-  @chrome ~r/\A_(?:header|footer|layout)-([a-z0-9-]+)\z/
 
   @type result :: {String.t() | nil, String.t() | nil, String.t() | nil} | {:error, String.t()}
 
@@ -109,18 +109,20 @@ defmodule PhoenixKitTemplatesEditor.Preview do
 
   defp build(config, "_" <> _ = name, locale, variables) do
     group =
-      case Regex.run(@chrome, name, capture: :all_but_first) do
-        [group] -> group
+      case Names.chrome(name) do
+        {_kind, group} -> group
         nil -> config.layout_group
       end
 
-    case Catalog.emails(config, locale || config.base_locale) do
-      [%{name: first} | _] ->
+    emails = Catalog.emails(config, locale || config.base_locale)
+
+    case Enum.find(emails, &(&1.layout == group)) || List.first(emails) do
+      %{name: first} ->
         with {:ok, email} <- email(config, first, locale, variables) do
           finish(config, email, group, locale)
         end
 
-      [] ->
+      nil ->
         finish(config, lorem(), group, locale)
     end
   end
