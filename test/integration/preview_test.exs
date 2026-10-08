@@ -30,6 +30,13 @@ defmodule PhoenixKitTemplatesEditor.Integration.PreviewTest do
     File.write!(Path.join([root, name, file]), content)
   end
 
+  # The library's cache entries for template `name` under `root`.
+  defp cached(root, name) do
+    for {{Overrides, :located, roots, ^name, _part, _locale}, _value} <- :persistent_term.get(),
+        root in roots,
+        do: name
+  end
+
   defp config(root, overrides \\ []) do
     {:ok, config} =
       Config.load(
@@ -218,6 +225,26 @@ defmodule PhoenixKitTemplatesEditor.Integration.PreviewTest do
 
       assert {:error, message} = Preview.preview(config(root), "shop_offer", "et")
       assert message =~ "_header-shop/html.html"
+    end
+
+    # Checked before the library reads: `Overrides.locate/4` follows a link
+    # and keeps what it read in `:persistent_term`.
+    test "a link is refused before anything of the template is read", %{tmp_dir: root} do
+      put(root, "shop_offer", "subject.et.txt", "Offer")
+      File.ln_s!("/etc/hostname", Path.join([root, "shop_offer", "text.et.txt"]))
+
+      assert {:error, message} = Preview.preview(config(root), "shop_offer", "et")
+      assert message =~ "shop_offer/text.et.txt"
+      assert cached(root, "shop_offer") == []
+    end
+
+    test "a chrome link is refused before the chrome is read", %{tmp_dir: root} do
+      put(root, "shop_offer", "text.et.txt", "Body")
+      File.ln_s!("/etc/hostname", Path.join([root, "_footer-shop", "html.et.html"]))
+
+      assert {:error, message} = Preview.preview(config(root), "shop_offer", "et")
+      assert message =~ "_footer-shop/html.et.html"
+      assert cached(root, "_footer-shop") == []
     end
 
     test "work past the deadline", %{tmp_dir: root} do

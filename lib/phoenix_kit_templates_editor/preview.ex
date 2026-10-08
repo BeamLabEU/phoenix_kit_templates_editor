@@ -31,8 +31,10 @@ defmodule PhoenixKitTemplatesEditor.Preview do
 
   ## What it refuses
 
-  Before anything is rendered, every file the preview would read — the
-  email's parts and the chrome's `html` files — goes through
+  Before anything is read, the email's template directory and each chrome
+  one go through `PhoenixKitTemplatesEditor.Files.check_template/2` — the
+  library's lookup follows links and caches what it read, so a link must
+  not reach it — and every file the preview then reads, through
   `PhoenixKitTemplatesEditor.Files.check/2`: a link, a file leading out of
   the root or one over `PhoenixKit.Templates.Overrides.max_bytes/0` is an
   `{:error, message}` naming it relative to the root. The work runs in a
@@ -136,7 +138,8 @@ defmodule PhoenixKitTemplatesEditor.Preview do
   defp email(%Config{root: root} = config, name, locale, variables) do
     opts = [locale: locale, paths: [root]]
 
-    with :ok <- check_sources(root, Templates.sources(name, %{}, opts)) do
+    with :ok <- check_template(root, name),
+         :ok <- check_sources(root, Templates.sources(name, %{}, opts)) do
       variables = Branding.merge(variables, Branding.variables())
       parts = Templates.render(name, %{}, variables, opts)
 
@@ -203,20 +206,55 @@ defmodule PhoenixKitTemplatesEditor.Preview do
     end)
   end
 
-  # The files `Layout.wrap/3` would read: each chrome part of the group and
-  # the shared one, by the language's chain.
-  defp check_chrome(root, group, locale) do
-    names =
-      for base <- [Layout.name(), Layout.header_name(), Layout.footer_name()],
-          name <- if(group, do: ["#{base}-#{group}", base], else: [base]),
-          do: name
+  @doc """
+  The template names whose files `PhoenixKit.Email.Layout.wrap/3` reads
+  for `group` (`nil` — the shared chrome only): each chrome part of the
+  group, then the shared one.
+  """
+  @spec chrome_names(String.t() | nil) :: [String.t()]
+  def chrome_names(group) do
+    for base <- [Layout.name(), Layout.header_name(), Layout.footer_name()],
+        name <- if(group, do: ["#{base}-#{group}", base], else: [base]),
+        do: name
+  end
 
+  # The files `Layout.wrap/3` would read, by the language's chain — their
+  # directories checked before the lookup reads any of them.
+  defp check_chrome(root, group, locale) do
+    names = chrome_names(group)
+
+    with :ok <- check_templates(root, names) do
+      Enum.reduce_while(names, :ok, fn name, :ok ->
+        case Overrides.locate([root], name, :html, locale) do
+          {path, _content} -> check_file(root, path)
+          nil -> {:cont, :ok}
+        end
+      end)
+    end
+  end
+
+  @doc """
+  `:ok` when each of the templates `names` under `root` passes
+  `PhoenixKitTemplatesEditor.Files.check_template/2`, else `{:error,
+  message}` naming the first file refused, relative to the root — the
+  check a host's preview and "Send to me" go through too, since they read
+  the files by the library's lookup.
+  """
+  @spec check_templates(Path.t(), [String.t()]) :: :ok | {:error, String.t()}
+  def check_templates(root, names) do
     Enum.reduce_while(names, :ok, fn name, :ok ->
-      case Overrides.locate([root], name, :html, locale) do
-        {path, _content} -> check_file(root, path)
-        nil -> {:cont, :ok}
+      case check_template(root, name) do
+        :ok -> {:cont, :ok}
+        error -> {:halt, error}
       end
     end)
+  end
+
+  defp check_template(root, name) do
+    case Files.check_template(root, name) do
+      :ok -> :ok
+      {:error, {reason, path}} -> refused(root, path, reason)
+    end
   end
 
   defp check_file(root, path) do
