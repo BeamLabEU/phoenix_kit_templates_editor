@@ -224,12 +224,14 @@ defmodule PhoenixKitTemplatesEditor.Preview do
     names = chrome_names(group)
 
     with :ok <- check_templates(root, names) do
-      Enum.reduce_while(names, :ok, fn name, :ok ->
-        case Overrides.locate([root], name, :html, locale) do
-          {path, _content} -> check_file(root, path)
-          nil -> {:cont, :ok}
-        end
-      end)
+      Enum.reduce_while(names, :ok, &check_located(root, &1, locale, &2))
+    end
+  end
+
+  defp check_located(root, name, locale, :ok) do
+    case Overrides.locate([root], name, :html, locale) do
+      {path, _content} -> check_file(root, path)
+      nil -> {:cont, :ok}
     end
   end
 

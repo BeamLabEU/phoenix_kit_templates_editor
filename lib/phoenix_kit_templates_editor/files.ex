@@ -288,24 +288,33 @@ defmodule PhoenixKitTemplatesEditor.Files do
   def usage(root) when is_binary(root) do
     case File.ls(root) do
       {:ok, entries} ->
-        Enum.reduce(entries, %{templates: 0, bytes: 0}, fn entry, acc ->
-          path = Path.join(root, entry)
-
-          case File.lstat(path) do
-            {:ok, %File.Stat{type: :directory}} ->
-              templates = if Overrides.valid_name?(entry), do: 1, else: 0
-              %{acc | templates: acc.templates + templates, bytes: acc.bytes + dir_bytes(path)}
-
-            {:ok, %File.Stat{type: :regular, size: size}} ->
-              %{acc | bytes: acc.bytes + size}
-
-            _other ->
-              acc
-          end
-        end)
+        Enum.reduce(entries, %{templates: 0, bytes: 0}, &add_usage(root, &1, &2))
 
       {:error, _reason} ->
         %{templates: 0, bytes: 0}
+    end
+  end
+
+  defp add_usage(root, entry, acc) do
+    path = Path.join(root, entry)
+
+    case File.lstat(path) do
+      {:ok, %File.Stat{type: :directory}} ->
+        templates = if Overrides.valid_name?(entry), do: 1, else: 0
+        %{acc | templates: acc.templates + templates, bytes: acc.bytes + dir_bytes(path)}
+
+      {:ok, %File.Stat{type: :regular, size: size}} ->
+        %{acc | bytes: acc.bytes + size}
+
+      _other ->
+        acc
+    end
+  end
+
+  defp regular_size(path) do
+    case File.lstat(path) do
+      {:ok, %File.Stat{type: :regular, size: size}} -> size
+      _other -> 0
     end
   end
 
@@ -320,12 +329,7 @@ defmodule PhoenixKitTemplatesEditor.Files do
   defp dir_bytes(dir) do
     case File.ls(dir) do
       {:ok, entries} ->
-        Enum.reduce(entries, 0, fn entry, bytes ->
-          case File.lstat(Path.join(dir, entry)) do
-            {:ok, %File.Stat{type: :regular, size: size}} -> bytes + size
-            _other -> bytes
-          end
-        end)
+        Enum.reduce(entries, 0, &(&2 + regular_size(Path.join(dir, &1))))
 
       {:error, _reason} ->
         0

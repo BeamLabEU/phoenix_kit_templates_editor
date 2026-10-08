@@ -9,7 +9,10 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionHardeningTest do
   import Phoenix.LiveViewTest
   import PhoenixKitTemplatesEditor.SectionCase
 
+  alias Phoenix.LiveView.Controller
   alias PhoenixKit.Templates.Overrides
+  alias PhoenixKitTemplatesEditor.Test.Endpoint
+  alias PhoenixKitTemplatesEditor.Test.SectionHost
   alias PhoenixKitTemplatesEditor.Web.ScopeHook
 
   @moduletag :tmp_dir
@@ -83,13 +86,11 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionHardeningTest do
       conn =
         Phoenix.ConnTest.build_conn()
         |> Plug.Test.init_test_session(%{})
-        |> Plug.Conn.put_private(:phoenix_endpoint, PhoenixKitTemplatesEditor.Test.Endpoint)
+        |> Plug.Conn.put_private(:phoenix_endpoint, Endpoint)
 
       html =
         conn
-        |> Phoenix.LiveView.Controller.live_render(PhoenixKitTemplatesEditor.Test.SectionHost,
-          session: %{"scope" => writer(), "locale" => nil}
-        )
+        |> Controller.live_render(SectionHost, session: %{"scope" => writer(), "locale" => nil})
         |> Map.fetch!(:resp_body)
 
       assert html =~ "templates-editor-intro"

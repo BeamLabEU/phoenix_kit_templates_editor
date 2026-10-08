@@ -1179,11 +1179,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       # Every file of it is checked first: the library's copy reads them by
       # following links.
       exists?(socket, copy_from) ->
-        case template_refusal(socket, copy_from) ||
-               limit_refusal(socket, 1, template_bytes(socket, copy_from)) do
-          nil -> copy(socket, copy_from, name, skipped_files(socket, copy_from, params))
-          message -> notice(socket, :error, gettext("Not copied: %{reason}", reason: message))
-        end
+        checked_copy(socket, copy_from, name, params)
 
       true ->
         notice(socket, :error, gettext("There is no “%{name}” to copy.", name: copy_from))
@@ -1258,6 +1254,13 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   defp template_bytes(%{assigns: %{root: root}}, name), do: Files.template_bytes(root, name)
 
   defp not_saved(message), do: gettext("Not saved: %{errors}", errors: message)
+
+  defp checked_copy(socket, from, name, params) do
+    case template_refusal(socket, from) || limit_refusal(socket, 1, template_bytes(socket, from)) do
+      nil -> copy(socket, from, name, skipped_files(socket, from, params))
+      message -> notice(socket, :error, gettext("Not copied: %{reason}", reason: message))
+    end
+  end
 
   # Why `rules` refuse a name, in words; `nil` when they allow it.
   defp name_refusal(socket, name, opts) do
@@ -2193,12 +2196,15 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   # a slow template costs the page at most that long.
   defp bounded_preview(callback, name, locale, timeout) do
     safely({"preview", callback, [name, locale]}, fn ->
-      case Bounded.run(fn -> call(callback, [name, locale]) end, timeout) do
-        {:ok, result} -> preview_result(result)
-        {:error, :timeout} -> {:error, describe(:timeout)}
-      end
+      callback |> run_bounded([name, locale], timeout) |> bounded_result()
     end)
   end
+
+  defp run_bounded(callback, args, timeout),
+    do: Bounded.run(fn -> call(callback, args) end, timeout)
+
+  defp bounded_result({:ok, result}), do: preview_result(result)
+  defp bounded_result({:error, :timeout}), do: {:error, describe(:timeout)}
 
   # The templates a preview of `name` reads: an email and its layout's
   # chrome; a layout part, its group's chrome and the emails it may be
