@@ -17,8 +17,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
       `README.<base_locale>.md`, else `README.md` in the templates root, as
       Markdown through core's sanitizer — read only too;
     * where the files are editable, lists those not committed to git
-      (`PhoenixKitTemplatesEditor.Files.uncommitted/1`): on a button, and
-      again after every change the editor makes — never on opening the tab;
+      (`PhoenixKitTemplatesEditor.Files.uncommitted/1`): on a button only a
+      writer has (asked again on the click, once in 5 s), and again after
+      every change the editor makes — never on opening the tab;
     * mounts `PhoenixKitTemplatesEditor.Web.Editor` with everything the
       config says.
 
@@ -55,7 +56,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
   alias PhoenixKitTemplatesEditor.Web.ScopeHook
 
   @impl true
-  def mount(socket), do: {:ok, assign(socket, uncommitted: nil)}
+  def mount(socket), do: {:ok, assign(socket, uncommitted: nil, uncommitted_at: nil)}
 
   @impl true
   # From the editor's `after_change`: the files changed.
@@ -71,8 +72,29 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
   end
 
   @impl true
-  def handle_event("check_uncommitted", _params, socket),
-    do: {:noreply, assign_uncommitted(socket)}
+  # A writer's action (git runs as the server's user), asked again now, and
+  # not more often than once in a few seconds.
+  def handle_event("check_uncommitted", _params, socket) do
+    now = System.monotonic_time(:millisecond)
+
+    cond do
+      socket.assigns.config == nil or socket.assigns.authorize.(:check) != :ok ->
+        {:noreply, socket}
+
+      recently?(socket.assigns.uncommitted_at, now) ->
+        {:noreply, socket}
+
+      true ->
+        {:noreply, socket |> assign(uncommitted_at: now) |> assign_uncommitted()}
+    end
+  end
+
+  def handle_event(_event, _params, socket), do: {:noreply, socket}
+
+  @uncommitted_interval_ms 5_000
+
+  defp recently?(nil, _now), do: false
+  defp recently?(last, now), do: now - last < @uncommitted_interval_ms
 
   defp configure(socket, config) do
     assigned_scope = socket.assigns[:phoenix_kit_current_scope]
@@ -84,7 +106,10 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
       config: config,
       errors: [],
       can_write: write == :ok,
-      no_write: if(config.editable and write != :ok, do: no_write_reason(scope, write)),
+      no_write:
+        if(config.editable and write != :ok,
+          do: no_write_reason(scope, write, connected?(socket))
+        ),
       readme: readme(config),
       catalog_off: config.catalog and not Catalog.root_read_by_core?(config),
       authorize: authorizer(assigned_scope),
@@ -155,16 +180,20 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
 
   defp assign_uncommitted(socket), do: socket
 
-  defp no_write_reason(nil, _write),
+  # The first, disconnected render has no scope (`ScopeHook`): read only
+  # for a moment, nothing to explain.
+  defp no_write_reason(nil, _write, false), do: nil
+
+  defp no_write_reason(nil, _write, true),
     do:
       gettext(
         "The templates are editable on this server, but the page does not tell the editor who you are, so they are shown read only (the module's scope hook is not set up)."
       )
 
-  defp no_write_reason(_scope, {:error, :disabled}),
+  defp no_write_reason(_scope, {:error, :disabled}, _connected),
     do: gettext("The templates editor is switched off: the templates are shown read only.")
 
-  defp no_write_reason(_scope, _forbidden),
+  defp no_write_reason(_scope, _forbidden, _connected),
     do:
       gettext(
         "The templates are editable on this server, but not by you: changing them needs the “%{permission}” permission.",
@@ -306,7 +335,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
           <PhoenixKitWeb.Components.Core.Markdown.markdown content={@readme} compact />
         </div>
 
-        <div :if={@config.editable} class="flex flex-col items-start gap-2">
+        <div :if={@config.editable and @can_write} class="flex flex-col items-start gap-2">
           <button
             id="templates-editor-uncommitted-check"
             type="button"

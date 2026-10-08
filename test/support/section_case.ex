@@ -18,7 +18,7 @@ defmodule PhoenixKitTemplatesEditor.SectionCase do
   @config_keys ~w(root editable name_prefixes locales base_locale layout_group layout_groups
                   preview sample_variables describe_variables complete? sent_by test_send
                   block_placeholders raw_variables email_fallback shared_layout_editable
-                  overridable catalog watch)a
+                  overridable catalog watch max_templates max_root_bytes)a
 
   @doc "Sets the keys of `config :phoenix_kit_templates_editor` to `values` for this test."
   def configure(values) do

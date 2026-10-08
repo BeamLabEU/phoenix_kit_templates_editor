@@ -18,9 +18,16 @@ defmodule PhoenixKitTemplatesEditor.Web.ScopeHook do
   Without it the section has no scope and shows the templates read-only.
   The hook reads nothing but the scope core put on the socket and changes
   nothing on it.
+
+  Only a connected LiveView's process keeps the scope. A page's first,
+  disconnected render runs in the HTTP connection's process, which serves
+  the connection's next requests too (keep-alive, a proxy's pooled
+  connection) and runs no hook after the render: there the hook removes
+  whatever an earlier request left and keeps nothing, and the section shows
+  the files read only until the page connects, a moment later.
   """
 
-  import Phoenix.LiveView, only: [attach_hook: 4]
+  import Phoenix.LiveView, only: [attach_hook: 4, connected?: 1]
 
   alias PhoenixKit.Users.Auth.Scope
 
@@ -28,15 +35,20 @@ defmodule PhoenixKitTemplatesEditor.Web.ScopeHook do
 
   @doc false
   def on_mount(_name, _params, _session, socket) do
-    socket = remember(socket)
-    socket = attach_hook(socket, __MODULE__, :after_render, &remember/1)
+    if connected?(socket) do
+      socket = remember(socket)
+      socket = attach_hook(socket, __MODULE__, :after_render, &remember/1)
 
-    socket =
-      if socket.router,
-        do: attach_hook(socket, __MODULE__, :handle_params, &remember_params/3),
-        else: socket
+      socket =
+        if socket.router,
+          do: attach_hook(socket, __MODULE__, :handle_params, &remember_params/3),
+          else: socket
 
-    {:cont, socket}
+      {:cont, socket}
+    else
+      Process.delete(@key)
+      {:cont, socket}
+    end
   end
 
   @doc """
