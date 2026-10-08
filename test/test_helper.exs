@@ -69,6 +69,15 @@ Application.put_env(:phoenix_kit_templates_editor, :test_repo_available, repo_av
 # Routes.path/1 reads the URL prefix from this cache; "/" means none.
 :persistent_term.put({PhoenixKit.Config, :url_prefix}, "/")
 
+# The endpoint `live_isolated/3` mounts the editor's test host on.
+Application.put_env(:phoenix_kit_templates_editor, PhoenixKitTemplatesEditor.Test.Endpoint,
+  secret_key_base: String.duplicate("phoenix_kit_templates_editor", 3),
+  live_view: [signing_salt: "editor-test"],
+  server: false
+)
+
+{:ok, _pid} = PhoenixKitTemplatesEditor.Test.Endpoint.start_link()
+
 if repo_available do
   ExUnit.start()
 else

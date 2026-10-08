@@ -7,3 +7,6 @@
 .elixir_ls/
 erl_crash.dump
 *.log
+
+# ExUnit @tag :tmp_dir directories
+/tmp/
