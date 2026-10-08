@@ -28,7 +28,7 @@ defmodule PhoenixKitTemplatesEditor.Config do
   | `describe_variables` | `nil` | `(name) -> %{variable => description}`, shown in the variables panel |
   | `complete?` | `nil` | `(name, locale) -> boolean`; `nil` — subject and body on `base_locale` |
   | `sent_by` | `nil` | `(name) -> :core \\| :host` — who sends the email; `nil`: core for an email of core's catalogue, the host for its own |
-  | `test_send` | `nil` | `(name, locale, user) -> :ok \\| {:ok, term} \\| {:error, reason}` — "Send to me" for the host's own emails; `nil`, and for core's and the modules' emails: `PhoenixKit.Mailer` |
+  | `test_send` | `nil` | `(name, locale, user) -> {:ok, address} \\| :ok \\| {:ok, term} \\| {:error, reason}` — "Send to me" for the host's own emails (`address`: where it went, if not to the user); `nil`, and for core's and the modules' emails: `PhoenixKit.Mailer` |
   | `block_placeholders` | `[]` | variables that stand as a block of their own (taken out of `<p>`) |
   | `raw_variables` | `[]` | variables allowed in `{{{x}}}` besides `content`, `header`, `footer` |
   | `email_fallback` | `true` | whether emails get a locale-less *Fallback* tab |

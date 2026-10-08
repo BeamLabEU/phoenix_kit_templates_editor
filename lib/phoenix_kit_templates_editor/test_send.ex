@@ -8,9 +8,10 @@ defmodule PhoenixKitTemplatesEditor.TestSend do
     * The user must see the tab (`PhoenixKitTemplatesEditor.authorize(scope, :read)`).
     * Not more often than once in 30 s per user (`PhoenixKitTemplatesEditor.Throttle`).
     * The host's own email is sent by its `test_send` callback when it
-      has one — `test_send(name, locale, user)`, returning `:ok`,
-      `{:ok, _}` or `{:error, reason}` (the host's own way of sending, its
-      test mode included). Otherwise, and always for an email core or a
+      has one — `test_send(name, locale, user)`, returning `{:ok, address}`
+      (where it went: a test mode may send it elsewhere), `:ok` or
+      `{:ok, _}` (to the user) or `{:error, reason}` (the host's own way of
+      sending, its test mode included). Otherwise, and always for an email core or a
       module sends, through `PhoenixKit.Mailer.send_from_template/4`: such
       an email with its catalogue entry's built-in text, samples and
       layout; the host's own from the root's files with its
@@ -37,7 +38,8 @@ defmodule PhoenixKitTemplatesEditor.TestSend do
 
   @doc """
   Sends email `name` in `locale` to the user of `scope`; `entry` is its
-  catalogue entry (`nil` — one of the host's). `{:ok, address}` or
+  catalogue entry (`nil` — one of the host's). `{:ok, address}` — where
+  it went: the user's address, or the one the host's callback names — or
   `{:error, message}` in the page's language. Options: `:interval` (ms).
   """
   @spec deliver(Config.t(), Scope.t() | nil, String.t(), String.t(), map() | nil, keyword()) ::
@@ -51,6 +53,7 @@ defmodule PhoenixKitTemplatesEditor.TestSend do
 
       case result do
         :ok -> {:ok, user.email}
+        {:ok, address} -> {:ok, address}
         {:error, reason} -> {:error, reason}
       end
     end
@@ -114,6 +117,7 @@ defmodule PhoenixKitTemplatesEditor.TestSend do
   defp call(fun, args), do: apply(fun, args)
 
   defp result(:ok), do: :ok
+  defp result({:ok, address}) when is_binary(address) and address != "", do: {:ok, address}
   defp result({:ok, _whatever}), do: :ok
   defp result({:error, reason}) when is_binary(reason), do: {:error, reason}
   defp result({:error, reason}), do: {:error, inspect(reason)}
@@ -152,7 +156,8 @@ defmodule PhoenixKitTemplatesEditor.TestSend do
     outcome =
       case result do
         :ok -> "sent"
-        {:error, reason} -> "failed: #{reason}"
+        {:ok, _address} -> "sent"
+        {:error, reason} -> "failed: #{inspect(reason)}"
       end
 
     Logger.info(

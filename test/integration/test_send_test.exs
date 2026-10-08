@@ -69,6 +69,20 @@ defmodule PhoenixKitTemplatesEditor.Integration.TestSendTest do
     assert email == ctx.user.email
   end
 
+  # The host's own way of sending may send elsewhere (a test mode): the
+  # notice names where the email went, not where it was meant to.
+  test "the address the host's callback says it sent to", ctx do
+    config = %{ctx.config | test_send: fn _name, _locale, _user -> {:ok, "test@shop.example"} end}
+
+    assert TestSend.deliver(config, ctx.scope, "shop_offer", "en", nil) ==
+             {:ok, "test@shop.example"}
+  end
+
+  test "an answer that names no address: the user's", ctx do
+    config = %{ctx.config | test_send: fn _name, _locale, _user -> {:ok, %{id: 1}} end}
+    assert TestSend.deliver(config, ctx.scope, "shop_offer", "en", nil) == {:ok, ctx.user.email}
+  end
+
   test "once in 30 s per user", ctx do
     config = %{ctx.config | test_send: fn _name, _locale, _user -> :ok end}
 
@@ -103,7 +117,22 @@ defmodule PhoenixKitTemplatesEditor.Integration.TestSendTest do
       end)
 
     assert log =~
-             "test email \"shop_offer\" (en) to user #{ctx.user.uuid}: failed: test mode is off"
+             ~s|test email "shop_offer" (en) to user #{ctx.user.uuid}: failed: "test mode is off"|
+  end
+
+  test "a reason with a line break stays on one line of the log", ctx do
+    config = %{
+      ctx.config
+      | test_send: fn _name, _locale, _user -> {:error, "line one\nFORGED log line"} end
+    }
+
+    Logger.put_module_level(TestSend, :info)
+    on_exit(fn -> Logger.delete_module_level(TestSend) end)
+
+    log = capture_log(fn -> TestSend.deliver(config, ctx.scope, "shop_offer", "en", nil) end)
+
+    assert log =~ ~s|failed: "line one\\nFORGED log line"|
+    refute log =~ ~r/^FORGED/m
   end
 
   test "without a callback, the host's own email through PhoenixKit's mailer", ctx do
