@@ -37,7 +37,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorIncompleteTest do
 
       refute flagged?(view, "order_offer")
       refute flagged?(view, "order_markdown")
-      refute has_element?(view, "#editor-shared [id*=incomplete]")
+      refute has_element?(view, "#editor-layouts [id*=incomplete]")
 
       assert view |> element("#editor-messages-incomplete-order_russian") |> render() =~
                "#{@hint} et"

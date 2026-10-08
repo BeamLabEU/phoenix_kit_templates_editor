@@ -85,6 +85,42 @@ defmodule PhoenixKitTemplatesEditor.Web.SectionTest do
     end
   end
 
+  describe "layouts" do
+    setup %{tmp_dir: root} do
+      put(root, "_header", "html.html", "<b>Shared</b>")
+      put(root, "_footer-shop-partner", "html.html", "<b>Partner</b>")
+      put(root, "_footer-shopx", "html.html", "<b>Not ours</b>")
+      put(root, "shop_offer", "layout.txt", "shop-partner")
+      :ok
+    end
+
+    test "the config's layout groups: the default first, the namespace exact, the email's choice",
+         %{tmp_dir: root} do
+      base_config(root, name_prefixes: ["shop_"], layout_group: "shop")
+      view = mount_section()
+
+      assert has_element?(view, "#templates-editor-layout-shop", "default")
+      assert has_element?(view, "#templates-editor-layout-shop [phx-value-name=_header-shop]")
+
+      assert has_element?(
+               view,
+               "#templates-editor-layout-shop-partner [phx-value-name=_footer-shop-partner]"
+             )
+
+      refute has_element?(view, "[phx-value-name=_footer-shopx]")
+      refute has_element?(view, "[phx-value-name=_header]")
+
+      view |> element("#templates-editor button[phx-value-name=shop_offer]") |> render_click()
+      assert has_element?(view, "#templates-editor-email-layout-current", "shop-partner")
+    end
+
+    test "the shared parts with shared_layout_editable: true", %{tmp_dir: root} do
+      base_config(root, layout_group: "shop", shared_layout_editable: true)
+
+      assert has_element?(mount_section(), "#templates-editor-shared [phx-value-name=_header]")
+    end
+  end
+
   describe "the project's notes" do
     test "README.<page language>.md beside the templates, as sanitized Markdown",
          %{tmp_dir: root} do

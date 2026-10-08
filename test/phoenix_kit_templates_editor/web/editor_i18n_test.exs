@@ -39,7 +39,8 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorI18nTest do
     html = select(view, "order_offer")
 
     assert html =~ "Письма"
-    assert html =~ "Шапки, подвалы и макеты"
+    assert html =~ "Оформления"
+    assert html =~ "унаследован: стандартный из ядра"
     assert html =~ "Название в списках. В письме не отправляется."
     assert has_element?(view, "#editor [role=tab][phx-value-locale='']", "Общий")
     assert has_element?(view, "#editor-parts button[value=save]", "Сохранить")

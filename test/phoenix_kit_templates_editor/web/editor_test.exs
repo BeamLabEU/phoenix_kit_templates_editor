@@ -22,14 +22,14 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
   @convert %{to_text: {Host, :to_text}, markdown_to_html: {Host, :markdown_to_html}}
 
   describe "the list" do
-    test "shows only names under the prefixes, shared parts in their own group",
+    test "shows only names under the prefixes, layout parts with their layout",
          %{tmp_dir: root} do
       seed(root)
       view = mount_editor(root)
       html = render(view)
 
       assert has_element?(view, "#editor-messages [phx-value-name=order_offer]")
-      assert has_element?(view, "#editor-shared [phx-value-name=_header-shop]")
+      assert has_element?(view, "#editor-layout-shop [phx-value-name=_header-shop]")
       refute has_element?(view, "#editor-messages [phx-value-name=_header-shop]")
       refute html =~ "secret_other"
     end

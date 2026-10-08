@@ -322,6 +322,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
           root={@config.root}
           editable={@can_write}
           name_prefixes={@config.name_prefixes}
+          layout_group={@config.layout_group}
+          layout_groups={@config.layout_groups}
+          shared_layout_editable={@config.shared_layout_editable}
           locales={@config.locales}
           base_locale={@config.base_locale}
           complete?={@config.complete?}

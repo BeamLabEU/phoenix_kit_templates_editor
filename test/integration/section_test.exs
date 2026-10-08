@@ -100,6 +100,39 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionTest do
     end
   end
 
+  describe "layouts through the tab" do
+    test "a writer sets an email's layout and makes a new one; without the permission, refused",
+         %{root: root} do
+      view = mount_section(scope: writer())
+      select(view, "shop_offer")
+
+      view
+      |> form("#templates-editor-layouts-create",
+        layout_create: %{name: "shop-partner", copy_from: "shop"}
+      )
+      |> render_submit()
+
+      assert File.read!(Path.join([root, "_header-shop-partner", "html.html"])) =~ "SHOP-HEADER"
+
+      view
+      |> form("#templates-editor-email-layout", email_layout: %{group: "shop-partner"})
+      |> render_change()
+
+      assert File.read!(Path.join([root, "shop_offer", "layout.txt"])) == "shop-partner"
+
+      send(view.pid, {:scope, scope(["settings", "templates_editor"])})
+      _ = render(view)
+
+      html =
+        view
+        |> form("#templates-editor-email-layout", email_layout: %{group: ""})
+        |> render_change()
+
+      assert html =~ "You are not allowed to change templates"
+      assert File.read!(Path.join([root, "shop_offer", "layout.txt"])) == "shop-partner"
+    end
+  end
+
   test "a new template's directory and file are left group-writable", %{root: root} do
     view = mount_section(scope: writer())
 

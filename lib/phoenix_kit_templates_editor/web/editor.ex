@@ -38,7 +38,25 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       or delete: names starting with one of these strings. Checked on every
       select, save, create, copy and delete. Anything but a list counts as
       `[]`, and entries that are not non-empty strings are dropped. Default
-      `[]`, which shows nothing.
+      `[]`, which shows nothing. A prefix shaped like a layout part
+      (`_header-shop`) is a namespace, not a string prefix: it allows that
+      part of layout `shop` and `shop-…`, not `_header-shopx`; a plain
+      prefix never allows a layout part. Whatever the prefixes, the shared
+      `_header`/`_footer`/`_layout` are refused unless
+      `:shared_layout_editable` is `true`, and so is every name in
+      `:reserved_names` (`PhoenixKitTemplatesEditor.Names`).
+    * `:layout_group` — the layout of an email without `layout.txt`: listed
+      first, marked default, and the *default* choice of an email's layout.
+      Default `nil`.
+    * `:layout_groups` — layout namespaces: every part of `g` and `g-…`
+      may be shown, created and written. Default `[]`.
+    * `:shared_layout_editable` — `true` to allow the shared
+      `_header`/`_footer`/`_layout`, which core's own emails use too.
+      Default `false`.
+    * `:reserved_names` — names never shown or created. Default `:catalog`:
+      the emails core and every other module send
+      (`PhoenixKitTemplatesEditor.Names.reserved_names/0`), asked on each
+      update.
     * `:locales` — the language tabs, in order; anything but a list of
       non-empty strings is cleaned the way `:name_prefixes` is. A last tab, *Fallback*, edits
       the locale-less files (`text.txt`), used for any language without its
@@ -128,9 +146,18 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   ## What it does
 
-    * Lists the visible templates, captioned with their `label` part, with
-      names starting with `_` (headers, footers, layouts) in a group of
-      their own.
+    * Lists the visible templates, captioned with their `label` part: the
+      emails, then the layouts (`PhoenixKitTemplatesEditor.Layouts`) — the
+      default first, each with its header, footer and page layout, its own
+      (opened in the editor) or inherited (the shared part, or core's), and
+      the emails using it — then any other name starting with `_`.
+    * Creates a layout as a copy of one with parts of its own (every part
+      directory, `Overrides.copy_template/3`), and deletes one no email
+      uses — the emails using it are named instead — after a confirmation
+      that asks again. `:create` and `:delete` for `authorize`.
+    * Gives an open email (on disk) a *Layout* field: the default, or one of
+      the layouts; it writes `layout.txt` or deletes it for the default
+      (`:save` for `authorize`), and the preview is drawn again at once.
     * Edits the `label`, `subject`, `text`, `markdown` and `html` parts per
       language tab. Saving writes the parts that changed; a part saved empty
       has its file deleted, so the message falls back to the next file in
@@ -157,7 +184,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     * Creates a template empty (it exists on disk once its first part is
       saved) or as a copy of a listed one — every file in its directory,
       including any of the host's own beside the parts
-      (`Overrides.copy_template/3`).
+      (`Overrides.copy_template/3`) and its `layout.txt`. The host's own
+      files are listed in the form, ticked, once the source is chosen; one
+      left unticked is removed from the copy.
     * A file that is not UTF-8 is shown as such, read-only, and never
       written over: fix it on disk.
     * Deletes a template, after a confirmation.
@@ -170,9 +199,12 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   require Logger
 
+  alias PhoenixKit.Email.Layout
   alias PhoenixKit.Templates
   alias PhoenixKit.Templates.Overrides
   alias PhoenixKitTemplatesEditor.Files
+  alias PhoenixKitTemplatesEditor.Layouts
+  alias PhoenixKitTemplatesEditor.Names
 
   @parts [:label, :subject, :text, :markdown, :html]
 
@@ -199,7 +231,16 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
        base_locale: nil,
        complete?: nil,
        base_language: nil,
+       layout_group: nil,
+       layout_groups: [],
+       shared_layout_editable: false,
+       reserved_names: :catalog,
+       rules: %{prefixes: [], layout_groups: [], shared_layout_editable: false, reserved: []},
        templates: [],
+       layouts: [],
+       confirm_layout_delete: nil,
+       create_from: nil,
+       create_extras: [],
        selected: nil,
        draft?: false,
        locale: nil,
@@ -302,7 +343,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       when is_binary(name) do
     case Map.get(params, "copy_from", "") do
       copy_from when is_binary(copy_from) ->
-        {:noreply, permitted(socket, :create, &create(&1, String.trim(name), copy_from))}
+        {:noreply, permitted(socket, :create, &create(&1, String.trim(name), copy_from, params))}
 
       _malformed ->
         {:noreply, socket}
@@ -350,6 +391,52 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
        if socket.assigns.confirm_fallback_delete? and fallback_deletable?(socket),
          do: delete_fallback(socket),
          else: assign(socket, confirm_fallback_delete?: false)
+     end)}
+  end
+
+  # The create form's source changed: the host's own files in it are listed
+  # to choose from (all taken by default).
+  def handle_event("create_change", %{"create" => %{"copy_from" => from}}, socket)
+      when is_binary(from) do
+    if from == socket.assigns.create_from,
+      do: {:noreply, socket},
+      else: {:noreply, socket |> assign(create_from: from) |> assign_create_extras()}
+  end
+
+  def handle_event("set_layout", %{"email_layout" => %{"group" => group}}, socket)
+      when is_binary(group) do
+    {:noreply,
+     permitted(socket, :save, fn socket ->
+       if email_layout_writable?(socket), do: set_layout(socket, group), else: socket
+     end)}
+  end
+
+  def handle_event(
+        "create_layout",
+        %{"layout_create" => %{"name" => name, "copy_from" => from}},
+        socket
+      )
+      when is_binary(name) and is_binary(from) do
+    {:noreply, permitted(socket, :create, &create_layout(&1, String.trim(name), from))}
+  end
+
+  def handle_event("delete_layout", %{"group" => group}, socket) when is_binary(group) do
+    {:noreply,
+     socket
+     |> assign(notice: nil, confirm_layout_delete: nil)
+     |> permitted(:delete, &request_layout_delete(&1, group))}
+  end
+
+  def handle_event("cancel_delete_layout", _params, socket),
+    do: {:noreply, assign(socket, confirm_layout_delete: nil)}
+
+  def handle_event("confirm_delete_layout", _params, socket) do
+    {:noreply,
+     permitted(socket, :delete, fn socket ->
+       case socket.assigns.confirm_layout_delete do
+         nil -> socket
+         group -> delete_layout(socket, group)
+       end
      end)}
   end
 
@@ -635,7 +722,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     Overrides.write(root, name, part, locale, value)
   end
 
-  defp create(socket, name, copy_from) do
+  defp create(socket, name, copy_from, params) do
     cond do
       not Overrides.valid_name?(name) ->
         notice(
@@ -648,15 +735,8 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
           )
         )
 
-      not allowed?(socket, name) ->
-        notice(
-          socket,
-          :error,
-          gettext("“%{name}” is not allowed here: names must start with %{prefixes}.",
-            name: name,
-            prefixes: Enum.map_join(socket.assigns.name_prefixes, ", ", &"“#{&1}”")
-          )
-        )
+      refusal = name_refusal(socket, name) ->
+        notice(socket, :error, refusal)
 
       File.exists?(Path.join(socket.assigns.root, name)) ->
         notice(socket, :error, gettext("“%{name}” already exists.", name: name))
@@ -666,23 +746,72 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
       # Only a template on disk can be copied; a draft has no directory.
       exists?(socket, copy_from) ->
-        copy(socket, copy_from, name)
+        copy(socket, copy_from, name, skipped_files(socket, copy_from, params))
 
       true ->
         notice(socket, :error, gettext("There is no “%{name}” to copy.", name: copy_from))
     end
   end
 
+  # Why `rules` refuse a name, in words; `nil` when they allow it.
+  defp name_refusal(socket, name) do
+    case Names.check(name, socket.assigns.rules) do
+      :ok ->
+        nil
+
+      {:error, :reserved} ->
+        gettext("“%{name}” is not created here: core or a module sends this email.", name: name)
+
+      {:error, :shared} ->
+        gettext(
+          "“%{name}” is shared by every email, core’s own (sign-in, password reset) among them: not editable here.",
+          name: name
+        )
+
+      {:error, :namespace} ->
+        gettext("“%{name}” is not in this editor’s layouts (%{layouts}).",
+          name: name,
+          layouts: describe_namespaces(socket)
+        )
+
+      {:error, :prefix} ->
+        gettext("“%{name}” is not allowed here: names must start with %{prefixes}.",
+          name: name,
+          prefixes: Enum.map_join(plain_prefixes(socket), ", ", &"“#{&1}”")
+        )
+    end
+  end
+
+  defp plain_prefixes(socket), do: Enum.reject(socket.assigns.name_prefixes, &Names.chrome/1)
+
+  defp describe_namespaces(socket) do
+    case Names.namespaces(socket.assigns.rules) do
+      [] -> gettext("none")
+      namespaces -> Enum.map_join(namespaces, ", ", &"“#{&1}”, “#{&1}-…”")
+    end
+  end
+
+  # The host's own files the user left unticked in the create form — only
+  # when the form's list was made for this very source.
+  defp skipped_files(socket, from, %{"keep_for" => from, "keep" => keep}) when is_list(keep),
+    do: Files.host_files(socket.assigns.root, from) -- Enum.filter(keep, &is_binary/1)
+
+  defp skipped_files(_socket, _from, _params), do: []
+
   # The whole directory, not just the parts this editor shows: a host's own
-  # files beside them (who a message is for, say) belong to the template.
-  defp copy(socket, from, name) do
+  # files beside them (who a message is for, say) belong to the template,
+  # but for those the user chose to leave out.
+  defp copy(socket, from, name, skipped) do
     case Overrides.copy_template(socket.assigns.root, from, name) do
       {:ok, paths} ->
+        {paths, left} = leave_out(socket.assigns.root, name, paths, skipped)
+
         notified =
           socket |> notify_written(paths) |> then_notify_changed(socket, name)
 
         notice =
           {:info, gettext("Created “%{name}” as a copy of “%{from}”.", name: name, from: from)}
+          |> with_notified(left)
 
         socket
         |> assign(notice: with_notified(notice, notified), draft?: false)
@@ -692,6 +821,26 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       {:error, reason} ->
         notice(socket, :error, gettext("Not copied: %{reason}", reason: describe(reason)))
     end
+  end
+
+  # Removes the files a copy was told to leave out from the new template.
+  defp leave_out(_root, _name, paths, []), do: {paths, :ok}
+
+  defp leave_out(root, name, paths, skipped) do
+    results = for file <- skipped, do: {file, File.rm(Path.join([root, name, file]))}
+    removed = for {file, :ok} <- results, do: Path.join([root, name, file])
+
+    left =
+      case for({file, {:error, _reason}} <- results, do: file) do
+        [] ->
+          :ok
+
+        files ->
+          {:warning,
+           gettext("%{files} could not be left out of the copy.", files: Enum.join(files, ", "))}
+      end
+
+    {paths -- removed, left}
   end
 
   defp delete(socket) do
@@ -748,21 +897,274 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     |> preview_selected()
   end
 
+  ## Layouts
+
+  # The open email's layout: its `layout.txt` written with the group, or
+  # deleted for the default. Only a layout the rules allow; the preview is
+  # drawn in it at once.
+  defp set_layout(socket, group) do
+    %{root: root, selected: name} = socket.assigns
+    template = Enum.find(socket.assigns.templates, &(&1.name == name))
+    file? = Enum.any?(template.files, &(&1.part == :layout))
+
+    result =
+      cond do
+        group == "" and not file? ->
+          :unchanged
+
+        group == "" ->
+          with :ok <- Overrides.delete(root, name, :layout, nil), do: {:ok, []}
+
+        not layout_allowed?(socket, group) ->
+          {:error, :not_a_layout}
+
+        group == template.layout ->
+          :unchanged
+
+        true ->
+          Overrides.write(root, name, :layout, nil, group)
+      end
+
+    socket |> layout_set(result, name, group) |> load_templates() |> keep_selection() |> preview()
+  end
+
+  defp layout_set(socket, :unchanged, _name, _group),
+    do: notice(socket, :info, gettext("No changes."))
+
+  defp layout_set(socket, {:error, :not_a_layout}, _name, group) do
+    notice(
+      socket,
+      :error,
+      gettext("“%{group}” is not one of this editor’s layouts: nothing was changed.",
+        group: group
+      )
+    )
+  end
+
+  defp layout_set(socket, {:error, reason}, _name, _group),
+    do: notice(socket, :error, gettext("Not saved: %{errors}", errors: describe(reason)))
+
+  defp layout_set(socket, {:ok, paths}, name, group) do
+    notified = socket |> notify_written(paths) |> then_notify_changed(socket, name)
+
+    message =
+      if group == "",
+        do: gettext("“%{name}” now has the default layout.", name: name),
+        else: gettext("“%{name}” now has the layout “%{group}”.", name: name, group: group)
+
+    assign(socket, notice: with_notified({:info, message}, notified))
+  end
+
+  defp layout_allowed?(socket, group),
+    do: Layout.valid_group?(group) and Names.group_allowed?(group, socket.assigns.rules)
+
+  # A new layout: every part of its own an existing layout has, copied
+  # under the new name.
+  defp create_layout(socket, group, from) do
+    socket = load_templates(socket)
+    kinds = own_kinds(socket.assigns, from)
+
+    cond do
+      not Layout.valid_group?(group) ->
+        notice(
+          socket,
+          :error,
+          gettext(
+            "“%{name}” is not a valid layout name: use lowercase letters, digits and “-”.",
+            name: group
+          )
+        )
+
+      not layout_allowed?(socket, group) or
+          not Enum.all?(kinds, &Names.part_allowed?(&1, group, socket.assigns.rules)) ->
+        notice(
+          socket,
+          :error,
+          gettext("“%{name}” is not in this editor’s layouts (%{layouts}).",
+            name: group,
+            layouts: describe_namespaces(socket)
+          )
+        )
+
+      layout_exists?(socket, group) ->
+        notice(socket, :error, gettext("“%{name}” already exists.", name: group))
+
+      kinds == [] ->
+        notice(socket, :error, gettext("There is no layout “%{name}” to copy.", name: from))
+
+      true ->
+        copy_layout(socket, from, group, kinds)
+    end
+  end
+
+  defp copy_layout(socket, from, group, kinds) do
+    case Layouts.copy(socket.assigns.root, from, group, kinds) do
+      {:ok, created} ->
+        written = notify_written(socket, Enum.flat_map(created, &elem(&1, 1)))
+        changed = for {name, _paths} <- created, do: notify_changed(socket, name)
+
+        notice =
+          {:info,
+           gettext("Created the layout “%{name}” as a copy of “%{from}”.",
+             name: group,
+             from: from
+           )}
+
+        socket
+        |> assign(notice: with_notified(notice, first_failure([written | changed])))
+        |> load_templates()
+
+      {:error, reason} ->
+        notice(socket, :error, gettext("Not copied: %{reason}", reason: describe(reason)))
+    end
+  end
+
+  defp layout_exists?(socket, group) do
+    Enum.any?(socket.assigns.layouts, &(&1.group == group)) or
+      Enum.any?(Names.kinds(), fn kind ->
+        File.exists?(Path.join(socket.assigns.root, Names.part_name(kind, group)))
+      end)
+  end
+
+  # The parts of `group` that are its own and this editor shows.
+  defp own_kinds(assigns, group) do
+    shown = MapSet.new(assigns.templates, & &1.name)
+
+    case Enum.find(assigns.layouts, &(&1.group == group)) do
+      %{parts: parts} ->
+        for %{source: :own} = part <- parts, MapSet.member?(shown, part.name), do: part.kind
+
+      nil ->
+        []
+    end
+  end
+
+  # Asks for a confirmation — unless an email uses the layout: then it says
+  # which, and nothing more happens.
+  defp request_layout_delete(socket, group) do
+    socket = load_templates(socket)
+
+    case layout_deletable(socket, group) do
+      {:ok, _kinds} -> assign(socket, confirm_layout_delete: group)
+      {:in_use, emails} -> notice(socket, :error, layout_in_use(socket, group, emails))
+      :error -> socket
+    end
+  end
+
+  # Asked again on the confirmation: an email may have taken the layout
+  # since.
+  defp delete_layout(socket, group) do
+    socket = socket |> assign(confirm_layout_delete: nil) |> load_templates()
+
+    case layout_deletable(socket, group) do
+      {:ok, kinds} ->
+        {result, deleted} =
+          case Layouts.delete(socket.assigns.root, group, kinds) do
+            {:ok, deleted} ->
+              {{:info, gettext("Deleted the layout “%{name}”.", name: group)}, deleted}
+
+            {:error, reason, deleted} ->
+              {{:error, gettext("Not deleted: %{reason}", reason: describe(reason))}, deleted}
+          end
+
+        changed = for name <- deleted, do: notify_changed(socket, name)
+
+        socket
+        |> assign(notice: with_notified(result, first_failure(changed)))
+        |> load_templates()
+        |> keep_selection()
+
+      {:in_use, emails} ->
+        notice(socket, :error, layout_in_use(socket, group, emails))
+
+      :error ->
+        socket
+    end
+  end
+
+  defp layout_deletable(socket, group) do
+    %{layouts: layouts} = socket.assigns
+
+    case {Enum.find(layouts, &(&1.group == group)), own_kinds(socket.assigns, group)} do
+      {nil, _kinds} -> :error
+      {_layout, []} -> :error
+      {%{emails: []}, kinds} -> {:ok, kinds}
+      {%{emails: emails}, _kinds} -> {:in_use, emails}
+    end
+  end
+
+  defp layout_in_use(socket, group, emails) do
+    gettext("“%{group}” is the layout of %{emails}: give them another layout first.",
+      group: group,
+      emails: describe_emails(socket.assigns, emails)
+    )
+  end
+
+  # Emails by name, but those this editor does not show only counted.
+  defp describe_emails(assigns, emails) do
+    shown = MapSet.new(assigns.templates, & &1.name)
+    {shown, hidden} = Enum.split_with(emails, &MapSet.member?(shown, &1))
+
+    case {shown, length(hidden)} do
+      {shown, 0} ->
+        Enum.join(shown, ", ")
+
+      {[], count} ->
+        gettext("%{count} not shown here", count: count)
+
+      {shown, count} ->
+        gettext("%{emails} and %{count} more not shown here",
+          emails: Enum.join(shown, ", "),
+          count: count
+        )
+    end
+  end
+
+  defp first_failure(results), do: Enum.find(results, :ok, &(&1 != :ok))
+
+  # The open email (not a draft, not a layout part) whose layout.txt may be
+  # written.
+  defp email_layout_writable?(socket) do
+    %{selected: name, draft?: draft?} = socket.assigns
+
+    is_binary(name) and not String.starts_with?(name, "_") and not draft? and
+      exists?(socket, name) and writable?(socket, name)
+  end
+
   ## State
 
   defp load_templates(socket) do
+    %{root: root, rules: rules, layout_group: default} = socket.assigns
+    listing = Overrides.list(root)
+
     templates =
-      for %{name: name, files: files} <- Overrides.list(socket.assigns.root),
+      for %{name: name, files: files} <- listing,
           allowed?(socket, name) do
         %{
           name: name,
           files: files,
           caption: caption(socket, name, files),
-          incomplete?: incomplete?(socket.assigns, name, files)
+          incomplete?: incomplete?(socket.assigns, name, files),
+          layout:
+            if(String.starts_with?(name, "_"), do: nil, else: Layouts.email_layout(root, files))
         }
       end
 
-    assign(socket, templates: templates)
+    socket
+    |> assign(templates: templates, layouts: Layouts.list(listing, root, rules, default))
+    |> assign_create_extras()
+  end
+
+  # The host's own files in the create form's source, to tick.
+  defp assign_create_extras(socket) do
+    %{root: root, create_from: from} = socket.assigns
+
+    extras =
+      if is_binary(root) and is_binary(from) and exists?(socket, from),
+        do: Files.host_files(root, from),
+        else: []
+
+    assign(socket, create_extras: extras)
   end
 
   # An email (no leading "_") not complete in the base language: a host's
@@ -850,7 +1252,12 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   defp clear_transient(socket), do: socket |> assign(notice: nil) |> no_confirmations()
 
   defp no_confirmations(socket),
-    do: assign(socket, confirm_delete?: false, confirm_fallback_delete?: false)
+    do:
+      assign(socket,
+        confirm_delete?: false,
+        confirm_fallback_delete?: false,
+        confirm_layout_delete: nil
+      )
 
   defp deselect(socket) do
     assign(socket,
@@ -1142,9 +1549,10 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   # With no usable root there is nothing to write to, whatever the host says.
   defp editable?(assigns), do: assigns.editable == true and is_binary(assigns.root)
 
-  defp allowed?(socket, name) do
-    is_binary(name) and String.starts_with?(name, socket.assigns.name_prefixes)
-  end
+  # Spec §4.10 Б11: the shared layout parts, the emails core and other
+  # modules send, and layout groups outside the namespace are refused
+  # whatever the prefixes say (`PhoenixKitTemplatesEditor.Names`).
+  defp allowed?(socket, name), do: Names.check(name, socket.assigns.rules) == :ok
 
   # A host's mistake (no list, an empty prefix that would match every name)
   # allows nothing rather than everything, or a crash. The same goes for
@@ -1158,15 +1566,32 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     } = socket.assigns
 
     locales = locales |> non_empty_strings() |> Enum.uniq()
+    prefixes = non_empty_strings(prefixes)
+
+    layout_groups =
+      socket.assigns.layout_groups |> non_empty_strings() |> Enum.filter(&Layout.valid_group?/1)
+
+    layout_group = socket.assigns.layout_group
 
     assign(socket,
-      name_prefixes: non_empty_strings(prefixes),
+      name_prefixes: prefixes,
       locales: locales,
       sample_variables: if(is_map(variables), do: variables, else: %{}),
       preview_image_origins: origins |> non_empty_strings() |> Enum.filter(&origin?/1),
-      base_language: base_language(socket.assigns.base_locale, locales)
+      base_language: base_language(socket.assigns.base_locale, locales),
+      layout_group: if(Layout.valid_group?(layout_group), do: layout_group),
+      rules: %{
+        prefixes: prefixes,
+        layout_groups: layout_groups,
+        shared_layout_editable: socket.assigns.shared_layout_editable == true,
+        reserved: reserved_names(socket.assigns.reserved_names)
+      }
     )
   end
+
+  # The emails core and other modules send; a host may pass its own list.
+  defp reserved_names(names) when is_list(names), do: non_empty_strings(names)
+  defp reserved_names(_catalog), do: Names.reserved_names()
 
   defp base_language(locale, _locales) when is_binary(locale) and locale != "", do: locale
   defp base_language(_none, locales), do: List.first(locales)
@@ -1309,7 +1734,12 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     assigns =
       assign(assigns,
         messages: Enum.reject(assigns.templates, &String.starts_with?(&1.name, "_")),
-        shared: Enum.filter(assigns.templates, &String.starts_with?(&1.name, "_")),
+        shared: Enum.filter(assigns.templates, &shared_part?(&1.name)),
+        layout_sources:
+          for(%{group: group} <- assigns.layouts, own_any?(assigns, group), do: group),
+        email: selected_email(assigns),
+        layout_emails:
+          Map.new(assigns.layouts, &{&1.group, describe_layout_emails(assigns, &1.emails)}),
         tabs: tabs(assigns, assigns.selected),
         fallback_used: fallback_used?(assigns, assigns.selected),
         fallback_unused: unused_fallback?(assigns),
@@ -1341,10 +1771,86 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             base_language={@base_language}
             myself={@myself}
           />
+          <div :if={@layouts != []} id={"#{@id}-layouts"} class="flex flex-col gap-2">
+            <span class="text-sm font-semibold">{gettext("Layouts")}</span>
+            <.layout_entry
+              :for={layout <- @layouts}
+              id={"#{@id}-layout-#{layout.group}"}
+              layout={layout}
+              selected={@selected}
+              templates={@templates}
+              can_delete={@can_edit && layout.group in @layout_sources}
+              emails={@layout_emails[layout.group]}
+              myself={@myself}
+            />
+
+            <div
+              :if={@confirm_layout_delete}
+              id={"#{@id}-layouts-delete"}
+              role="alert"
+              class="alert alert-warning flex-col items-start text-sm"
+            >
+              <span>
+                {gettext(
+                  "Delete the layout “%{name}”: its own header, footer and page layout, in every language?",
+                  name: @confirm_layout_delete
+                )}
+              </span>
+              <div class="flex gap-2">
+                <button
+                  id={"#{@id}-layouts-delete-confirm"}
+                  type="button"
+                  phx-click="confirm_delete_layout"
+                  phx-target={@myself}
+                  class="btn btn-sm btn-error"
+                >
+                  {gettext("Delete")}
+                </button>
+                <button
+                  id={"#{@id}-layouts-delete-cancel"}
+                  type="button"
+                  phx-click="cancel_delete_layout"
+                  phx-target={@myself}
+                  class="btn btn-sm btn-ghost"
+                >
+                  {gettext("Cancel")}
+                </button>
+              </div>
+            </div>
+
+            <form
+              :if={@can_edit && @layout_sources != []}
+              id={"#{@id}-layouts-create"}
+              phx-submit="create_layout"
+              phx-target={@myself}
+              class="flex flex-col gap-2"
+            >
+              <span class="text-sm font-semibold">{gettext("New layout")}</span>
+              <input
+                type="text"
+                name="layout_create[name]"
+                aria-label={gettext("Layout name")}
+                class="input input-sm w-full font-mono"
+                placeholder={List.first(Names.namespaces(@rules), gettext("name"))}
+                autocomplete="off"
+              />
+              <select
+                name="layout_create[copy_from]"
+                aria-label={gettext("Start from")}
+                class="select select-sm w-full"
+              >
+                <option :for={group <- @layout_sources} value={group}>
+                  {gettext("Copy of layout %{name}", name: group)}
+                </option>
+              </select>
+              <button type="submit" class="btn btn-sm">{gettext("Create layout")}</button>
+            </form>
+          </div>
+
           <.template_group
             :if={@shared != []}
             id={"#{@id}-shared"}
-            title={gettext("Headers, footers and layouts")}
+            title={gettext("Shared parts")}
             templates={@shared}
             selected={@selected}
             myself={@myself}
@@ -1354,6 +1860,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             :if={@can_edit}
             id={"#{@id}-create"}
             phx-submit="create"
+            phx-change="create_change"
             phx-target={@myself}
             class="flex flex-col gap-2"
           >
@@ -1376,6 +1883,25 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
                 {gettext("Copy of %{name}", name: template.name)}
               </option>
             </select>
+            <fieldset
+              :if={@create_extras != []}
+              id={"#{@id}-create-extras"}
+              class="fieldset text-sm"
+            >
+              <legend class="fieldset-legend">{gettext("Also copy the host’s own files:")}</legend>
+              <input type="hidden" name="create[keep_for]" value={@create_from} />
+              <input type="hidden" name="create[keep][]" value="" />
+              <label :for={file <- @create_extras} class="label font-mono text-xs">
+                <input
+                  type="checkbox"
+                  name="create[keep][]"
+                  value={file}
+                  checked
+                  class="checkbox checkbox-xs"
+                />
+                {file}
+              </label>
+            </fieldset>
             <button type="submit" class="btn btn-sm">{gettext("Create")}</button>
           </form>
         </aside>
@@ -1397,6 +1923,38 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
               {gettext("Delete")}
             </button>
           </div>
+
+          <form
+            :if={@email && @can_edit}
+            id={"#{@id}-email-layout"}
+            phx-change="set_layout"
+            phx-target={@myself}
+            class="flex items-center gap-2"
+          >
+            <label for={"#{@id}-email-layout-group"} class="text-sm font-semibold">
+              {gettext("Layout")}
+            </label>
+            <select
+              id={"#{@id}-email-layout-group"}
+              name="email_layout[group]"
+              class="select select-sm w-auto"
+            >
+              <option value="" selected={is_nil(@email.layout)}>
+                {default_layout_label(@layout_group)}
+              </option>
+              <option
+                :for={group <- layout_options(@layouts, @email.layout)}
+                value={group}
+                selected={group == @email.layout}
+              >
+                {group}
+              </option>
+            </select>
+          </form>
+          <p :if={@email && !@can_edit} id={"#{@id}-email-layout-current"} class="text-sm">
+            <span class="font-semibold">{gettext("Layout")}:</span>
+            {@email.layout || default_layout_label(@layout_group)}
+          </p>
 
           <div :if={@confirm_delete?} role="alert" class="alert alert-warning">
             <span>{gettext("Delete “%{name}” and all its files?", name: @selected)}</span>
@@ -1639,6 +2197,63 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   end
 
   attr(:id, :string, required: true)
+  attr(:layout, :map, required: true)
+  attr(:selected, :string, default: nil)
+  attr(:templates, :list, required: true)
+  attr(:can_delete, :boolean, default: false)
+  attr(:emails, :string, required: true)
+  attr(:myself, :any, required: true)
+
+  # One layout: its parts, each its own (opens in the editor) or inherited,
+  # and the emails using it.
+  defp layout_entry(assigns) do
+    assigns = assign(assigns, shown: MapSet.new(assigns.templates, & &1.name))
+
+    ~H"""
+    <div id={@id} class="rounded-box border border-base-300 p-2 flex flex-col gap-1">
+      <div class="flex items-center gap-2">
+        <span class="font-mono text-sm font-semibold">{@layout.group}</span>
+        <span :if={@layout.default?} class="badge badge-ghost badge-xs">{gettext("default")}</span>
+        <button
+          :if={@can_delete}
+          id={"#{@id}_delete"}
+          type="button"
+          phx-click="delete_layout"
+          phx-value-group={@layout.group}
+          phx-target={@myself}
+          class="btn btn-xs btn-ghost text-error ml-auto"
+        >
+          {gettext("Delete")}
+        </button>
+      </div>
+      <ul class="menu menu-sm w-full p-0">
+        <li :for={part <- @layout.parts} id={"#{@id}_#{part.kind}"}>
+          <button
+            :if={part.source == :own and MapSet.member?(@shown, part.name)}
+            type="button"
+            phx-click="select"
+            phx-value-name={part.name}
+            phx-target={@myself}
+            class={["flex flex-col items-start gap-0", part.name == @selected && "menu-active"]}
+          >
+            <span>{kind_title(part.kind)}</span>
+            <span class="font-mono text-xs opacity-60">{part.name}</span>
+          </button>
+          <span
+            :if={part.source != :own or not MapSet.member?(@shown, part.name)}
+            class="flex flex-col items-start gap-0 pointer-events-none"
+          >
+            <span class="opacity-70">{kind_title(part.kind)}</span>
+            <span class="text-xs opacity-60">{part_source(part.source)}</span>
+          </span>
+        </li>
+      </ul>
+      <p id={"#{@id}_emails"} class="text-xs opacity-70">{@emails}</p>
+    </div>
+    """
+  end
+
+  attr(:id, :string, required: true)
   attr(:part, :atom, required: true)
   attr(:file, :map, default: nil)
   attr(:value, :string, default: nil)
@@ -1773,6 +2388,50 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   defp part_title(:text), do: gettext("Text")
   defp part_title(:markdown), do: gettext("Markdown")
   defp part_title(:html), do: gettext("HTML")
+
+  defp kind_title(:header), do: gettext("Header")
+  defp kind_title(:footer), do: gettext("Footer")
+  defp kind_title(:layout), do: gettext("Page layout")
+
+  defp part_source(:own), do: gettext("its own, not editable here")
+  defp part_source(:shared), do: gettext("inherited: the shared one")
+  defp part_source(:core), do: gettext("inherited: core’s default")
+
+  defp default_layout_label(nil), do: gettext("default")
+  defp default_layout_label(group), do: gettext("default (%{group})", group: group)
+
+  # The layouts listed, and the email's own when it is not among them (one
+  # outside this editor's namespace, kept as it is).
+  defp layout_options(layouts, current) do
+    groups = Enum.map(layouts, & &1.group)
+    if is_nil(current) or current in groups, do: groups, else: groups ++ [current]
+  end
+
+  defp describe_layout_emails(_assigns, []), do: gettext("No email uses it.")
+
+  defp describe_layout_emails(assigns, emails),
+    do: gettext("Used by %{emails}.", emails: describe_emails(assigns, emails))
+
+  # A layout part of a listed layout is shown with its layout; the rest of
+  # the names with a leading "_" (a shared part, where allowed) on their own.
+  defp shared_part?("_" <> _ = name) do
+    case Names.chrome(name) do
+      {_kind, group} when is_binary(group) -> false
+      _shared_or_other -> true
+    end
+  end
+
+  defp shared_part?(_name), do: false
+
+  defp own_any?(assigns, group), do: own_kinds(assigns, group) != []
+
+  # The open template when it is an email on disk (not a draft, not a
+  # layout part): it has a layout to choose.
+  defp selected_email(%{selected: "_" <> _}), do: nil
+  defp selected_email(%{draft?: true}), do: nil
+
+  defp selected_email(assigns),
+    do: Enum.find(assigns.templates, &(&1.name == assigns.selected))
 
   defp part_hint(:label), do: gettext("The caption in lists. Never sent.")
   defp part_hint(:subject), do: gettext("One line.")
