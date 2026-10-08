@@ -17,11 +17,11 @@ defmodule PhoenixKitTemplatesEditor.Catalog do
   require Logger
 
   alias PhoenixKit.Email.Content
-  alias PhoenixKit.Email.Layout
   alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Templates.Overrides
   alias PhoenixKitTemplatesEditor.Config
   alias PhoenixKitTemplatesEditor.Files
+  alias PhoenixKitTemplatesEditor.Layouts
 
   @type email :: %{name: String.t(), label: String.t(), layout: String.t() | nil}
 
@@ -85,16 +85,8 @@ defmodule PhoenixKitTemplatesEditor.Catalog do
   group, else `layout_group`.
   """
   @spec group(Config.t(), [Overrides.file_entry()]) :: String.t() | nil
-  def group(%Config{root: root, layout_group: default}, files) do
-    with %{path: path} <- Enum.find(files, &(&1.part == :layout and &1.locale == nil)),
-         {:ok, content} <- Files.safe_read(root, path),
-         group = content |> String.trim_leading("\u{FEFF}") |> String.trim(),
-         true <- Layout.valid_group?(group) do
-      group
-    else
-      _none -> default
-    end
-  end
+  def group(%Config{root: root, layout_group: default}, files),
+    do: Layouts.email_layout(root, files) || default
 
   defp email?(%Config{name_prefixes: prefixes}, name),
     do: not String.starts_with?(name, "_") and String.starts_with?(name, prefixes)

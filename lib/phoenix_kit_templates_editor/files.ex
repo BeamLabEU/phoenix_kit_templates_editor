@@ -213,6 +213,36 @@ defmodule PhoenixKitTemplatesEditor.Files do
     end
   end
 
+  @doc """
+  The host's own files in template `name`: the regular files
+  `Overrides.copy_template/3` would copy (not hidden, not leading out of the
+  root) that are not template parts — `Overrides.list/1` does not show them
+  (a marker such as `audience.txt`). Sorted; `[]` for a missing template or
+  an invalid name.
+  """
+  @spec host_files(Path.t(), String.t()) :: [String.t()]
+  def host_files(root, name) when is_binary(root) and is_binary(name) do
+    dir = Path.join(root, name)
+
+    with true <- Overrides.valid_name?(name),
+         {:ok, entries} <- File.ls(dir) do
+      parts =
+        for %{name: ^name, files: files} <- Overrides.list(root),
+            %{path: path} <- files,
+            do: Path.basename(path)
+
+      entries
+      |> Enum.reject(&(String.starts_with?(&1, ".") or &1 in parts))
+      |> Enum.filter(fn file ->
+        match?({:ok, _}, Path.safe_relative(Path.join(name, file), root)) and
+          File.regular?(Path.join(dir, file))
+      end)
+      |> Enum.sort()
+    else
+      _none -> []
+    end
+  end
+
   @doc "Whether `a` and `b` are the same existing directory or file, links resolved."
   @spec same_dir?(Path.t(), Path.t()) :: boolean()
   def same_dir?(a, b) when is_binary(a) and is_binary(b) do

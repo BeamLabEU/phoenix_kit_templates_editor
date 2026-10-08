@@ -358,4 +358,25 @@ defmodule PhoenixKitTemplatesEditor.FilesTest do
       assert Files.relative(root, "/etc/passwd") == "passwd"
     end
   end
+
+  describe "host_files/2" do
+    test "the regular files a copy takes that are not template parts", %{tmp_dir: tmp} do
+      root = Path.join(tmp, "root")
+      put(root, "order_x", "subject.et.txt", "S")
+      put(root, "order_x", "layout.txt", "shop")
+      put(root, "order_x", "audience.txt", "partner")
+      put(root, "order_x", "notes.md", "n")
+      put(root, "order_x", ".tmp-write", "half")
+      File.mkdir_p!(Path.join([root, "order_x", "sub"]))
+      File.write!(Path.join(tmp, "outside.txt"), "secret")
+      File.ln_s!(Path.join(tmp, "outside.txt"), Path.join([root, "order_x", "link.txt"]))
+
+      assert Files.host_files(root, "order_x") == ["audience.txt", "notes.md"]
+    end
+
+    test "nothing for a missing template or a bad name", %{tmp_dir: root} do
+      assert Files.host_files(root, "order_none") == []
+      assert Files.host_files(root, "../etc") == []
+    end
+  end
 end

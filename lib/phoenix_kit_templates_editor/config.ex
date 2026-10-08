@@ -18,7 +18,7 @@ defmodule PhoenixKitTemplatesEditor.Config do
   |---|---|---|
   | `root` | first of `PhoenixKit.Email.Content.override_paths/0` | the templates directory; must exist |
   | `editable` | `false` | `true` (exactly) allows writing; anything else is read-only |
-  | `name_prefixes` | `[]` | which templates the editor sees and writes; `[]` shows none |
+  | `name_prefixes` | `[]` | which templates the editor sees and writes; `[]` shows none. One shaped like a layout part (`_header-shop`) is a namespace (`PhoenixKitTemplatesEditor.Names`) |
   | `locales` | PhoenixKit's enabled languages (base codes), else `[base_locale]` | the language tabs, in order |
   | `base_locale` | first of `locales`, else PhoenixKit's default language, else `"en"` | the language labels and notes fall back to |
   | `layout_group` | `nil` | the layout (`_header-<g>`, `_footer-<g>`, `_layout-<g>`) of an email without `layout.txt` |
@@ -49,6 +49,7 @@ defmodule PhoenixKitTemplatesEditor.Config do
   alias PhoenixKit.Modules.Languages
   alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Templates.Overrides
+  alias PhoenixKitTemplatesEditor.Names
 
   @type callback :: {module(), atom()} | function() | nil
 
@@ -332,7 +333,7 @@ defmodule PhoenixKitTemplatesEditor.Config do
   defp layout_groups(group, groups) do
     with {:ok, group} <- layout_group(group),
          {:ok, groups} <- given_layout_groups(groups, group) do
-      if is_nil(group) or Enum.any?(groups, &in_namespace?(group, &1)) do
+      if is_nil(group) or Enum.any?(groups, &Names.in_namespace?(group, &1)) do
         [layout_group: {:ok, group}, layout_groups: {:ok, groups}]
       else
         [layout_group: {:error, "layout_group: #{inspect(group)} is outside layout_groups"}]
@@ -364,8 +365,4 @@ defmodule PhoenixKitTemplatesEditor.Config do
     do:
       {:error, :layout_groups,
        "layout_groups: expected a list of group names, got #{inspect(value)}"}
-
-  # "andi" covers "andi" and "andi-…", not "andix".
-  defp in_namespace?(group, namespace),
-    do: group == namespace or String.starts_with?(group, namespace <> "-")
 end
