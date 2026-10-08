@@ -23,6 +23,7 @@ defmodule PhoenixKitTemplatesEditor.Watcher do
 
   require Logger
 
+  alias PhoenixKit.PubSub.Manager, as: PubSub
   alias PhoenixKitTemplatesEditor.Config
   alias PhoenixKitTemplatesEditor.Files
 
@@ -93,14 +94,18 @@ defmodule PhoenixKitTemplatesEditor.Watcher do
 
   defp entries(root, dir) do
     case File.ls(Path.join(root, dir)) do
-      {:ok, names} ->
-        for name <- names,
-            relative = if(dir == "", do: name, else: Path.join(dir, name)),
-            {:ok, stat} <- [File.lstat(Path.join(root, relative), time: :posix)],
-            do: {relative, stat}
+      {:ok, names} -> Enum.flat_map(names, &entry(root, relative(dir, &1)))
+      {:error, _reason} -> []
+    end
+  end
 
-      {:error, _reason} ->
-        []
+  defp relative("", name), do: name
+  defp relative(dir, name), do: Path.join(dir, name)
+
+  defp entry(root, relative) do
+    case File.lstat(Path.join(root, relative), time: :posix) do
+      {:ok, stat} -> [{relative, stat}]
+      {:error, _reason} -> []
     end
   end
 
@@ -109,7 +114,7 @@ defmodule PhoenixKitTemplatesEditor.Watcher do
   # Nobody listening, or PubSub not started (a bare test, a mix task): the
   # cache is dropped all the same.
   defp broadcast do
-    PhoenixKit.PubSub.Manager.broadcast(@topic, {:templates_editor, :files_changed})
+    PubSub.broadcast(@topic, {:templates_editor, :files_changed})
   rescue
     error ->
       Logger.debug("[PhoenixKitTemplatesEditor.Watcher] not broadcast: #{inspect(error)}")

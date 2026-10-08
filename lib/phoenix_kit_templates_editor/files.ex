@@ -238,8 +238,5 @@ defmodule PhoenixKitTemplatesEditor.Files do
       else: Path.basename(path)
   end
 
-  defp format_error(reason) when is_atom(reason),
-    do: reason |> :file.format_error() |> to_string()
-
-  defp format_error(reason), do: inspect(reason)
+  defp format_error(reason), do: reason |> :file.format_error() |> to_string()
 end

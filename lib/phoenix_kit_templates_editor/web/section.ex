@@ -153,12 +153,16 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
   defp readme(%Config{root: root, base_locale: base}) do
     names = Enum.uniq(["README.#{page_locale()}.md", "README.#{base}.md", "README.md"])
 
-    Enum.find_value(names, fn name ->
-      case Files.safe_read(root, Path.join(root, name)) do
-        {:ok, content} -> if String.valid?(content), do: content
-        {:error, _reason} -> nil
-      end
-    end)
+    Enum.find_value(names, &read_note(root, &1))
+  end
+
+  defp read_note(root, name) do
+    with {:ok, content} <- Files.safe_read(root, Path.join(root, name)),
+         true <- String.valid?(content) do
+      content
+    else
+      _none -> nil
+    end
   end
 
   defp page_locale do

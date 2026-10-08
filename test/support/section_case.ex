@@ -29,15 +29,13 @@ defmodule PhoenixKitTemplatesEditor.SectionCase do
     for key <- @config_keys, do: Application.delete_env(:phoenix_kit_templates_editor, key)
     for {key, value} <- values, do: Application.put_env(:phoenix_kit_templates_editor, key, value)
 
-    ExUnit.Callbacks.on_exit(fn ->
-      for {key, value} <- previous do
-        case value do
-          {:ok, value} -> Application.put_env(:phoenix_kit_templates_editor, key, value)
-          :error -> Application.delete_env(:phoenix_kit_templates_editor, key)
-        end
-      end
-    end)
+    ExUnit.Callbacks.on_exit(fn -> Enum.each(previous, &restore/1) end)
   end
+
+  defp restore({key, {:ok, value}}),
+    do: Application.put_env(:phoenix_kit_templates_editor, key, value)
+
+  defp restore({key, :error}), do: Application.delete_env(:phoenix_kit_templates_editor, key)
 
   @doc "A scope holding `keys`."
   def scope(keys), do: %Scope{cached_permissions: MapSet.new(keys)}

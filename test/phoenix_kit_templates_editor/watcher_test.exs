@@ -11,6 +11,7 @@ defmodule PhoenixKitTemplatesEditor.WatcherTest do
   # template paths.
   use ExUnit.Case, async: false
 
+  alias PhoenixKit.PubSub.Manager, as: PubSub
   alias PhoenixKit.Templates
   alias PhoenixKit.Templates.Overrides
   alias PhoenixKitTemplatesEditor.Watcher
@@ -109,7 +110,7 @@ defmodule PhoenixKitTemplatesEditor.WatcherTest do
       root = Path.join(tmp, "templates")
       path = put(root, "order_x", "subject.et.txt", "Old")
       core = core_link!(tmp, root)
-      PhoenixKit.PubSub.Manager.subscribe(Watcher.topic())
+      PubSub.subscribe(Watcher.topic())
 
       before = Watcher.snapshot(root)
       assert {subject(root), subject(core)} == {"Old", "Old"}
