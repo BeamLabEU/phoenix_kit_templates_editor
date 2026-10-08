@@ -139,6 +139,11 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       is all it takes. A host passes its permission check here (for
       example `fn _action -> MyApp.authorize(scope, :write) end`), so a
       permission taken away while the page is open counts at once.
+    * `:journal` — `{module, function}` or a 1-arity function, called with
+      an event map after every change on disk — `%{action: :file_saved,
+      template:, part:, locale:, before:, after:}` and the like
+      (`PhoenixKitTemplatesEditor.Journal` lists them) — for an activity
+      log. A failure is logged; the change stands. Default `nil`.
     * `:base_locale` — the language an email must be complete in to be
       sent (a host's send window leaves out the rest). Default: the first
       of `:locales`; none, no check.
@@ -300,6 +305,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
        layout_values: nil,
        sent_by: nil,
        module_emails: [],
+       journal: nil,
        # The variables of the open part (`Variables.context/2`), made when
        # the form is given it.
        var_context: nil,
@@ -635,6 +641,10 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     saved = for {part, {:ok, _paths}} <- results, do: part
     errors = for {part, {:error, reason}} <- results, do: {part, reason}
 
+    for {part, change} <- changes, part in saved do
+      journal(socket, saved_event(change, name, part, locale, socket.assigns.contents[part]))
+    end
+
     notified =
       socket
       |> notify_written(paths)
@@ -659,6 +669,31 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   # selected template's.
   defp open_first_preview(socket, :unsaved), do: open_preview(socket)
   defp open_first_preview(socket, _previous), do: socket
+
+  defp saved_event({:write, value}, name, part, locale, file) do
+    %{
+      action: :file_saved,
+      template: name,
+      part: part,
+      locale: locale,
+      before: file_content(file),
+      after: value
+    }
+  end
+
+  defp saved_event(:delete, name, part, locale, file) do
+    %{
+      action: :file_deleted,
+      template: name,
+      part: part,
+      locale: locale,
+      before: file_content(file),
+      after: nil
+    }
+  end
+
+  defp file_content(%{content: content}), do: content
+  defp file_content(_none), do: nil
 
   # A refused save leaves the form as the user sent it.
   defp keep_form(socket, params) do
@@ -1089,6 +1124,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     case Overrides.copy_template(socket.assigns.root, from, name) do
       {:ok, paths} ->
         {paths, left} = leave_out(socket.assigns.root, name, paths, skipped)
+        journal(socket, %{action: :template_copied, template: name, from: from})
 
         notified =
           socket |> notify_written(paths) |> then_notify_changed(socket, name)
@@ -1136,6 +1172,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       case result do
         :ok ->
           changed = if socket.assigns.draft?, do: nil, else: name
+          if changed, do: journal(socket, %{action: :template_deleted, template: name})
 
           with_notified(
             {:info, gettext("Deleted “%{name}”.", name: name)},
@@ -1171,6 +1208,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         errors ->
           {:error, gettext("Not deleted: %{errors}", errors: describe_errors(errors))}
       end
+
+    if deleted != [],
+      do: journal(socket, %{action: :fallback_deleted, template: name, parts: deleted})
 
     notified = notify_changed(socket, if(deleted == [], do: nil, else: name))
 
@@ -1229,6 +1269,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     do: notice(socket, :error, gettext("Not saved: %{errors}", errors: describe(reason)))
 
   defp layout_set(socket, {:ok, paths}, name, group) do
+    journal(socket, %{action: :layout_set, template: name, layout: if(group != "", do: group)})
     notified = socket |> notify_written(paths) |> then_notify_changed(socket, name)
 
     message =
@@ -1284,6 +1325,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   defp copy_layout(socket, from, group, kinds) do
     case Layouts.copy(socket.assigns.root, from, group, kinds) do
       {:ok, created} ->
+        journal(socket, %{action: :layout_created, layout: group, from: from})
         written = notify_written(socket, Enum.flat_map(created, &elem(&1, 1)))
         changed = for {name, _paths} <- created, do: notify_changed(socket, name)
 
@@ -1351,6 +1393,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
               {{:error, gettext("Not deleted: %{reason}", reason: describe(reason))}, deleted}
           end
 
+        if deleted != [], do: journal(socket, %{action: :layout_deleted, layout: group})
         changed = for name <- deleted, do: notify_changed(socket, name)
 
         socket
@@ -1835,6 +1878,19 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       :ok
     end)
     |> tag_failure("after_change")
+  end
+
+  # What was changed, for the host's activity log; a failing callback is
+  # logged and changes nothing about the change.
+  defp journal(%{assigns: %{journal: nil}}, _event), do: :ok
+
+  defp journal(socket, event) do
+    callback = socket.assigns.journal
+
+    if callable?(callback, 1),
+      do: safely({"journal", callback, [event]}, fn -> call(callback, [event]) end)
+
+    :ok
   end
 
   defp tag_failure(:ok, _role), do: :ok

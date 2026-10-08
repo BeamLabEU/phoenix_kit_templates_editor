@@ -48,6 +48,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
   alias PhoenixKitTemplatesEditor.Config
   alias PhoenixKitTemplatesEditor.Converters
   alias PhoenixKitTemplatesEditor.Files
+  alias PhoenixKitTemplatesEditor.Journal
   alias PhoenixKitTemplatesEditor.Preview
   alias PhoenixKitTemplatesEditor.Web.Editor
   alias PhoenixKitTemplatesEditor.Web.ScopeHook
@@ -85,7 +86,8 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
       no_write: if(config.editable and write != :ok, do: no_write_reason(scope, write)),
       readme: readme(config),
       catalog_off: config.catalog and not Catalog.root_read_by_core?(config),
-      authorize: authorizer(assigned_scope)
+      authorize: authorizer(assigned_scope),
+      journal: journaller(assigned_scope)
     )
     |> assign_new(:sample_variables, fn -> Preview.sample_variables(config) end)
     |> assign_new(:layout_variables, fn -> layout_variables(config) end)
@@ -101,6 +103,11 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
   # Asked by the editor on every change, with the scope as it is then.
   defp authorizer(assigned_scope) do
     fn _action -> PhoenixKitTemplatesEditor.authorize(current_scope(assigned_scope), :write) end
+  end
+
+  # Every change, in PhoenixKit's activity log, as done by the user then.
+  defp journaller(assigned_scope) do
+    fn event -> Journal.log(current_scope(assigned_scope), event) end
   end
 
   # The editor's callbacks, made once: a new function on every update would
@@ -338,6 +345,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
           after_write={@callbacks.after_write}
           after_change={@callbacks.after_change}
           authorize={@authorize}
+          journal={@journal}
         />
       <% end %>
     </div>
