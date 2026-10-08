@@ -95,6 +95,13 @@ defmodule PhoenixKitTemplatesEditor do
   def css_sources, do: [:phoenix_kit_templates_editor]
 
   @impl PhoenixKit.Module
+  @doc """
+  `PhoenixKitTemplatesEditor.Watcher`, always: it decides in its `init/1`
+  whether to run (only where the files are edited or watched).
+  """
+  def children, do: [PhoenixKitTemplatesEditor.Watcher]
+
+  @impl PhoenixKit.Module
   def email_settings_sections do
     title = gettext("Email templates")
 

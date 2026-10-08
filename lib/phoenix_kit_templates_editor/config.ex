@@ -144,6 +144,25 @@ defmodule PhoenixKitTemplatesEditor.Config do
     end
   end
 
+  @doc """
+  The root the watcher looks after (`PhoenixKitTemplatesEditor.Watcher`):
+  `{:ok, root}` where the files are edited (`editable` is exactly `true`) or
+  watched (`watch: true`) — `watch` given as a boolean wins — `:off`
+  elsewhere, and with a root that is not a directory. Reads only `root`,
+  `editable` and `watch`: no database, so it is safe at boot.
+  """
+  @spec watch_root(keyword()) :: {:ok, Path.t()} | :off
+  def watch_root(env \\ Application.get_all_env(:phoenix_kit_templates_editor)) do
+    with [watch: {:ok, true}] <- watch(Keyword.get(env, :watch), Keyword.get(env, :editable)),
+         {:ok, root} <- root(Keyword.get(env, :root)) do
+      {:ok, root}
+    else
+      _off -> :off
+    end
+  rescue
+    _ -> :off
+  end
+
   # ── root ────────────────────────────────────────────────────────────────
 
   defp root(nil) do
