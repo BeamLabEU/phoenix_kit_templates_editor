@@ -40,4 +40,14 @@
   with a delete button. Every file is read through `Files.safe_read/2`; the
   preview frame has `referrerpolicy="no-referrer"` and a `csp` allowing
   images only inline and from the host's origins.
+- Layouts (`_header-<g>`, `_footer-<g>`, `_layout-<g>`) in the editor: the
+  layouts of `layout_groups` with their own and inherited parts and the emails
+  using each, a new layout as a copy of another, deleting one no email uses,
+  and an email's layout choice (`layout.txt`). The default preview shows a
+  layout's part around the first email using it.
+- `PhoenixKitTemplatesEditor.Names`: the shared layout parts only with
+  `shared_layout_editable: true`, the emails core and other modules send never,
+  layout groups by exact namespace (a prefix `_header-shop` no longer allows
+  `_header-shopx`). `PhoenixKitTemplatesEditor.Layouts`: a root's layouts.
+- A copy of a template lists the host's own files in it to leave out.
 - Translations: English, Estonian, Russian.

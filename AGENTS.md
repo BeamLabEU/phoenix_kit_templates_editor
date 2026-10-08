@@ -51,6 +51,7 @@ Repo-local aliases:
 - **Module key** `"templates_editor"` is identical in `module_key/0`, `permission_metadata/0`'s `:key`, the section's `:permission` and the settings prefix.
 - **Access is two keys plus the switch.** `accessible?/1` = module enabled and the scope holds `settings` and `templates_editor`; `authorize(scope, :write)` adds `Scope.can?(scope, "templates_editor.write")`. Every event that changes a file calls `authorize/2` again — never trust what was checked at mount.
 - **The section gets nothing from core but its `id`.** Core mounts `<.live_component module={…} id={…} />` with no other assigns, so the host's data comes from `PhoenixKitTemplatesEditor.Config` (and `{module, function}` callbacks in it), never from assigns. The scope comes from `Web.ScopeHook` (a host-added `extra_live_session_on_mount` hook keeping the page's `:phoenix_kit_current_scope` in the LiveView process: after `handle_params` and every render); the editor's `authorize` reads it at each event. No hook — no scope — read only.
+- **Which names are touched is `Names.check/2`, never a bare `String.starts_with?`.** The shared `_header`/`_footer`/`_layout` only with `shared_layout_editable: true`; a layout part by its group's exact namespace (`layout_groups`, or a prefix shaped like a part — `_header-andi` covers `andi`/`andi-…`, not `andix`); the emails core and other modules send (`Names.reserved_names/0`) never.
 - **Every template file is read through `Files.safe_read/2`** (or checked with `Files.check/2` before a library call reads it): no symlinks, nothing whose real path leaves the root, nothing over `Overrides.max_bytes/0`. Messages name files relative to the root (`Files.relative/2`).
 - **Work the page waits on runs bounded** (`Bounded.run/2`, 5 s): converters, the default preview, `git status`.
 - **`Config.load/1` never raises.** A bad config is `{:error, messages}`, shown as an alert on the tab; messages name the config key and never an absolute path.
@@ -79,6 +80,8 @@ lib/
     ├── files.ex                             # reload, after_write (modes), uncommitted (git), safe_read, realpath
     ├── gettext.ex                           # Gettext backend (priv/gettext)
     ├── html_text.ex                         # HTML → plain text (public)
+    ├── layouts.ex                           # a root's layouts: parts own/inherited, emails using each, copy/delete
+    ├── names.ex                             # which names an editor may touch (shared parts, namespaces, reserved emails)
     ├── preview.ex                           # the default preview (no host preview)
     ├── watcher.ex                           # child: re-reads the files every 2 s where edited/watched
     └── web/
@@ -151,4 +154,5 @@ publish has succeeded.
 ## TODOs
 
 - **The scope comes through a host-added hook** (`Web.ScopeHook`). A core change passing `:phoenix_kit_current_scope` to email settings sections would make it unnecessary; the section already prefers an assigned scope. Trigger: a core release that passes it.
+- **A reserved name has no way in yet.** `Names.check/2` refuses every email core or another module sends; the explicit override of one (spec §4.11 П2, `overridable`) comes with the "Module emails" section. Trigger: block M5.
 - **The library's cache is reset key by key** (`Overrides.reset_cache/1` walks `:persistent_term`); generation-based reset (spec §4.10 Б12) is a library change. Trigger: the library PR planned after block L.

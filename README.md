@@ -98,11 +98,11 @@ config :phoenix_kit_templates_editor, editable: true
 |---|---|---|
 | `root` | first of `PhoenixKit.Email.Content.override_paths/0` | the templates directory; it must exist |
 | `editable` | `false` | exactly `true` allows writing; anything else is read-only. Leave it unset in production |
-| `name_prefixes` | `[]` | which templates the editor sees and may write — nothing until you say |
+| `name_prefixes` | `[]` | which templates the editor sees and may write — nothing until you say. A prefix shaped like a layout part (`_header-shop`) allows that part of layout `shop` and `shop-…`, not every name starting with the string |
 | `locales` | PhoenixKit's enabled languages (base codes), else just `base_locale` | the language tabs, in order |
 | `base_locale` | first of `locales`, else PhoenixKit's default language, else `"en"` | the language labels and notes fall back to |
 | `layout_group` | `nil` | the layout (`_header-<g>`, `_footer-<g>`, `_layout-<g>`) of an email without `layout.txt` |
-| `layout_groups` | `[layout_group]` | layout namespaces the editor may show: `g` and `g-…` |
+| `layout_groups` | `[layout_group]` | layout namespaces the editor may show and create: `g` and `g-…` (not `gx`) |
 | `preview` | `nil` | your preview callback; without one the module renders its own |
 | `sample_variables` | `%{}` | a map, or `{module, function}` returning one |
 | `describe_variables` | `nil` | `(name) -> %{variable => description}` |
@@ -133,11 +133,25 @@ keeps working.
   the root that differ from git's last commit, and the list refreshes after
   every change made in the editor. Git runs without the repository's hooks or
   `GIT_*` variables and never rewrites the index.
+- **Layouts.** A layout `g` is `_header-g`, `_footer-g` and `_layout-g`; a part
+  it lacks comes from the shared `_header`/`_footer`/`_layout`, else
+  PhoenixKit's own. The tab lists the layouts in `layout_groups` — the default
+  (`layout_group`) first — with which parts are their own, which are inherited,
+  and the emails using each. A new layout is a copy of an existing one; a layout
+  goes only when no email uses it. An email's *Layout* field writes its
+  `layout.txt` (or deletes it for the default), and the preview follows at once.
+- **Names it never touches.** Whatever `name_prefixes` say: the shared
+  `_header`/`_footer`/`_layout` (they wrap PhoenixKit's sign-in and password
+  emails too) unless `shared_layout_editable: true`, and the emails PhoenixKit
+  or another module sends.
+- **Copying a template** takes every file of its directory; your own files
+  beside the parts (`audience.txt`, say) are listed to untick.
 - **Preview.** Without a `preview` callback the module renders the email as
   PhoenixKit would from these files: HTML from `html`, else Markdown, else text;
   text from `text`, else Markdown, else the HTML; your sample variables filled
   in; wrapped in the layout of the email's `layout.txt`, else `layout_group`.
-  A header, footer or layout is shown around the first email of the list. The
+  A header, footer or layout is shown around the first email using that layout
+  (else the first email, else a Lorem ipsum). The
   preview frame runs no scripts and loads no images but from your site's origin.
 - **Converters.** *Fill text from content* and *Markdown → HTML* keep
   `{{placeholders}}` as typed (link targets too); a variable in
