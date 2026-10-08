@@ -66,6 +66,9 @@ Application.put_env(:phoenix_kit_templates_editor, :test_repo_available, repo_av
 {:ok, _pid} = PhoenixKit.PubSub.Manager.start_link([])
 {:ok, _pid} = PhoenixKit.ModuleRegistry.start_link([])
 
+# "Send to me"'s once-in-30-s table, a child of the module in a host.
+{:ok, _pid} = PhoenixKitTemplatesEditor.Throttle.start_link()
+
 # Routes.path/1 reads the URL prefix from this cache; "/" means none.
 :persistent_term.put({PhoenixKit.Config, :url_prefix}, "/")
 

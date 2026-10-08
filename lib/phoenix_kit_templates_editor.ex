@@ -117,9 +117,11 @@ defmodule PhoenixKitTemplatesEditor do
   @impl PhoenixKit.Module
   @doc """
   `PhoenixKitTemplatesEditor.Watcher`, always: it decides in its `init/1`
-  whether to run (only where the files are edited or watched).
+  whether to run (only where the files are edited or watched); and
+  `PhoenixKitTemplatesEditor.Throttle`, which keeps "Send to me" to once in
+  30 s per user.
   """
-  def children, do: [PhoenixKitTemplatesEditor.Watcher]
+  def children, do: [PhoenixKitTemplatesEditor.Watcher, PhoenixKitTemplatesEditor.Throttle]
 
   @impl PhoenixKit.Module
   def email_settings_sections do
