@@ -8,8 +8,24 @@
   off by default (`templates_editor_enabled`), a card on Admin › Modules, the
   permission `templates_editor` with the sub-permission `templates_editor.write`.
 - The "Email templates" section on Settings › Emails Transactional, with a
-  button beside "Preview emails"; for now it checks the config and shows a
-  placeholder.
+  button beside "Preview emails": an introduction, hints, the project's
+  `README.<language>.md` from the templates root, the files not committed to
+  git (on a button and after every change), and the editor wired to the
+  config. Writing needs `editable: true` and `templates_editor.write`, checked
+  through `PhoenixKitTemplatesEditor.Web.ScopeHook` (a live-session hook the
+  host adds).
+- `PhoenixKitTemplatesEditor.Files`: cache reload under every path naming the
+  root, `0664`/`2775` after a write (no ownership changes), `git status`
+  without hooks or `GIT_*` variables and with a deadline, `safe_read/2`
+  refusing links, paths out of the root and oversized files.
+- `PhoenixKitTemplatesEditor.Watcher`: where files are edited or watched, a
+  change on disk drops the cache within 2 s.
+- `PhoenixKitTemplatesEditor.Converters` and `PhoenixKitTemplatesEditor.HtmlText`
+  (moved from Andi): Markdown/HTML to text and Markdown to HTML with
+  placeholders kept, size limit, deadline, linear-time patterns.
+- `PhoenixKitTemplatesEditor.Preview`: the default preview in the email's
+  layout group; `PhoenixKitTemplatesEditor.Catalog`: the host's emails for
+  core's "Preview emails" with `catalog: true`.
 - `tab_path/1`, `accessible?/1` and `authorize/2` for hosts and for per-event
   checks.
 - `PhoenixKitTemplatesEditor.Config`: reads and checks
@@ -21,5 +37,7 @@
   `authorize` on the server; an email incomplete in the base language is
   flagged (`base_locale`, `complete?`); `email_fallback: false` hides an
   email's unused Fallback tab, showing left-over locale-less files read-only
-  with a delete button.
+  with a delete button. Every file is read through `Files.safe_read/2`; the
+  preview frame has `referrerpolicy="no-referrer"` and a `csp` allowing
+  images only inline and from the host's origins.
 - Translations: English, Estonian, Russian.

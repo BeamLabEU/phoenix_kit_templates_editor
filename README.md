@@ -9,8 +9,7 @@ Your templates stay yours: one directory of files in your app, deployed with
 your code. This package is only the tool, plus a block of config that tells it
 which templates are yours and how to show them.
 
-> Status: 0.1.0, unreleased. The module registers, gates access and checks the
-> config; the editor itself is not wired into the tab yet.
+> Status: 0.1.0, unreleased.
 
 ## Installation
 
@@ -25,6 +24,34 @@ in `:phoenix_kit, :modules` is needed. Switch it on at **Admin › Modules**
 tab.
 
 Requires `phoenix_kit` 2.57.0 or later.
+
+### Let the tab know who is acting
+
+PhoenixKit mounts the tab with nothing but its id, so the module needs a hook
+in PhoenixKit's live sessions to check, on every save, who is saving:
+
+```elixir
+# config/config.exs
+config :phoenix_kit,
+  extra_live_session_on_mount: [PhoenixKitTemplatesEditor.Web.ScopeHook]
+```
+
+This is read when your router compiles. Without it the tab works, but shows the
+templates read-only and says why.
+
+### Where templates are edited: the directory
+
+The module never changes a file's owner. Where `editable: true`, make the
+templates root a setgid directory of the group that owns your tree, so what the
+server writes stays editable by the people who commit it:
+
+```bash
+chgrp -R devs priv/phoenix_kit_templates
+chmod -R g+rwX priv/phoenix_kit_templates
+find priv/phoenix_kit_templates -type d -exec chmod g+s {} +
+```
+
+New files are written `0664`, new directories `2775`.
 
 ## Who sees the tab
 
@@ -94,6 +121,37 @@ Callbacks are `{module, function}` or a function of that arity. A config that
 does not check out is shown on the tab as a list of problems — the page itself
 keeps working.
 
+## The tab
+
+- **Notes for your editors.** Put `README.<language>.md` (or `README.md`) in the
+  templates root — the language of the page first, then `base_locale`, then
+  `README.md`. It is shown above the editor as Markdown (sanitized), read-only
+  servers included. Write there what only your project knows: which variables
+  an email may use, what stops it from being sent. The template list skips
+  files in the root, so the notes never show up as a template.
+- **Not committed yet.** Where `editable: true`, a button lists the files under
+  the root that differ from git's last commit, and the list refreshes after
+  every change made in the editor. Git runs without the repository's hooks or
+  `GIT_*` variables and never rewrites the index.
+- **Preview.** Without a `preview` callback the module renders the email as
+  PhoenixKit would from these files: HTML from `html`, else Markdown, else text;
+  text from `text`, else Markdown, else the HTML; your sample variables filled
+  in; wrapped in the layout of the email's `layout.txt`, else `layout_group`.
+  A header, footer or layout is shown around the first email of the list. The
+  preview frame runs no scripts and loads no images but from your site's origin.
+- **Converters.** *Fill text from content* and *Markdown → HTML* keep
+  `{{placeholders}}` as typed (link targets too); a variable in
+  `block_placeholders` alone in a paragraph comes out of the `<p>`.
+- **Files changed on disk.** Where the files are edited (or `watch: true`), the
+  module looks at them every 2 s and drops PhoenixKit's cached templates when
+  they change — a hand edit or a `git pull` shows in the next email.
+- **Preview emails.** With `catalog: true` your emails (names under
+  `name_prefixes`, no leading `_`) appear in PhoenixKit's *Preview emails* —
+  provided `root` is the directory PhoenixKit reads emails from
+  (`config :phoenix_kit, :template_paths`); otherwise the tab says so.
+- **What is never read.** A template file that is a symbolic link, leads out of
+  the root or is larger than 256 KiB is shown as unavailable, never read.
+
 ## What this module does NOT do
 
 - **Ship templates.** No header, footer or email text comes with it; they are
@@ -101,6 +159,8 @@ keeps working.
 - **Write in production by default.** `editable` is off unless your config says
   `true`; template changes reach production through your repository and deploy.
 - **Commit to git.** It writes files; committing them is yours.
+- **Change file owners.** Writes keep the server's user; group access comes
+  from the setgid root (above).
 - **Grant access beyond `settings`.** Its key can only narrow who sees the
   email settings page.
 - **Own database tables.** One setting row (`templates_editor_enabled`) is all
