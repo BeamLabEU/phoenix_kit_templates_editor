@@ -880,17 +880,22 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   end
 
   defp raw_refusal(socket, names) do
-    allowed = raw_allowed(socket.assigns)
+    names = Enum.map_join(names, ", ", &"{{{#{&1}}}}")
 
-    gettext(
-      "Not saved: %{names} would be put into the message without escaping. Write them with two braces; three are only for %{allowed}.",
-      names: Enum.map_join(names, ", ", &"{{{#{&1}}}}"),
-      allowed:
-        if(allowed == [],
-          do: gettext("none here"),
-          else: Enum.map_join(allowed, ", ", &"{{{#{&1}}}}")
+    case raw_allowed(socket.assigns) do
+      [] ->
+        gettext(
+          "Not saved: %{names} would be put into the message without escaping. Write them with two braces: no variable is written with three here.",
+          names: names
         )
-    )
+
+      allowed ->
+        gettext(
+          "Not saved: %{names} would be put into the message without escaping. Write them with two braces; three are only for %{allowed}.",
+          names: names,
+          allowed: Enum.map_join(allowed, ", ", &"{{{#{&1}}}}")
+        )
+    end
   end
 
   defp raw_allowed(%{var_context: %{kind: :layout, raw: raw}}),

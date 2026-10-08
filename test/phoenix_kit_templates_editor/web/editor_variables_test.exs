@@ -218,6 +218,20 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorVariablesTest do
       assert {:ok, "<div>{{{documents_list}}}</div>"} = file(root, "order_offer", "html.et.html")
     end
 
+    test "with no variable allowed three braces, the refusal says none is", %{tmp_dir: root} do
+      seed(root)
+      view = mount_editor(root)
+      select(view, "order_offer")
+
+      html = save(view, %{html: "<div>{{{order_number}}}</div>"})
+
+      assert html =~
+               "Write them with two braces: no variable is written with three here."
+
+      refute html =~ "only for"
+      assert {:error, :enoent} = file(root, "order_offer", "html.et.html")
+    end
+
     test "a page layout places content, header and footer with three braces", %{tmp_dir: root} do
       seed(root)
       put(root, "_layout-shop", "html.html", "<html>{{{content}}}</html>")
