@@ -108,6 +108,16 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       is all it takes. A host passes its permission check here (for
       example `fn _action -> MyApp.authorize(scope, :write) end`), so a
       permission taken away while the page is open counts at once.
+    * `:base_locale` — the language an email must be complete in to be
+      sent (a host's send window leaves out the rest). Default: the first
+      of `:locales`; none, no check.
+    * `:complete?` — `{module, function}` or a 2-arity function, called as
+      `complete?(name, base_locale)` for every email (a name without a
+      leading `_`) on each listing; `false` flags the email in the list:
+      it will not be offered for sending. Anything else flags nothing, and
+      an exception, throw or exit is logged. Default `nil`: complete is a
+      subject and a body part (HTML, Markdown or text) in `base_locale`
+      itself — the locale-less fallback does not count — none of them blank.
 
   ## What it does
 
@@ -177,6 +187,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
        after_change: nil,
        convert: nil,
        authorize: nil,
+       base_locale: nil,
+       complete?: nil,
+       base_language: nil,
        templates: [],
        selected: nil,
        draft?: false,
@@ -662,10 +675,45 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     templates =
       for %{name: name, files: files} <- Overrides.list(socket.assigns.root),
           allowed?(socket, name) do
-        %{name: name, files: files, caption: caption(socket, name, files)}
+        %{
+          name: name,
+          files: files,
+          caption: caption(socket, name, files),
+          incomplete?: incomplete?(socket.assigns, name, files)
+        }
       end
 
     assign(socket, templates: templates)
+  end
+
+  # An email (no leading "_") not complete in the base language: a host's
+  # send window leaves it out, so the list says so. The host's `complete?`
+  # decides when it gives one; only its `false` flags — a failure is logged
+  # and flags nothing.
+  defp incomplete?(%{base_language: nil}, _name, _files), do: false
+  defp incomplete?(_assigns, "_" <> _shared, _files), do: false
+
+  defp incomplete?(%{complete?: nil, base_language: locale}, _name, files),
+    do: not complete_files?(files, locale)
+
+  defp incomplete?(%{complete?: callback, base_language: locale}, name, _files) do
+    callable?(callback, 2) and
+      safely({"complete?", callback, [name, locale]}, fn -> call(callback, [name, locale]) end) ==
+        false
+  end
+
+  # A subject and a body part (HTML, Markdown or text) in `locale` itself —
+  # the locale-less fallback does not count — none of them blank.
+  defp complete_files?(files, locale) do
+    present = for %{locale: ^locale, part: part, path: path} <- files, filled?(path), do: part
+    :subject in present and Enum.any?([:html, :markdown, :text], &(&1 in present))
+  end
+
+  defp filled?(path) do
+    case File.read(path) do
+      {:ok, content} -> content |> String.replace_invalid() |> String.trim() != ""
+      {:error, _reason} -> false
+    end
   end
 
   # A parent re-render, a deletion or a change of prefixes may leave the
@@ -973,12 +1021,18 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     %{name_prefixes: prefixes, locales: locales, sample_variables: variables} =
       socket.assigns
 
+    locales = locales |> non_empty_strings() |> Enum.uniq()
+
     assign(socket,
       name_prefixes: non_empty_strings(prefixes),
-      locales: locales |> non_empty_strings() |> Enum.uniq(),
-      sample_variables: if(is_map(variables), do: variables, else: %{})
+      locales: locales,
+      sample_variables: if(is_map(variables), do: variables, else: %{}),
+      base_language: base_language(socket.assigns.base_locale, locales)
     )
   end
+
+  defp base_language(locale, _locales) when is_binary(locale) and locale != "", do: locale
+  defp base_language(_none, locales), do: List.first(locales)
 
   defp non_empty_strings(list) when is_list(list),
     do: Enum.filter(list, &(is_binary(&1) and &1 != ""))
@@ -1096,6 +1150,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             title={gettext("Messages")}
             templates={@messages}
             selected={@selected}
+            base_language={@base_language}
             myself={@myself}
           />
           <.template_group
@@ -1301,6 +1356,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   attr(:title, :string, required: true)
   attr(:templates, :list, required: true)
   attr(:selected, :string, default: nil)
+  attr(:base_language, :string, default: nil)
   attr(:myself, :any, required: true)
 
   defp template_group(assigns) do
@@ -1319,6 +1375,16 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             <span>{template.caption}</span>
             <span :if={template.caption != template.name} class="font-mono text-xs opacity-60">
               {template.name}
+            </span>
+            <span
+              :if={template.incomplete?}
+              id={"#{@id}-incomplete-#{template.name}"}
+              class="flex items-baseline gap-1 text-xs text-warning"
+            >
+              <span class="badge badge-warning badge-xs" aria-hidden="true">!</span>
+              {gettext("Not offered for sending: no subject or body in %{locale}.",
+                locale: @base_language
+              )}
             </span>
           </button>
         </li>
