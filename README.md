@@ -66,7 +66,11 @@ chmod -R g+rwX priv/phoenix_kit_templates
 find priv/phoenix_kit_templates -type d -exec chmod g+s {} +
 ```
 
-New files are written `0664`, new directories `2775`.
+Then give the server process the umask `0002` (supervisord `umask=002`,
+systemd `UMask=0002`): new files come out `0664` and new directories `2775`,
+in the root's group. The module sets no mode and no owner itself: doing that
+after a write, as the server's user, in a directory other people can write to,
+could be turned onto another file through a link put there in the meantime.
 
 ## Who sees the tab
 

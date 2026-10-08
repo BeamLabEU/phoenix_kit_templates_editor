@@ -114,22 +114,22 @@ defmodule PhoenixKitTemplatesEditor.FilesTest do
   end
 
   describe "after_write/2" do
-    # The test config logs errors only; this module's warnings are the point.
-    setup do
-      Logger.put_module_level(Files, :warning)
-      on_exit(fn -> Logger.delete_module_level(Files) end)
-    end
+    # Modes are the umask's and the root's setgid bit's (README,
+    # installation): changing them afterwards, as the server's user, in a
+    # directory others may write to, would follow a link put there in the
+    # meantime (spec §12 item 5).
+    test "leaves the modes as the write made them, drops the cache", %{tmp_dir: root} do
+      put(root, "order_x", "subject.et.txt", "Old")
+      assert subject(root) == "Old"
 
-    test "new files 0664, new directories 2775, the cache dropped", %{tmp_dir: root} do
-      {:ok, paths} = Overrides.write(root, "order_new", :subject, "et", "Hi")
-      [dir, file] = paths
-      File.chmod!(dir, 0o700)
+      {:ok, paths} = Overrides.write(root, "order_x", :subject, "et", "New")
+      [file] = paths
       File.chmod!(file, 0o600)
 
       assert Files.after_write(root, paths) == :ok
 
-      assert mode(dir) == 0o2775
-      assert mode(file) == 0o664
+      assert mode(file) == 0o600
+      assert subject(root) == "New"
     end
 
     test "a written file is readable at once through core's path string", %{tmp_dir: tmp} do
@@ -157,32 +157,16 @@ defmodule PhoenixKitTemplatesEditor.FilesTest do
       link = Path.join([root, "order_x", "text.txt"])
       File.ln_s!(outside, link)
 
-      log =
-        capture_log([level: :warning], fn ->
-          assert {:warning, message} = Files.after_write(root, [link])
-          assert message =~ "order_x/text.txt"
-          refute message =~ tmp
-        end)
-
+      assert Files.after_write(root, [link]) == :ok
       assert mode(outside) == 0o600
-      assert log =~ "order_x/text.txt"
     end
 
-    test "a failed chmod is a warning, the save stands and the cache is dropped",
-         %{tmp_dir: root} do
+    test "a path already gone: the cache is dropped all the same", %{tmp_dir: root} do
       path = put(root, "order_x", "subject.et.txt", "Old")
       assert subject(root) == "Old"
       File.write!(path, "New")
-      gone = Path.join([root, "order_x", "text.et.txt"])
 
-      log =
-        capture_log([level: :warning], fn ->
-          assert {:warning, message} = Files.after_write(root, [gone])
-          assert message =~ "order_x/text.et.txt"
-          refute message =~ root
-        end)
-
-      assert log =~ "order_x/text.et.txt"
+      assert Files.after_write(root, [Path.join([root, "order_x", "text.et.txt"])]) == :ok
       assert subject(root) == "New"
     end
   end
@@ -268,6 +252,46 @@ defmodule PhoenixKitTemplatesEditor.FilesTest do
       refute File.exists?(marker)
     end
 
+    # A filter driver is a command the repository's config names, run by
+    # `git status` on every file whose stat changed (spec §12 item 6): the
+    # repository's owner must not run commands as the server's user.
+    test "runs no filter driver the repository configures", %{tmp_dir: tmp} do
+      {repo, root} = repo!(tmp)
+      log = Path.join(tmp, "filter-ran")
+
+      File.write!(Path.join(repo, ".gitattributes"), "*.txt filter=evil\n*.html filter=proc\n")
+      put(root, "order_offer", "html.et.html", "<p>Hi</p>")
+      git!(repo, ["add", "."])
+      git!(repo, ["commit", "-q", "--no-verify", "-m", "attributes"])
+
+      git!(repo, ["config", "filter.evil.clean", "sh -c 'echo clean >> #{log}; cat'"])
+      git!(repo, ["config", "filter.proc.process", "sh -c 'echo process >> #{log}; exit 1'"])
+      git!(repo, ["config", "filter.ev.il.clean", "sh -c 'echo dotted >> #{log}; cat'"])
+
+      later = System.os_time(:second) + 3600
+      File.touch!(Path.join([root, "order_offer", "text.et.txt"]), later)
+      File.touch!(Path.join([root, "order_offer", "html.et.html"]), later)
+      File.write!(Path.join([root, "order_offer", "subject.et.txt"]), "Changed")
+
+      assert Files.uncommitted(root) == ["priv/templates/order_offer/subject.et.txt"]
+      refute File.exists?(log)
+    end
+
+    test "a filter driver whose name git's -c cannot carry: nothing asked", %{tmp_dir: tmp} do
+      {repo, root} = repo!(tmp)
+      log = Path.join(tmp, "filter-ran")
+      File.write!(Path.join(repo, ".gitattributes"), "*.txt filter=a=b\n")
+      git!(repo, ["config", "filter.a=b.clean", "sh -c 'echo ran >> #{log}; cat'"])
+      File.write!(Path.join([root, "order_offer", "subject.et.txt"]), "Changed")
+      Logger.put_module_level(Files, :warning)
+      on_exit(fn -> Logger.delete_module_level(Files) end)
+
+      assert capture_log([level: :warning], fn -> assert Files.uncommitted(root) == [] end) =~
+               "filter"
+
+      refute File.exists?(log)
+    end
+
     test "ignores GIT_* variables of the server's environment", %{tmp_dir: tmp} do
       {_repo, root} = repo!(tmp)
       {other_repo, _other_root} = repo!(Path.join(tmp, "other"))
@@ -348,6 +372,89 @@ defmodule PhoenixKitTemplatesEditor.FilesTest do
 
       assert Files.safe_read(root, Path.join([root, "order_x", "text.txt"])) == {:error, :enoent}
       assert Files.safe_read(root, Path.join(root, "order_x")) == {:error, :unsafe_path}
+    end
+  end
+
+  describe "check_template/2" do
+    test "a template whose files are all plain: :ok; no such template: :ok", %{tmp_dir: root} do
+      put(root, "order_x", "subject.et.txt", "Hi")
+      put(root, "order_x", "audience.txt", "partner")
+      File.mkdir_p!(Path.join([root, "order_x", "sub"]))
+
+      assert Files.check_template(root, "order_x") == :ok
+      assert Files.check_template(root, "order_missing") == :ok
+    end
+
+    test "a link among its files, even to a file inside the root: refused", %{tmp_dir: root} do
+      put(root, "order_x", "notes.txt", "inside")
+      File.ln_s!("notes.txt", Path.join([root, "order_x", "text.et.txt"]))
+
+      assert Files.check_template(root, "order_x") ==
+               {:error, {:unsafe_path, Path.join([root, "order_x", "text.et.txt"])}}
+    end
+
+    test "a hidden file is not looked at: nothing reads it", %{tmp_dir: root} do
+      put(root, "order_x", "subject.et.txt", "Hi")
+      File.ln_s!("/etc/hostname", Path.join([root, "order_x", ".subject.et.txt.tmp"]))
+
+      assert Files.check_template(root, "order_x") == :ok
+    end
+
+    test "a template directory that is a link, or not a directory: refused", %{tmp_dir: tmp} do
+      root = Path.join(tmp, "templates")
+      outside = Path.join(tmp, "outside")
+      put(outside, "order_x", "subject.et.txt", "Hi")
+      File.mkdir_p!(root)
+      File.ln_s!(Path.join(outside, "order_x"), Path.join(root, "order_x"))
+      File.write!(Path.join(root, "order_file"), "x")
+
+      assert {:error, {:unsafe_path, _path}} = Files.check_template(root, "order_x")
+      assert {:error, {:unsafe_path, _path}} = Files.check_template(root, "order_file")
+    end
+
+    test "a name that is not one template directory: refused", %{tmp_dir: root} do
+      assert {:error, {:unsafe_path, _path}} = Files.check_template(root, "../x")
+      assert {:error, {:unsafe_path, _path}} = Files.check_template(root, "a/b")
+    end
+
+    test "a named pipe among its files: refused, never opened", %{tmp_dir: root} do
+      put(root, "order_x", "subject.et.txt", "Hi")
+      {_out, 0} = System.cmd("mkfifo", [Path.join([root, "order_x", "text.et.txt"])])
+
+      assert {:error, {:unsafe_path, _path}} = Files.check_template(root, "order_x")
+    end
+  end
+
+  describe "check_template_dir/2" do
+    test "a missing template or a real directory: :ok", %{tmp_dir: root} do
+      put(root, "order_x", "notes.txt", "inside")
+      File.ln_s!("notes.txt", Path.join([root, "order_x", "text.et.txt"]))
+
+      assert Files.check_template_dir(root, "order_x") == :ok
+      assert Files.check_template_dir(root, "order_new") == :ok
+    end
+
+    test "a template directory that is a link, even inside the root: refused", %{tmp_dir: root} do
+      put(root, "order_x", "subject.et.txt", "Hi")
+      File.ln_s!("order_x", Path.join(root, "order_y"))
+
+      assert {:error, {:unsafe_path, _path}} = Files.check_template_dir(root, "order_y")
+      assert {:error, {:unsafe_path, _path}} = Files.check_template_dir(root, "..")
+    end
+  end
+
+  describe "usage/1" do
+    test "the templates and the bytes of their files and the root's own", %{tmp_dir: root} do
+      put(root, "order_x", "subject.et.txt", "12345")
+      put(root, "order_y", "text.et.txt", "123")
+      File.mkdir_p!(Path.join(root, ".order_z.tmp"))
+      File.write!(Path.join(root, "README.md"), "12")
+
+      assert Files.usage(root) == %{templates: 2, bytes: 10}
+    end
+
+    test "no root: nothing", %{tmp_dir: tmp} do
+      assert Files.usage(Path.join(tmp, "missing")) == %{templates: 0, bytes: 0}
     end
   end
 

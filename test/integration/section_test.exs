@@ -133,7 +133,10 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionTest do
     end
   end
 
-  test "a new template's directory and file are left group-writable", %{root: root} do
+  # The README's setup, not the module: a setgid root passes its group on,
+  # and the module changes no mode after the write (spec §12 item 5).
+  test "a new template's directory takes the root's setgid bit", %{root: root} do
+    File.chmod!(root, 0o2775)
     view = mount_section(scope: writer())
 
     view
@@ -143,8 +146,8 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionTest do
     save(view, %{subject: "Fresh"})
 
     dir = Path.join(root, "shop_new")
-    assert Bitwise.band(File.stat!(dir).mode, 0o7777) == 0o2775
-    assert Bitwise.band(File.stat!(Path.join(dir, "subject.en.txt")).mode, 0o7777) == 0o664
+    assert Bitwise.band(File.stat!(dir).mode, 0o2000) == 0o2000
+    assert File.read!(Path.join(dir, "subject.en.txt")) == "Fresh"
   end
 
   describe "changed and not committed" do

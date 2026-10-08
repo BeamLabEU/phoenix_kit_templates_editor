@@ -79,7 +79,7 @@ lib/
     ├── catalog.ex                           # the host's emails: list order, entries for core's email preview
     ├── config.ex                            # Config.load/1 — config :phoenix_kit_templates_editor, checked
     ├── converters.ex                        # the editor's buttons: to_text/3, markdown_to_html/2
-    ├── files.ex                             # reload, after_write (modes), uncommitted (git), safe_read, realpath
+    ├── files.ex                             # reload, after_write, uncommitted (git), safe_read, check_template, usage, realpath
     ├── gettext.ex                           # Gettext backend (priv/gettext)
     ├── html_text.ex                         # HTML → plain text (public)
     ├── journal.ex                           # changes in PhoenixKit's activity log, with a short diff
