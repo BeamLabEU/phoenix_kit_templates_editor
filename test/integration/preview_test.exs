@@ -184,6 +184,23 @@ defmodule PhoenixKitTemplatesEditor.Integration.PreviewTest do
       assert html =~ "Body of B"
     end
 
+    # Spec §4.8: the default layout is the one of every email without a
+    # layout.txt, so its parts wrap the first of those — not the first
+    # email of all, which uses another layout here.
+    test "the default layout's part around the first email with no layout.txt",
+         %{tmp_dir: root} do
+      put(root, "shop_b", "layout.txt", "shop-supplier")
+
+      {_subject, html, _text} = Preview.preview(config(root), "_header-shop", "et")
+      assert html =~ "SHOP-HEADER"
+      assert html =~ "Body of A"
+      refute html =~ "Body of B"
+
+      {_subject, html, _text} = Preview.preview(config(root), "_footer-shop-supplier", "et")
+      assert html =~ "SUPPLIER-FOOTER"
+      assert html =~ "Body of B"
+    end
+
     test "a shared part in no group: the shared chrome, not the default group's",
          %{tmp_dir: root} do
       put(root, "_header", "html.html", "<div>SHARED-HEADER</div>")
