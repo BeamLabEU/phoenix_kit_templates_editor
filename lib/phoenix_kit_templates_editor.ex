@@ -29,6 +29,8 @@ defmodule PhoenixKitTemplatesEditor do
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitTemplatesEditor.Catalog
+  alias PhoenixKitTemplatesEditor.Config
 
   # Single-sourced from mix.exs at compile time; the behaviour test asserts
   # `version/0 == Mix.Project.config()[:version]`.
@@ -117,7 +119,20 @@ defmodule PhoenixKitTemplatesEditor do
   end
 
   @impl PhoenixKit.Module
-  def email_templates, do: []
+  @doc """
+  The host's emails for core's "Preview emails" when its config says
+  `catalog: true` (`PhoenixKitTemplatesEditor.Catalog.entries/1`); `[]`
+  otherwise, and with a config that does not load. Core asks only while the
+  module is enabled.
+  """
+  def email_templates do
+    case Config.load() do
+      {:ok, config} -> Catalog.entries(config)
+      {:error, _messages} -> []
+    end
+  rescue
+    _ -> []
+  end
 
   @doc """
   The address of the tab, through `PhoenixKit.Utils.Routes.path/2` (URL
