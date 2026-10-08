@@ -238,6 +238,8 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   alias PhoenixKitTemplatesEditor.Files
   alias PhoenixKitTemplatesEditor.Layouts
   alias PhoenixKitTemplatesEditor.Names
+  alias PhoenixKitTemplatesEditor.Overriding
+  alias PhoenixKitTemplatesEditor.Sources
   alias PhoenixKitTemplatesEditor.Variables
 
   @parts [:label, :subject, :text, :markdown, :html]
@@ -305,7 +307,18 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
        layout_values: nil,
        sent_by: nil,
        module_emails: [],
+       overridable: [],
        journal: nil,
+       test_send: nil,
+       # Where each part of the open email comes from, when core sends it
+       # (`Sources.of/4`), and the names with a directory in the root.
+       sources: nil,
+       disk_names: MapSet.new(),
+       # An email of `module_emails` shown without being a template here: no
+       # file yet, or one this editor may not touch.
+       module_selected: nil,
+       module_locale: nil,
+       module_view: nil,
        # The variables of the open part (`Variables.context/2`), made when
        # the form is given it.
        var_context: nil,
@@ -419,6 +432,34 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   # The files again from disk, the cache dropped: after a hand edit, a git
   # pull or another user's save. Writes nothing, so read only may too.
   def handle_event("reload", _params, socket), do: {:noreply, reload(socket)}
+
+  # An email core or a module sends: opened in the editor once it is a
+  # template here, else shown read only with its built-in text.
+  def handle_event("select_module", %{"name" => name}, socket) when is_binary(name) do
+    cond do
+      module_email(socket.assigns, name) == nil -> {:noreply, socket}
+      exists?(socket, name) -> {:noreply, socket |> assign(notice: nil) |> select(name)}
+      true -> {:noreply, socket |> assign(notice: nil) |> open_module(name)}
+    end
+  end
+
+  def handle_event("module_locale", %{"locale" => locale}, socket) do
+    if socket.assigns.module_selected && locale in socket.assigns.locales,
+      do: {:noreply, socket |> assign(module_locale: locale) |> load_module_view()},
+      else: {:noreply, socket}
+  end
+
+  def handle_event("override_default", %{"name" => name}, socket) when is_binary(name),
+    do: {:noreply, permitted(socket, :create, &override(&1, name, :default))}
+
+  def handle_event("override_db", %{"name" => name}, socket) when is_binary(name),
+    do: {:noreply, permitted(socket, :create, &override(&1, name, :db))}
+
+  def handle_event("override_layout", %{"name" => name}, socket) when is_binary(name),
+    do: {:noreply, permitted(socket, :create, &override(&1, name, :layout))}
+
+  # Not a change: works read only too. The host's callback checks who asks.
+  def handle_event("test_send", _params, socket), do: {:noreply, test_send(socket)}
 
   def handle_event("preview_tab", %{"tab" => "html"}, socket),
     do: {:noreply, assign(socket, preview_tab: :html)}
@@ -567,7 +608,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   defp select(socket, name) do
     socket
-    |> assign(selected: name)
+    |> assign(selected: name, module_selected: nil, module_view: nil)
     |> no_confirmations()
     |> assign(locale: initial_locale(socket, name))
     |> load_contents()
@@ -1054,7 +1095,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
           )
         )
 
-      refusal = name_refusal(socket, name) ->
+      # An email core or a module sends gets a file only from its own
+      # buttons (П2), never by this form.
+      refusal = name_refusal(socket, name, overridable: []) ->
         notice(socket, :error, refusal)
 
       File.exists?(Path.join(socket.assigns.root, name)) ->
@@ -1073,8 +1116,10 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   end
 
   # Why `rules` refuse a name, in words; `nil` when they allow it.
-  defp name_refusal(socket, name) do
-    case Names.check(name, socket.assigns.rules) do
+  defp name_refusal(socket, name, opts) do
+    rules = Map.merge(socket.assigns.rules, Map.new(opts))
+
+    case Names.check(name, rules) do
       :ok ->
         nil
 
@@ -1220,6 +1265,158 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     |> keep_selection()
     |> preview_selected()
   end
+
+  ## Module emails
+
+  defp open_module(socket, name) do
+    socket
+    |> deselect()
+    |> assign(
+      module_selected: name,
+      module_locale: socket.assigns.base_language || hd_or_nil(socket.assigns.locales)
+    )
+    |> load_module_view()
+  end
+
+  defp hd_or_nil([first | _]), do: first
+  defp hd_or_nil(_none), do: nil
+
+  # What the read-only view of a module's email shows: its built-in text
+  # in the tab's language, where each part comes from, and what may be done.
+  defp load_module_view(%{assigns: %{module_selected: nil}} = socket),
+    do: assign(socket, module_view: nil)
+
+  defp load_module_view(socket) do
+    %{module_selected: name, module_locale: locale, root: root} = assigns = socket.assigns
+    entry = module_email(assigns, name)
+
+    context =
+      Variables.context(name,
+        email: email_variables(assigns, name, locale),
+        layout: assigns.layout_values || %{},
+        raw: assigns.raw_variables,
+        sent_by: :core,
+        descriptions: descriptions(assigns, name)
+      )
+
+    view = %{
+      entry: entry,
+      defaults: Overriding.defaults(entry, locale),
+      sources:
+        if(is_binary(root) and is_binary(locale), do: Sources.of(root, name, locale, entry)),
+      file?: MapSet.member?(assigns.disk_names, name),
+      overridable?: Names.check(name, assigns.rules) == :ok,
+      db?: Overriding.db_template?(name),
+      variables: Variables.panel(context)
+    }
+
+    assign(socket, module_view: view)
+  end
+
+  # Files for an email core or a module sends (П2), only where the rules
+  # let it be overridden and it has none yet.
+  defp override(socket, name, source) do
+    socket = load_templates(socket)
+    %{root: root, rules: rules} = assigns = socket.assigns
+
+    cond do
+      not override_source?(assigns, name, source) ->
+        socket
+
+      Names.check(name, rules) != :ok ->
+        notice(socket, :error, gettext("“%{name}” may not be overridden here.", name: name))
+
+      File.exists?(Path.join(root, name)) ->
+        notice(socket, :error, gettext("“%{name}” already exists.", name: name))
+
+      true ->
+        result =
+          case source do
+            :default ->
+              Overriding.from_defaults(root, module_email(assigns, name), assigns.locales)
+
+            :db ->
+              Overriding.from_db(root, name)
+
+            :layout ->
+              Overriding.from_layout_default(root, name)
+          end
+
+        overridden(socket, name, source, result)
+    end
+  end
+
+  defp override_source?(assigns, name, :layout), do: name in module_layout_names(assigns)
+  defp override_source?(assigns, name, _source), do: module_email(assigns, name) != nil
+
+  defp overridden(socket, name, source, {:ok, paths}) do
+    action = if source == :db, do: :created_from_db, else: :created_from_default
+    journal(socket, %{action: action, template: name})
+    notified = socket |> notify_written(paths) |> then_notify_changed(socket, name)
+
+    message =
+      case source do
+        :db ->
+          gettext("Created “%{name}” from the Emails module's database template.", name: name)
+
+        _built_in ->
+          gettext("Created “%{name}” from its built-in text.", name: name)
+      end
+
+    socket
+    |> assign(notice: with_notified({:info, message}, notified))
+    |> load_templates()
+    |> select(name)
+  end
+
+  defp overridden(socket, _name, _source, {:error, reason}),
+    do: notice(socket, :error, gettext("Not created: %{reason}", reason: describe(reason)))
+
+  # The parts of the layouts module emails name (`layout: "<g>"`) that the
+  # host's own layout namespaces do not cover.
+  defp module_layout_names(assigns) do
+    for group <- module_groups(assigns), kind <- Names.kinds(), do: Names.part_name(kind, group)
+  end
+
+  defp module_groups(assigns) do
+    assigns.module_emails
+    |> Names.module_groups()
+    |> Enum.reject(&Names.group_allowed?(&1, assigns.rules))
+  end
+
+  # "Send to me": the host's callback, with the open email and language.
+  defp test_send(socket) do
+    %{test_send: callback} = assigns = socket.assigns
+
+    with {name, locale} <- test_send_target(assigns),
+         answer when answer != :none <- ask(callback, "test_send", [name, locale]) do
+      test_sent(answer, socket)
+    else
+      _none -> socket
+    end
+  end
+
+  defp test_sent({:ok, address}, socket) when is_binary(address),
+    do: notice(socket, :info, gettext("Sent to %{address}.", address: address))
+
+  defp test_sent({:error, message}, socket) when is_binary(message),
+    do: notice(socket, :error, gettext("Not sent: %{reason}", reason: message))
+
+  defp test_sent(other, socket),
+    do: notice(socket, :error, gettext("Not sent: %{reason}", reason: describe_host(other)))
+
+  # The email to send: the open one (an email on disk, not a layout part),
+  # or the module email shown; in the tab's language, else the base one.
+  defp test_send_target(%{module_selected: name, module_locale: locale})
+       when is_binary(name),
+       do: {name, locale}
+
+  defp test_send_target(%{selected: "_" <> _}), do: nil
+  defp test_send_target(%{selected: nil}), do: nil
+  defp test_send_target(%{draft?: true}), do: nil
+
+  defp test_send_target(%{selected: name, locale: locale, base_language: base}),
+    do: {name, locale || base}
 
   ## Layouts
 
@@ -1471,14 +1668,21 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
           name: name,
           files: files,
           caption: caption(socket, name, files),
-          incomplete?: incomplete?(socket.assigns, name, files),
+          # Core resolves its emails part by part, falling back to the
+          # built-in text: one of them is never incomplete.
+          incomplete?:
+            not module_name?(socket.assigns, name) and incomplete?(socket.assigns, name, files),
           layout:
             if(String.starts_with?(name, "_"), do: nil, else: Layouts.email_layout(root, files))
         }
       end
 
     socket
-    |> assign(templates: templates, layouts: Layouts.list(listing, root, rules, default))
+    |> assign(
+      templates: templates,
+      layouts: Layouts.list(listing, root, rules, default),
+      disk_names: MapSet.new(listing, & &1.name)
+    )
     |> assign_create_extras()
   end
 
@@ -1623,7 +1827,23 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       confirm_variables: nil
     )
     |> assign_var_context()
+    |> assign_sources()
   end
+
+  # Where each part of the open email comes from — only for one core
+  # sends, in a language (core resolves a recipient's language, never the
+  # fallback tab itself).
+  defp assign_sources(%{assigns: %{var_context: %{kind: :email, sent_by: :core}}} = socket) do
+    %{root: root, selected: name, locale: locale, draft?: draft?} = socket.assigns
+
+    sources =
+      if is_binary(root) and is_binary(locale) and not draft?,
+        do: Sources.of(root, name, locale, module_email(socket.assigns, name))
+
+    assign(socket, sources: sources)
+  end
+
+  defp assign_sources(socket), do: assign(socket, sources: nil)
 
   defp assign_var_context(%{assigns: %{selected: nil}} = socket),
     do: assign(socket, var_context: nil)
@@ -1648,62 +1868,58 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   # the host's sample variables.
   defp email_variables(assigns, name, locale) do
     case module_email(assigns, name) do
-      %{variables: variables} ->
-        safely({"variables", variables, []}, fn ->
-          RecipientLocale.in_locale(locale || assigns.base_language, fn ->
-            case variables do
-              fun when is_function(fun, 0) -> fun.()
-              map -> map
-            end
-          end)
-        end)
-        |> then(fn
-          map when is_map(map) -> map
-          _failed -> %{}
-        end)
-
-      _host ->
-        assigns.sample_variables
+      %{variables: variables} -> module_variables(variables, locale || assigns.base_language)
+      _host -> assigns.sample_variables
     end
   end
 
+  defp module_variables(variables, locale) do
+    case safely({"variables", variables, []}, fn -> evaluate_variables(variables, locale) end) do
+      map when is_map(map) -> map
+      _failed -> %{}
+    end
+  end
+
+  defp evaluate_variables(fun, locale) when is_function(fun, 0),
+    do: RecipientLocale.in_locale(locale, fun)
+
+  defp evaluate_variables(map, _locale), do: map
+
+  # A host's 1-arity callback's answer to `args`; `:none` without one, or
+  # when it cannot be called. A failure is logged and answers its error.
+  defp ask(nil, _role, _args), do: :none
+
+  defp ask(callback, role, args) do
+    if callable?(callback, length(args)),
+      do: safely({role, callback, args}, fn -> call(callback, args) end),
+      else: :none
+  end
+
   defp module_email(assigns, name), do: Enum.find(assigns.module_emails, &(&1.name == name))
+
+  # An email core or a module sends: in the catalogue, or a reserved name.
+  defp module_name?(assigns, name),
+    do: name in assigns.rules.reserved or module_email(assigns, name) != nil
 
   # Who sends the email: the host's `sent_by` when it gives `:core` or
   # `:host`, else core for an email of the catalogue (`module_emails`), the
   # host for its own.
   defp sent_by(assigns, name) do
-    default = if module_email(assigns, name), do: :core, else: :host
+    default = if module_name?(assigns, name), do: :core, else: :host
 
-    case assigns.sent_by do
-      nil ->
-        default
-
-      callback ->
-        if callable?(callback, 1) do
-          case safely({"sent_by", callback, [name]}, fn -> call(callback, [name]) end) do
-            answer when answer in [:core, :host] -> answer
-            _other -> default
-          end
-        else
-          default
-        end
+    case ask(assigns.sent_by, "sent_by", [name]) do
+      answer when answer in [:core, :host] -> answer
+      _other -> default
     end
   end
 
-  defp descriptions(%{describe_variables: nil}, _name), do: %{}
-
   defp descriptions(%{describe_variables: callback}, name) do
-    if callable?(callback, 1) do
-      case safely({"describe_variables", callback, [name]}, fn -> call(callback, [name]) end) do
-        %{} = map ->
-          for {key, value} <- map, is_binary(value), into: %{}, do: {to_string(key), value}
+    case ask(callback, "describe_variables", [name]) do
+      %{} = map ->
+        for {key, value} <- map, is_binary(value), into: %{}, do: {to_string(key), value}
 
-        _other ->
-          %{}
-      end
-    else
-      %{}
+      _other ->
+        %{}
     end
   end
 
@@ -2022,7 +2238,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         prefixes: prefixes,
         layout_groups: layout_groups,
         shared_layout_editable: socket.assigns.shared_layout_editable == true,
-        reserved: reserved_names(socket.assigns.reserved_names)
+        reserved: reserved_names(socket.assigns.reserved_names),
+        overridable: overridable(socket.assigns.overridable),
+        module_groups: socket.assigns.module_emails |> module_emails() |> Names.module_groups()
       }
     )
   end
@@ -2036,6 +2254,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   defp assign_layout_values(socket),
     do: assign(socket, layout_values: Variables.layout_variables(socket.assigns.layout_group))
+
+  defp overridable(:all), do: :all
+  defp overridable(names), do: non_empty_strings(names)
 
   # Catalogue entries (`PhoenixKit.Email.Catalog`): a map with a name each.
   defp module_emails(entries) when is_list(entries),
@@ -2187,7 +2408,23 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   def render(assigns) do
     assigns =
       assign(assigns,
-        messages: Enum.reject(assigns.templates, &String.starts_with?(&1.name, "_")),
+        messages:
+          Enum.reject(
+            assigns.templates,
+            &(String.starts_with?(&1.name, "_") or module_name?(assigns, &1.name))
+          ),
+        module_list: module_list(assigns),
+        module_layouts: module_layouts(assigns),
+        auth_warning: (assigns.selected || assigns.module_selected) in Names.auth_emails(),
+        can_test_send: assigns.test_send != nil and test_send_target(assigns) != nil,
+        own_paths:
+          if(assigns.selected && is_binary(assigns.root),
+            do:
+              Map.new(@parts, fn part ->
+                {part, part_path(assigns.root, assigns.selected, part, assigns.locale)}
+              end),
+            else: %{}
+          ),
         shared: Enum.filter(assigns.templates, &shared_part?(&1.name)),
         layout_sources:
           for(%{group: group} <- assigns.layouts, own_any?(assigns, group), do: group),
@@ -2317,6 +2554,66 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             </form>
           </div>
 
+          <div
+            :if={@module_list != [] or @module_layouts != []}
+            id={"#{@id}-module-emails"}
+            class="flex flex-col gap-2"
+          >
+            <span class="text-sm font-semibold">{gettext("Module emails")}</span>
+            <p class="text-xs opacity-70">
+              {gettext(
+                "Sent by PhoenixKit and its modules in their built-in text, until an email has a file here."
+              )}
+            </p>
+            <ul :if={@module_list != []} class="menu menu-sm w-full p-0">
+              <li :for={item <- @module_list}>
+                <button
+                  type="button"
+                  phx-click={if(item.template?, do: "select", else: "select_module")}
+                  phx-value-name={item.name}
+                  phx-target={@myself}
+                  class={[
+                    "flex flex-col items-start gap-0",
+                    item.name in [@selected, @module_selected] && "menu-active"
+                  ]}
+                >
+                  <span>{item.label}</span>
+                  <span class="flex items-center gap-1 font-mono text-xs opacity-60">
+                    {item.name}
+                    <span class="badge badge-ghost badge-xs">
+                      {if(item.file?, do: gettext("file"), else: gettext("built-in text"))}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            </ul>
+            <div
+              :for={layout <- @module_layouts}
+              id={"#{@id}-module-layout-#{layout.group}"}
+              class="rounded-box border border-base-300 p-2 flex flex-col gap-1"
+            >
+              <span class="font-mono text-sm font-semibold">{layout.group}</span>
+              <div :for={part <- layout.parts} class="flex items-center gap-2 text-sm">
+                <span class="opacity-70">{kind_title(part.kind)}</span>
+                <span :if={part.file?} class="text-xs opacity-60">{gettext("has its own file")}</span>
+                <span :if={!part.file?} class="text-xs opacity-60">
+                  {part_source(part.inherited)}
+                </span>
+                <button
+                  :if={!part.file? && @can_edit && part.overridable?}
+                  id={"#{@id}-module-layout-#{layout.group}-#{part.kind}-create"}
+                  type="button"
+                  phx-click="override_layout"
+                  phx-value-name={part.name}
+                  phx-target={@myself}
+                  class="btn btn-xs ml-auto"
+                >
+                  {gettext("Create file")}
+                </button>
+              </div>
+            </div>
+          </div>
+
           <.template_group
             :if={@shared != []}
             id={"#{@id}-shared"}
@@ -2377,11 +2674,137 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         </aside>
 
         <section class="flex flex-col gap-4 lg:col-span-3">
-          <p :if={is_nil(@selected)} class="text-sm opacity-70">{gettext("Select a template.")}</p>
+          <p :if={is_nil(@selected) && is_nil(@module_view)} class="text-sm opacity-70">
+            {gettext("Select a template.")}
+          </p>
+
+          <div
+            :if={@auth_warning}
+            id={"#{@id}-auth-warning"}
+            role="alert"
+            class="alert alert-warning text-sm"
+          >
+            {gettext(
+              "This email signs people in or resets their password: a mistake in it can keep everyone out. Send it to yourself before relying on it."
+            )}
+          </div>
+
+          <div :if={@module_view} id={"#{@id}-module-email"} class="flex flex-col gap-3">
+            <div class="flex flex-wrap items-center gap-2">
+              <h3 class="text-lg font-semibold">{@module_view.entry[:label] || @module_selected}</h3>
+              <span class="font-mono text-sm opacity-60">{@module_selected}</span>
+              <button
+                :if={@can_test_send}
+                id={"#{@id}-test-send"}
+                type="button"
+                phx-click="test_send"
+                phx-target={@myself}
+                class="btn btn-sm ml-auto"
+              >
+                {gettext("Send to me")}
+              </button>
+            </div>
+            <p :if={is_binary(@module_view.entry[:description])} class="text-sm opacity-70">
+              {@module_view.entry[:description]}
+            </p>
+            <div
+              :if={!@module_view.overridable?}
+              id={"#{@id}-module-email-not-overridable"}
+              class="alert alert-info alert-soft text-sm"
+            >
+              {gettext("This email may not be overridden here: it is shown read only.")}
+            </div>
+            <div role="tablist" class="tabs tabs-box w-fit">
+              <button
+                :for={tab <- @locales}
+                type="button"
+                role="tab"
+                phx-click="module_locale"
+                phx-value-locale={tab}
+                phx-target={@myself}
+                aria-selected={to_string(tab == @module_locale)}
+                class={["tab", tab == @module_locale && "tab-active"]}
+              >
+                {tab}
+              </button>
+            </div>
+            <.sources_box
+              :if={@module_view.sources}
+              id={"#{@id}-module-email-sources"}
+              result={@module_view.sources}
+              root={@root}
+            />
+            <div class="flex flex-col gap-2">
+              <span class="text-sm font-semibold">{gettext("Built-in text")}</span>
+              <%= case @module_view.defaults do %>
+                <% {:ok, parts} -> %>
+                  <dl class="flex flex-col gap-2">
+                    <div :for={part <- Enum.filter([:subject, :markdown, :text, :html], &parts[&1])}>
+                      <dt class="text-sm opacity-70">{part_title(part)}</dt>
+                      <dd>
+                        <pre class="whitespace-pre-wrap rounded-box bg-base-200 p-3 text-sm">{parts[part]}</pre>
+                      </dd>
+                    </div>
+                  </dl>
+                <% {:error, message} -> %>
+                  <p class="text-sm text-error">
+                    {gettext("Could not tell: %{reason}", reason: message)}
+                  </p>
+              <% end %>
+            </div>
+            <div
+              :if={@can_edit && @module_view.overridable? && !@module_view.file?}
+              class="flex flex-col items-start gap-2"
+            >
+              <p class="text-sm">
+                {gettext(
+                  "A file made here is this email's text from then on: translations a module update brings no longer reach this email."
+                )}
+              </p>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  id={"#{@id}-module-create-default"}
+                  type="button"
+                  phx-click="override_default"
+                  phx-value-name={@module_selected}
+                  phx-target={@myself}
+                  class="btn btn-sm"
+                >
+                  {gettext("Create file from the built-in text")}
+                </button>
+                <button
+                  :if={@module_view.db?}
+                  id={"#{@id}-module-create-db"}
+                  type="button"
+                  phx-click="override_db"
+                  phx-value-name={@module_selected}
+                  phx-target={@myself}
+                  class="btn btn-sm"
+                >
+                  {gettext("Create file from the database template")}
+                </button>
+              </div>
+            </div>
+            <.variables_panel
+              :if={@module_view.variables != []}
+              id={"#{@id}-module-email-variables"}
+              rows={@module_view.variables}
+            />
+          </div>
 
           <div :if={@selected} class="flex flex-wrap items-center gap-2">
             <h3 class="font-mono text-lg font-semibold">{@selected}</h3>
             <span :if={@draft?} class="badge badge-warning badge-sm">{gettext("not saved yet")}</span>
+            <button
+              :if={@can_test_send}
+              id={"#{@id}-test-send"}
+              type="button"
+              phx-click="test_send"
+              phx-target={@myself}
+              class="btn btn-sm"
+            >
+              {gettext("Send to me")}
+            </button>
             <button
               :if={@can_edit}
               id={"#{@id}-delete"}
@@ -2425,6 +2848,24 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             <span class="font-semibold">{gettext("Layout")}:</span>
             {@email.layout || default_layout_label(@layout_group)}
           </p>
+
+          <p
+            :if={
+              @selected && !@draft? && @var_context && @var_context.kind == :email &&
+                @var_context.sent_by == :host
+            }
+            id={"#{@id}-sent-by-host"}
+            class="text-sm opacity-70"
+          >
+            {gettext("Sent by the application itself: these files are what it sends.")}
+          </p>
+          <.sources_box
+            :if={@selected && @sources}
+            id={"#{@id}-sources"}
+            result={@sources}
+            own={@own_paths}
+            root={@root}
+          />
 
           <div :if={@confirm_delete?} role="alert" class="alert alert-warning">
             <span>{gettext("Delete “%{name}” and all its files?", name: @selected)}</span>
@@ -2668,48 +3109,12 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
               )}
             </div>
 
-            <div
+            <.variables_panel
               :if={@variable_rows != []}
               id={"#{@id}-variables"}
-              class="flex flex-col gap-1 text-sm"
-            >
-              <span class="font-semibold">{gettext("Variables")}</span>
-              <p :if={@form_shown} class="text-xs opacity-70">
-                {gettext(
-                  "Click a variable to put it where the cursor is in the field you were typing in."
-                )}
-              </p>
-              <ul class="flex flex-col gap-1">
-                <li
-                  :for={row <- @variable_rows}
-                  id={"#{@id}-variables-#{row.name}"}
-                  class="flex flex-wrap items-baseline gap-2"
-                >
-                  <button
-                    :if={@form_shown}
-                    type="submit"
-                    form={"#{@id}-parts"}
-                    name="action"
-                    value={"insert:#{row.name}"}
-                    data-variable={placeholder(row)}
-                    class="btn btn-xs font-mono"
-                  >
-                    {placeholder(row)}
-                  </button>
-                  <code :if={!@form_shown} class="font-mono">{placeholder(row)}</code>
-                  <span :if={row.sample not in [nil, ""]} class="font-mono text-xs opacity-60">
-                    {row.sample}
-                  </span>
-                  <span :if={row.description} class="text-xs">{row.description}</span>
-                  <span :if={row.scope == :markdown} class="badge badge-ghost badge-xs">
-                    {gettext("Markdown only")}
-                  </span>
-                  <span :if={row.scope == :html} class="badge badge-ghost badge-xs">
-                    {gettext("rendered HTML, three braces")}
-                  </span>
-                </li>
-              </ul>
-            </div>
+              rows={@variable_rows}
+              form={if(@form_shown, do: "#{@id}-parts")}
+            />
           </div>
 
           <div :if={@selected && @preview_result} id={"#{@id}-preview"} class="flex flex-col gap-2">
@@ -2822,6 +3227,88 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         </li>
       </ul>
       <p id={"#{@id}_emails"} class="text-xs opacity-70">{@emails}</p>
+    </div>
+    """
+  end
+
+  attr(:id, :string, required: true)
+  attr(:rows, :list, required: true)
+  attr(:form, :string, default: nil)
+
+  # The variables of a part: a button each that puts it into the form
+  # (`form`), or, read only, just the names.
+  defp variables_panel(assigns) do
+    ~H"""
+    <div id={@id} class="flex flex-col gap-1 text-sm">
+      <span class="font-semibold">{gettext("Variables")}</span>
+      <p :if={@form} class="text-xs opacity-70">
+        {gettext("Click a variable to put it where the cursor is in the field you were typing in.")}
+      </p>
+      <ul class="flex flex-col gap-1">
+        <li :for={row <- @rows} id={"#{@id}-#{row.name}"} class="flex flex-wrap items-baseline gap-2">
+          <button
+            :if={@form}
+            type="submit"
+            form={@form}
+            name="action"
+            value={"insert:#{row.name}"}
+            data-variable={placeholder(row)}
+            class="btn btn-xs font-mono"
+          >
+            {placeholder(row)}
+          </button>
+          <code :if={!@form} class="font-mono">{placeholder(row)}</code>
+          <span :if={row.sample not in [nil, ""]} class="font-mono text-xs opacity-60">
+            {row.sample}
+          </span>
+          <span :if={row.description} class="text-xs">{row.description}</span>
+          <span :if={row.scope == :markdown} class="badge badge-ghost badge-xs">
+            {gettext("Markdown only")}
+          </span>
+          <span :if={row.scope == :html} class="badge badge-ghost badge-xs">
+            {gettext("rendered HTML, three braces")}
+          </span>
+        </li>
+      </ul>
+    </div>
+    """
+  end
+
+  attr(:id, :string, required: true)
+  attr(:result, :any, required: true)
+  attr(:own, :map, default: %{})
+  attr(:root, :string, required: true)
+
+  # Where each part of an email core sends comes from (П1).
+  defp sources_box(assigns) do
+    {sources, error} =
+      case assigns.result do
+        {:ok, sources} -> {sources, nil}
+        {:error, message} -> {nil, message}
+      end
+
+    assigns = assign(assigns, sources: sources, error: error)
+
+    ~H"""
+    <div id={@id} class="rounded-box border border-base-300 p-3 text-sm flex flex-col gap-2">
+      <span class="font-semibold">{gettext("What is sent")}</span>
+      <div :if={@sources && @sources.db?} id={"#{@id}-db"} role="alert" class="alert alert-error">
+        {gettext(
+          "The Emails module has an active database template of this name: that is what is sent, not these files."
+        )}
+      </div>
+      <dl :if={@sources} class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+        <%= for part <- [:subject, :text, :html, :markdown] do %>
+          <dt class="opacity-70">{part_title(part)}</dt>
+          <dd>{source_label(@sources[part], @own[part], @root)}</dd>
+        <% end %>
+      </dl>
+      <p :if={@sources && @sources.html == nil && @sources.html_from} class="text-xs opacity-70">
+        {gettext("The HTML is made from the %{part}.", part: body_from(@sources.html_from))}
+      </p>
+      <p :if={@error} class="text-error">
+        {gettext("Could not tell: %{reason}", reason: @error)}
+      </p>
     </div>
     """
   end
@@ -3005,6 +3492,72 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   defp selected_email(assigns),
     do: Enum.find(assigns.templates, &(&1.name == assigns.selected))
+
+  # The module emails to list: the catalogue's, then any other email core
+  # or a module sends that is a template here.
+  defp module_list(assigns) do
+    listed =
+      for entry <- assigns.module_emails do
+        %{
+          name: entry.name,
+          label: Map.get(entry, :label) || entry.name,
+          template?: exists?(%{assigns: assigns}, entry.name),
+          file?: MapSet.member?(assigns.disk_names, entry.name)
+        }
+      end
+
+    names = MapSet.new(listed, & &1.name)
+
+    others =
+      for %{name: name} <- assigns.templates,
+          not String.starts_with?(name, "_"),
+          name in assigns.rules.reserved,
+          not MapSet.member?(names, name),
+          do: %{name: name, label: name, template?: true, file?: true}
+
+    listed ++ others
+  end
+
+  # The layouts of module emails outside the host's namespaces, part by
+  # part: its own file (then it is under Layouts), or inherited.
+  defp module_layouts(assigns) do
+    for group <- module_groups(assigns) do
+      parts =
+        for kind <- Names.kinds() do
+          name = Names.part_name(kind, group)
+
+          %{
+            kind: kind,
+            name: name,
+            file?: MapSet.member?(assigns.disk_names, name),
+            overridable?: Names.check(name, assigns.rules) == :ok,
+            inherited:
+              if(MapSet.member?(assigns.disk_names, Names.part_name(kind, nil)),
+                do: :shared,
+                else: :core
+              )
+          }
+        end
+
+      %{group: group, parts: parts}
+    end
+  end
+
+  defp source_label(:db, _own, _root), do: gettext("the Emails module's database template")
+  defp source_label({:file, path}, path, _root), do: gettext("this file")
+
+  defp source_label({:file, path}, _own, root),
+    do: gettext("the file %{file}", file: Files.relative(root, path))
+
+  defp source_label({:blank_file, path}, _own, root),
+    do: gettext("an empty file (%{file}): the part is left out", file: Files.relative(root, path))
+
+  defp source_label(:default, _own, _root), do: gettext("built-in text")
+  defp source_label(nil, _own, _root), do: gettext("none")
+
+  defp body_from(:html), do: part_title(:html)
+  defp body_from(:markdown), do: part_title(:markdown)
+  defp body_from(:text), do: part_title(:text)
 
   defp confirm_variables_message(%{kind: :email}, names) do
     gettext(

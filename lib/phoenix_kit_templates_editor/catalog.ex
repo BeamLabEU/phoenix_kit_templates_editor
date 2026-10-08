@@ -16,6 +16,7 @@ defmodule PhoenixKitTemplatesEditor.Catalog do
 
   require Logger
 
+  alias PhoenixKit.Email.Catalog, as: CoreCatalog
   alias PhoenixKit.Email.Content
   alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Templates.Overrides
@@ -67,6 +68,33 @@ defmodule PhoenixKitTemplatesEditor.Catalog do
   end
 
   def entries(%Config{}), do: []
+
+  @doc """
+  Core's email catalogue (`PhoenixKit.Email.Catalog.entries/0`: core's own
+  emails, then every enabled module's) without this module's entries —
+  the host's files, which the editor lists as its own. Labels in the
+  current language. `[]` when the catalogue cannot be read.
+  """
+  @spec core_entries() :: [map()]
+  def core_entries do
+    for entry <- CoreCatalog.entries(),
+        Map.get(entry, :module) != PhoenixKitTemplatesEditor,
+        do: entry
+  rescue
+    exception ->
+      Logger.warning(
+        "[PhoenixKitTemplatesEditor] email catalogue: #{Exception.message(exception)}"
+      )
+
+      []
+  catch
+    kind, reason ->
+      Logger.warning(
+        "[PhoenixKitTemplatesEditor] email catalogue: #{Exception.format_banner(kind, reason)}"
+      )
+
+      []
+  end
 
   @doc """
   Whether core reads emails from `config`'s root: one of

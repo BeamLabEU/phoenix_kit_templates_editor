@@ -50,6 +50,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
   alias PhoenixKitTemplatesEditor.Files
   alias PhoenixKitTemplatesEditor.Journal
   alias PhoenixKitTemplatesEditor.Preview
+  alias PhoenixKitTemplatesEditor.TestSend
   alias PhoenixKitTemplatesEditor.Web.Editor
   alias PhoenixKitTemplatesEditor.Web.ScopeHook
 
@@ -89,6 +90,8 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
       authorize: authorizer(assigned_scope),
       journal: journaller(assigned_scope)
     )
+    |> assign_new(:module_emails, fn -> module_emails() end)
+    |> then(&assign(&1, test_send: test_sender(config, assigned_scope, &1.assigns.module_emails)))
     |> assign_new(:sample_variables, fn -> Preview.sample_variables(config) end)
     |> assign_new(:layout_variables, fn -> layout_variables(config) end)
     |> assign_new(:image_origins, fn -> image_origins() end)
@@ -103,6 +106,18 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
   # Asked by the editor on every change, with the scope as it is then.
   defp authorizer(assigned_scope) do
     fn _action -> PhoenixKitTemplatesEditor.authorize(current_scope(assigned_scope), :write) end
+  end
+
+  # The emails core and the other modules send (core's catalogue, in the
+  # page's language), not the host's own this module offers it.
+  defp module_emails, do: Catalog.core_entries()
+
+  # "Send to me", to the user of the page at the moment of the click.
+  defp test_sender(config, assigned_scope, module_emails) do
+    fn name, locale ->
+      entry = Enum.find(module_emails, &(&1.name == name))
+      TestSend.deliver(config, current_scope(assigned_scope), name, locale, entry)
+    end
   end
 
   # Every change, in PhoenixKit's activity log, as done by the user then.
@@ -346,6 +361,10 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
           after_change={@callbacks.after_change}
           authorize={@authorize}
           journal={@journal}
+          module_emails={@module_emails}
+          overridable={@config.overridable}
+          sent_by={@config.sent_by}
+          test_send={@test_send}
         />
       <% end %>
     </div>
