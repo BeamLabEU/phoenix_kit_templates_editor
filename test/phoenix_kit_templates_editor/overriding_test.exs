@@ -7,6 +7,7 @@ defmodule PhoenixKitTemplatesEditor.OverridingTest do
   use ExUnit.Case, async: false
 
   alias PhoenixKit.Email.Layout
+  alias PhoenixKit.Templates.Overrides
   alias PhoenixKitTemplatesEditor.Overriding
   alias PhoenixKitTemplatesEditor.Test.FakeProvider
   alias PhoenixKitTemplatesEditor.Test.FakeTemplateExport
@@ -75,7 +76,7 @@ defmodule PhoenixKitTemplatesEditor.OverridingTest do
       assert {:error, _message} =
                Overriding.from_defaults(root, entry(fn -> raise "boom" end), ["en"])
 
-      too_large = String.duplicate("a", PhoenixKit.Templates.Overrides.max_bytes() + 1)
+      too_large = String.duplicate("a", Overrides.max_bytes() + 1)
 
       assert {:error, :too_large} =
                Overriding.from_defaults(root, entry(%{subject: "S", text: too_large}), ["en"])
@@ -102,6 +103,8 @@ defmodule PhoenixKitTemplatesEditor.OverridingTest do
 
     test "the active row, by the Emails module's own export", %{tmp_dir: root} do
       Application.put_env(:phoenix_kit_templates_editor, :template_export, FakeTemplateExport)
+      Application.put_env(:phoenix_kit_templates_editor, :export_test_pid, self())
+      on_exit(fn -> Application.delete_env(:phoenix_kit_templates_editor, :export_test_pid) end)
 
       FakeProvider.put_db_templates(%{
         "billing_invoice" => %{

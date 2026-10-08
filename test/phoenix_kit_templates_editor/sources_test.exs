@@ -4,6 +4,7 @@ defmodule PhoenixKitTemplatesEditor.SourcesTest do
   # a file of the root (blank or not), or the built-in text.
   use ExUnit.Case, async: false
 
+  alias PhoenixKit.Templates.Overrides
   alias PhoenixKitTemplatesEditor.Sources
   alias PhoenixKitTemplatesEditor.Test.FakeProvider
 
@@ -18,7 +19,7 @@ defmodule PhoenixKitTemplatesEditor.SourcesTest do
   defp put(root, file, content) do
     File.mkdir_p!(Path.join(root, "billing_invoice"))
     File.write!(Path.join([root, "billing_invoice", file]), content)
-    PhoenixKit.Templates.Overrides.reset_cache([root])
+    Overrides.reset_cache([root])
   end
 
   test "a file, a blank file and the built-in text, part by part", %{tmp_dir: root} do

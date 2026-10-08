@@ -80,15 +80,17 @@ defmodule PhoenixKitTemplatesEditor.Overriding do
   defp default_files(entry, locales) do
     Enum.reduce_while(locales, {:ok, []}, fn locale, {:ok, files} ->
       case defaults(entry, locale) do
-        {:ok, parts} ->
-          own = for part <- @text_parts, value = parts[part], do: {part, locale, value}
-          layout = if parts[:layout], do: [{:layout, nil, String.trim(parts.layout)}], else: []
-          {:cont, {:ok, files ++ own ++ Enum.reject(layout, &(&1 in files))}}
-
-        {:error, message} ->
-          {:halt, {:error, message}}
+        {:ok, parts} -> {:cont, {:ok, files ++ locale_files(parts, locale, files)}}
+        {:error, message} -> {:halt, {:error, message}}
       end
     end)
+  end
+
+  # The parts of one language, and `layout.txt` once (it has no language).
+  defp locale_files(parts, locale, earlier) do
+    own = for part <- @text_parts, value = parts[part], do: {part, locale, value}
+    layout = if parts[:layout], do: [{:layout, nil, String.trim(parts.layout)}], else: []
+    own ++ Enum.reject(layout, &(&1 in earlier))
   end
 
   @doc "Whether the Emails module (its template export) is installed."
@@ -121,8 +123,8 @@ defmodule PhoenixKitTemplatesEditor.Overriding do
   # The export's own plan, read back into parts: `<root>/<name>/<part>[.<locale>].<ext>`.
   defp export(root, name, template) do
     module = export_module()
-    opts = [out: root, html: apply(module, :default_html_mode, [])]
-    plan = apply(module, :plan, [[Map.put(template, :is_system, true)], [], opts])
+    opts = [out: root, html: module.default_html_mode()]
+    plan = module.plan([Map.put(template, :is_system, true)], [], opts)
 
     files =
       for {path, content} <- plan.files,
@@ -165,14 +167,8 @@ defmodule PhoenixKitTemplatesEditor.Overriding do
   @spec layout_default(Path.t(), String.t()) :: {:ok, String.t()} | {:error, atom()}
   def layout_default(root, name) do
     case Names.chrome(name) do
-      {kind, group} when is_binary(group) ->
-        case Files.safe_read(root, Path.join([root, Names.part_name(kind, nil), "html.html"])) do
-          {:ok, html} -> if String.valid?(html), do: {:ok, html}, else: {:ok, core_part(kind)}
-          {:error, _none} -> {:ok, core_part(kind)}
-        end
-
-      _not_a_part ->
-        {:error, :not_a_layout_part}
+      {kind, group} when is_binary(group) -> {:ok, shared_part(root, kind) || core_part(kind)}
+      _not_a_part -> {:error, :not_a_layout_part}
     end
   end
 
@@ -182,6 +178,13 @@ defmodule PhoenixKitTemplatesEditor.Overriding do
     with :ok <- fresh(root, name),
          {:ok, html} <- layout_default(root, name) do
       write_all(root, name, [{:html, nil, html}])
+    end
+  end
+
+  defp shared_part(root, kind) do
+    case Files.safe_read(root, Path.join([root, Names.part_name(kind, nil), "html.html"])) do
+      {:ok, html} -> if String.valid?(html), do: html
+      {:error, _none} -> nil
     end
   end
 

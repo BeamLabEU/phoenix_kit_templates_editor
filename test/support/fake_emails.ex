@@ -44,7 +44,9 @@ defmodule PhoenixKitTemplatesEditor.Test.FakeTemplateExport do
 
   def plan([template], [], opts) do
     out = Keyword.fetch!(opts, :out)
-    send(self(), {:export_plan, template.name, opts})
+
+    if pid = Application.get_env(:phoenix_kit_templates_editor, :export_test_pid),
+      do: send(pid, {:export_plan, template.name, opts})
 
     files =
       for {field, stem, ext} <- [

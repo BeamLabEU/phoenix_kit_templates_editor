@@ -5,6 +5,7 @@ defmodule PhoenixKitTemplatesEditor.NamesOverrideTest do
   # group (`layout: "billing"` in its catalogue entry) the same way.
   use ExUnit.Case, async: true
 
+  alias PhoenixKit.Email.CoreTemplates
   alias PhoenixKitTemplatesEditor.Names
 
   defp rules(overrides) do
@@ -24,7 +25,7 @@ defmodule PhoenixKitTemplatesEditor.NamesOverrideTest do
       assert Names.auth_emails() ==
                ~w(register reset_password update_email magic_link magic_link_registration)
 
-      core = for %{name: name} <- PhoenixKit.Email.CoreTemplates.entries(), do: name
+      core = for %{name: name} <- CoreTemplates.entries(), do: name
       assert Names.auth_emails() -- core == []
     end
   end
