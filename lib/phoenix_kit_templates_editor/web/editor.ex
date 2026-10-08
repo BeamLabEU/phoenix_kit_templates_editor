@@ -312,6 +312,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
        templates: [],
        layouts: [],
        confirm_layout_delete: nil,
+       create_name: "",
        create_from: nil,
        create_extras: [],
        selected: nil,
@@ -514,7 +515,13 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       when is_binary(name) do
     case Map.get(params, "copy_from", "") do
       copy_from when is_binary(copy_from) ->
-        {:noreply, permitted(socket, :create, &create(&1, String.trim(name), copy_from, params))}
+        name = String.trim(name)
+
+        {:noreply,
+         socket
+         |> assign_create_form(params)
+         |> permitted(:create, &create(&1, name, copy_from, params))
+         |> clear_create_form(name)}
 
       _malformed ->
         {:noreply, socket}
@@ -565,14 +572,12 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
      end)}
   end
 
-  # The create form's source changed: the host's own files in it are listed
-  # to choose from (all taken by default).
-  def handle_event("create_change", %{"create" => %{"copy_from" => from}}, socket)
-      when is_binary(from) do
-    if from == socket.assigns.create_from,
-      do: {:noreply, socket},
-      else: {:noreply, socket |> assign(create_from: from) |> assign_create_extras()}
-  end
+  # The create form's name and source are kept here and drawn from here: a
+  # browser redraws a field it does not have focused from the page, so one
+  # left to the browser is emptied by any redraw of the form (the list of
+  # the host's files coming in, say).
+  def handle_event("create_change", %{"create" => %{} = params}, socket),
+    do: {:noreply, assign_create_form(socket, params)}
 
   def handle_event("set_layout", %{"email_layout" => %{"group" => group}}, socket)
       when is_binary(group) do
@@ -1846,6 +1851,33 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     |> assign_create_extras()
   end
 
+  # The create form as the user left it; a source that changed lists the
+  # host's own files in it to choose from (all taken by default).
+  defp assign_create_form(socket, params) do
+    socket =
+      case params do
+        %{"name" => name} when is_binary(name) -> assign(socket, create_name: name)
+        _other -> socket
+      end
+
+    case params do
+      %{"copy_from" => from} when is_binary(from) and from != socket.assigns.create_from ->
+        socket |> assign(create_from: from) |> assign_create_extras()
+
+      _same ->
+        socket
+    end
+  end
+
+  # A template made (it is open, no error said) empties the form; a refused
+  # one leaves it as given, to correct.
+  defp clear_create_form(%{assigns: %{notice: {:error, _message}}} = socket, _name), do: socket
+
+  defp clear_create_form(%{assigns: %{selected: name}} = socket, name),
+    do: assign(socket, create_name: "", create_from: nil, create_extras: [])
+
+  defp clear_create_form(socket, _name), do: socket
+
   # The host's own files in the create form's source, to tick.
   defp assign_create_extras(socket) do
     %{root: root, create_from: from} = socket.assigns
@@ -2843,14 +2875,19 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
               class="input input-sm w-full font-mono"
               placeholder={List.first(@name_prefixes, gettext("name"))}
               autocomplete="off"
+              value={@create_name}
             />
             <select
               name="create[copy_from]"
               aria-label={gettext("Start from")}
               class="select select-sm w-full"
             >
-              <option value="">{gettext("Empty")}</option>
-              <option :for={template <- @templates} value={template.name}>
+              <option value="" selected={@create_from in [nil, ""]}>{gettext("Empty")}</option>
+              <option
+                :for={template <- @templates}
+                value={template.name}
+                selected={template.name == @create_from}
+              >
                 {gettext("Copy of %{name}", name: template.name)}
               </option>
             </select>

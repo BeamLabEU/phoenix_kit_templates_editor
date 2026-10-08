@@ -449,6 +449,50 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorLayoutsTest do
       assert File.exists?(Path.join([root, "order_copy", "audience.txt"]))
     end
 
+    # The browser redraws a field it does not have focused from what the page
+    # says: the form's values are drawn from the server, or the redraw that
+    # brings the list in empties the name, or puts the source back to Empty.
+    test "the name and the source stay as given, in whichever order", %{tmp_dir: root} do
+      seed(root)
+      put(root, "order_offer", "audience.txt", "partner\n")
+      view = mount_editor(root)
+      name_field = ~s(#editor-create input[name="create[name]"])
+      source = ~s(#editor-create select[name="create[copy_from]"])
+
+      choose_source(view, "order_copy", "")
+      choose_source(view, "order_copy", "order_offer")
+
+      assert has_element?(view, "#editor-create-extras")
+      assert has_element?(view, ~s(#{name_field}[value="order_copy"]))
+      assert has_element?(view, ~s(#{source} option[value="order_offer"][selected]))
+      refute has_element?(view, ~s(#{source} option[value=""][selected]))
+
+      choose_source(view, "order_copy_2", "order_offer")
+
+      assert has_element?(view, ~s(#{name_field}[value="order_copy_2"]))
+      assert has_element?(view, ~s(#{source} option[value="order_offer"][selected]))
+    end
+
+    test "a template made empties the form, a refused one keeps it", %{tmp_dir: root} do
+      seed(root)
+      put(root, "order_offer", "audience.txt", "partner\n")
+      view = mount_editor(root)
+      name_field = ~s(#editor-create input[name="create[name]"])
+      source = ~s(#editor-create select[name="create[copy_from]"])
+
+      choose_source(view, "Bad", "order_offer")
+      assert create(view, "Bad", "order_offer") =~ "not a valid template name"
+      assert has_element?(view, ~s(#{name_field}[value="Bad"]))
+      assert has_element?(view, ~s(#{source} option[value="order_offer"][selected]))
+
+      create(view, "order_copy", "order_offer")
+
+      assert File.exists?(Path.join([root, "order_copy", "audience.txt"]))
+      assert has_element?(view, ~s(#{name_field}[value=""]))
+      assert has_element?(view, ~s(#{source} option[value=""][selected]))
+      refute has_element?(view, "#editor-create-extras")
+    end
+
     test "none to list, no list", %{tmp_dir: root} do
       seed(root)
       view = mount_editor(root)
