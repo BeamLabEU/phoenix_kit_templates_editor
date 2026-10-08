@@ -1,0 +1,38 @@
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+msgid ""
+msgstr ""
+
+#: lib/phoenix_kit_templates_editor.ex:87
+#, elixir-autogen, elixir-format
+msgid "Edit email templates"
+msgstr ""
+
+#: lib/phoenix_kit_templates_editor.ex:99
+#, elixir-autogen, elixir-format
+msgid "Email templates"
+msgstr ""
+
+#: lib/phoenix_kit_templates_editor.ex:46
+#: lib/phoenix_kit_templates_editor.ex:80
+#, elixir-autogen, elixir-format
+msgid "Templates editor"
+msgstr ""
+
+#: lib/phoenix_kit_templates_editor/web/section.ex:32
+#, elixir-autogen, elixir-format
+msgid "The templates editor is not configured correctly."
+msgstr ""
+
+#: lib/phoenix_kit_templates_editor/web/section.ex:41
+#, elixir-autogen, elixir-format
+msgid "The templates editor will appear here."
+msgstr ""
