@@ -50,4 +50,27 @@
   layout groups by exact namespace (a prefix `_header-shop` no longer allows
   `_header-shopx`). `PhoenixKitTemplatesEditor.Layouts`: a root's layouts.
 - A copy of a template lists the host's own files in it to leave out.
+- Module emails: the emails core and other modules send, read only until
+  given a file — from the built-in text by language, or from the Emails
+  module's active database template by its export — where `overridable`
+  allows it (by default every one but core's sign-in emails, which carry a
+  warning). A module's own layout group the same way.
+  `PhoenixKitTemplatesEditor.Overriding`.
+- What is sent: for an email core sends, the source of each part through
+  core's resolution, with a red notice when a database template wins over the
+  file (`PhoenixKitTemplatesEditor.Sources`); an email the host sends says so
+  (`sent_by`).
+- The variables panel (`PhoenixKitTemplatesEditor.Variables`): a part's
+  variables by its kind of template with samples and the host's
+  descriptions, inserted at the cursor by a JS hook (`js_sources/0`) or at
+  the end of the body without it; saves checked — a variable of the other kind
+  only after "Save anyway", an unknown one with a warning, `{{{x}}}` only for
+  `raw_variables` and a layout's `content`/`header`/`footer`, a subject one
+  line of at most 998 bytes.
+- Send to me (`PhoenixKitTemplatesEditor.TestSend`, `Throttle`): to the user
+  asking only, once in 30 s, by the host's `test_send` or `PhoenixKit.Mailer`,
+  logged.
+- A part changed on disk since it was opened is not saved over; *Reload*
+  reads the files again.
+- Every change in PhoenixKit's activity log (`PhoenixKitTemplatesEditor.Journal`).
 - Translations: English, Estonian, Russian.

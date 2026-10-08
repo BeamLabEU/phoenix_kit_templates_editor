@@ -39,6 +39,21 @@ config :phoenix_kit,
 This is read when your router compiles. Without it the tab works, but shows the
 templates read-only and says why.
 
+### The variables panel's hook
+
+A click on a variable puts it at the cursor through a LiveView hook the module
+ships prebuilt (`priv/static/assets/phoenix_kit_templates_editor.js`, declared
+by `js_sources/0`). PhoenixKit's `:phoenix_kit_js_sources` compiler folds it
+into your LiveSocket — no inline script, no `app.js` edit — provided your
+`mix.exs` lists the compiler:
+
+```elixir
+compilers: [:phoenix_kit_js_sources, :phoenix_live_view] ++ Mix.compilers()
+```
+
+Without it the panel still works: a click puts the variable at the end of the
+body instead.
+
 ### Where templates are edited: the directory
 
 The module never changes a file's owner. Where `editable: true`, make the
@@ -105,15 +120,15 @@ config :phoenix_kit_templates_editor, editable: true
 | `layout_groups` | `[layout_group]` | layout namespaces the editor may show and create: `g` and `g-…` (not `gx`) |
 | `preview` | `nil` | your preview callback; without one the module renders its own |
 | `sample_variables` | `%{}` | a map, or `{module, function}` returning one |
-| `describe_variables` | `nil` | `(name) -> %{variable => description}` |
+| `describe_variables` | `nil` | `(name) -> %{variable => description}`, shown in the variables panel |
 | `complete?` | `nil` | `(name, locale) -> boolean`; default: subject and body on `base_locale` |
-| `sent_by` | `nil` | `(name) -> :core \| :host` — who sends the email |
-| `test_send` | `nil` | `(name, locale, scope) -> :ok \| {:error, reason}` |
+| `sent_by` | `nil` | `(name) -> :core \| :host` — who sends the email; default: PhoenixKit for the emails of its catalogue, your app for your own |
+| `test_send` | `nil` | `(name, locale, user) -> :ok \| {:ok, term} \| {:error, reason}` — your own way to send "Send to me" (your test mode included); default: `PhoenixKit.Mailer` |
 | `block_placeholders` | `[]` | variables that stand as a block of their own |
 | `raw_variables` | `[]` | variables allowed in `{{{x}}}` besides `content`, `header`, `footer` |
 | `email_fallback` | `true` | whether emails get a locale-less *Fallback* tab |
 | `shared_layout_editable` | `false` | whether the shared `_header`/`_footer`/`_layout` (PhoenixKit's own system emails) may be edited |
-| `overridable` | `:all` | which catalogue emails may get a file: `:all` or a list of names |
+| `overridable` | `:all` | which emails PhoenixKit and its modules send may be given a file here: `:all` — every one but the sign-in emails (account confirmation, password reset, email change, magic link); a list — exactly those names |
 | `catalog` | `false` | whether your templates are offered to PhoenixKit's email preview |
 | `watch` | same as `editable` | whether the files are re-read when they change on disk |
 
@@ -143,7 +158,43 @@ keeps working.
 - **Names it never touches.** Whatever `name_prefixes` say: the shared
   `_header`/`_footer`/`_layout` (they wrap PhoenixKit's sign-in and password
   emails too) unless `shared_layout_editable: true`, and the emails PhoenixKit
-  or another module sends.
+  or another module sends — but through *Module emails*, below.
+- **Module emails.** Every email PhoenixKit and its modules send (their
+  catalogue, the one *Preview emails* lists), read only — the built-in text in
+  each language — until it has a file here. Where `overridable` allows it, a
+  writer creates the file from the built-in text, one per language of
+  `locales` (from then on module updates no longer change that email's text),
+  or, with the Emails module installed and an active database template of that
+  name, from that row by the Emails module's own export. A module's own layout
+  (`layout: "billing"` in its catalogue entry) gets its header, footer and page
+  layout the same way, from your shared one or PhoenixKit's. The sign-in emails
+  are left out of `:all` and carry a warning wherever they are shown.
+- **What is sent.** For an email PhoenixKit sends, each part — subject, text,
+  HTML, Markdown — says where it comes from, asked of PhoenixKit's own
+  resolution: this file, another file, an empty file (the part is left out),
+  the built-in text, or the Emails module's database template, which wins over
+  every file (a red notice says so). An email your app sends itself
+  (`sent_by`) says the files are what it uses.
+- **Variables.** Beside the form, the variables of the part's kind of
+  template, with a sample and your `describe_variables` text: an email's own
+  (its catalogue samples, or `sample_variables`), the branding (`logo_url`,
+  `accent_color`) in Markdown — everywhere for an email PhoenixKit sends — or,
+  for a header, footer or layout, the layout's. A click puts one in the field.
+  A save is checked: a variable of the other kind (`{{site_url}}` in an
+  email's body) is saved only after "Save anyway"; an unknown one with a
+  warning; `{{{x}}}` only for `raw_variables` (and a page layout's `content`,
+  `header`, `footer`); a subject one line of at most 998 bytes.
+- **Send to me.** One email, with the sample variables, in its layout, to the
+  address of the user asking and nobody else — once in 30 s per user, logged,
+  read-only servers included. Your `test_send` callback sends it if you give
+  one; otherwise `PhoenixKit.Mailer`.
+- **Someone else changed the file.** A part's file is fingerprinted when the
+  form is given it; a save of a part whose file has changed on disk since — by
+  hand, by `git pull`, by another user — is refused, showing what is on disk
+  now, and your text stays in the form. *Reload* reads everything again.
+- **Activity log.** Every save, deletion, copy, file made for a module's
+  email and change of layout is in PhoenixKit's activity log: who, which
+  template, part and language, and a short diff.
 - **Copying a template** takes every file of its directory; your own files
   beside the parts (`audience.txt`, say) are listed to untick.
 - **Preview.** Without a `preview` callback the module renders the email as

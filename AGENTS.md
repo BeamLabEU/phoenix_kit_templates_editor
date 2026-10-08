@@ -51,7 +51,9 @@ Repo-local aliases:
 - **Module key** `"templates_editor"` is identical in `module_key/0`, `permission_metadata/0`'s `:key`, the section's `:permission` and the settings prefix.
 - **Access is two keys plus the switch.** `accessible?/1` = module enabled and the scope holds `settings` and `templates_editor`; `authorize(scope, :write)` adds `Scope.can?(scope, "templates_editor.write")`. Every event that changes a file calls `authorize/2` again — never trust what was checked at mount.
 - **The section gets nothing from core but its `id`.** Core mounts `<.live_component module={…} id={…} />` with no other assigns, so the host's data comes from `PhoenixKitTemplatesEditor.Config` (and `{module, function}` callbacks in it), never from assigns. The scope comes from `Web.ScopeHook` (a host-added `extra_live_session_on_mount` hook keeping the page's `:phoenix_kit_current_scope` in the LiveView process: after `handle_params` and every render); the editor's `authorize` reads it at each event. No hook — no scope — read only.
-- **Which names are touched is `Names.check/2`, never a bare `String.starts_with?`.** The shared `_header`/`_footer`/`_layout` only with `shared_layout_editable: true`; a layout part by its group's exact namespace (`layout_groups`, or a prefix shaped like a part — `_header-andi` covers `andi`/`andi-…`, not `andix`); the emails core and other modules send (`Names.reserved_names/0`) never.
+- **Which names are touched is `Names.check/2`, never a bare `String.starts_with?`.** The shared `_header`/`_footer`/`_layout` only with `shared_layout_editable: true`; a layout part by its group's exact namespace (`layout_groups`, or a prefix shaped like a part — `_header-andi` covers `andi`/`andi-…`, not `andix`); the emails core and other modules send (`Names.reserved_names/0`) and a module's own layout group only where `overridable` allows (`:all` = all but `Names.auth_emails/0`), and never by the plain "New template" form — only by the Module emails buttons (`Overriding`).
+- **Every change on disk is journalled.** A new write path in the editor calls `journal/2` with an event `PhoenixKitTemplatesEditor.Journal` lists; the section logs it to `PhoenixKit.Activity` with the scope of the moment.
+- **A save is checked before it writes** (`Web.Editor.save/3`): the part's file still as fingerprinted at open (П6), the subject (Б7), raw braces (Б9), variables of the other kind (`Variables.check/3`, confirmed by "Save anyway").
 - **Every template file is read through `Files.safe_read/2`** (or checked with `Files.check/2` before a library call reads it): no symlinks, nothing whose real path leaves the root, nothing over `Overrides.max_bytes/0`. Messages name files relative to the root (`Files.relative/2`).
 - **Work the page waits on runs bounded** (`Bounded.run/2`, 5 s): converters, the default preview, `git status`.
 - **`Config.load/1` never raises.** A bad config is `{:error, messages}`, shown as an alert on the tab; messages name the config key and never an absolute path.
@@ -80,14 +82,21 @@ lib/
     ├── files.ex                             # reload, after_write (modes), uncommitted (git), safe_read, realpath
     ├── gettext.ex                           # Gettext backend (priv/gettext)
     ├── html_text.ex                         # HTML → plain text (public)
+    ├── journal.ex                           # changes in PhoenixKit's activity log, with a short diff
     ├── layouts.ex                           # a root's layouts: parts own/inherited, emails using each, copy/delete
-    ├── names.ex                             # which names an editor may touch (shared parts, namespaces, reserved emails)
+    ├── names.ex                             # which names an editor may touch (shared parts, namespaces, reserved emails, overridable)
+    ├── overriding.ex                        # files for a module's email: from its built-in text, the Emails DB row, a layout default
     ├── preview.ex                           # the default preview (no host preview)
+    ├── sources.ex                           # where each part of an email core sends comes from (Content.resolve_with_sources)
+    ├── test_send.ex                         # "Send to me": the user's own address, throttled, logged
+    ├── throttle.ex                          # child: once-per-interval ETS table
+    ├── variables.ex                         # a part's variables by template kind; the save check
     ├── watcher.ex                           # child: re-reads the files every 2 s where edited/watched
     └── web/
         ├── editor.ex                        # Web.Editor — the editor LiveComponent (from phoenix_kit_templates 0.2.4)
         ├── scope_hook.ex                    # on_mount hook: the page's scope for the section
         └── section.ex                       # the tab's LiveComponent (core mounts it)
+priv/static/assets/phoenix_kit_templates_editor.js  # the variables hook (js_sources/0), no build step
 ```
 
 | Callback | Value |
@@ -96,8 +105,9 @@ lib/
 | `permission_metadata/0` | key `templates_editor`, icon `hero-document-text`, sub-permission `write`, `gettext_backend` |
 | `email_settings_sections/0` | `%{id: :templates_editor, permission: "templates_editor", component: Web.Section, link: %{label: …}}` |
 | `email_templates/0` | `Catalog.entries/1` with `catalog: true`, else `[]` |
-| `children/0` | `[Watcher]` (decides in `init/1`) |
+| `children/0` | `[Watcher, Throttle]` (the Watcher decides in `init/1`) |
 | `css_sources/0` | `[:phoenix_kit_templates_editor]` |
+| `js_sources/0` | `priv/static/assets/phoenix_kit_templates_editor.js`, global `PhoenixKitTemplatesEditorHooks` |
 | `migration_module/0` | not set |
 
 Config keys and defaults: `PhoenixKitTemplatesEditor.Config` `@moduledoc` (the table there is the reference).
@@ -115,6 +125,8 @@ None — settings only. `migration_module/0` is not set; the one setting row (`t
 - Editor tests (`test/phoenix_kit_templates_editor/web/editor*_test.exs`) use `PhoenixKitTemplatesEditor.EditorCase`: a `tmp_dir` root, the editor mounted in `Test.EditorHost` (a LiveView) on `Test.Endpoint` through `live_isolated/3`. A session cannot carry a function, so `mount_editor/2` hands function-valued options to the host right after the mount. The page language is `opts[:locale]`, put on the module's Gettext backend in the host's `mount`.
 - `Config` tests that pass `root: nil` change `config :phoenix_kit, :template_paths` and restore it; that file and the section test are not `async`.
 - Section tests use `PhoenixKitTemplatesEditor.SectionCase`: `configure/1` sets the module's config keys for one test, `mount_section/1` mounts `Test.SectionHost` (core's page in miniature: it puts a session scope on the socket, runs `Web.ScopeHook`, mounts the section with only its id; `{:scope, scope}` swaps the scope). Writing needs the module enabled, so those tests are `:integration`.
+- `test_helper.exs` also starts `Throttle` (a module child in a host).
+- `Test.FakeProvider` (core's `:email_provider` seam: the Emails module's database templates from the app env) and `Test.FakeTemplateExport` (set as `:template_export`, an internal seam of `Overriding`) stand in for `phoenix_kit_emails`, which is not a dependency; tests using them change the application env and are not `async`.
 - The test logger level is `:error`; a test about a warning sets `Logger.put_module_level(Module, :warning)` and deletes it on exit.
 
 ```bash
@@ -154,5 +166,6 @@ publish has succeeded.
 ## TODOs
 
 - **The scope comes through a host-added hook** (`Web.ScopeHook`). A core change passing `:phoenix_kit_current_scope` to email settings sections would make it unnecessary; the section already prefers an assigned scope. Trigger: a core release that passes it.
-- **A reserved name has no way in yet.** `Names.check/2` refuses every email core or another module sends; the explicit override of one (spec §4.11 П2, `overridable`) comes with the "Module emails" section. Trigger: block M5.
+- **Spec §4.10 Б7 is only partly done:** a subject is one line of at most 998 bytes and each file at most `Overrides.max_bytes/0`; limits on the number of templates and files and on the root's total size are not. Trigger: a host with a large or shared root.
+- **Variable descriptions come from the host** (`describe_variables`); core's catalogue has no description field. Trigger: a core PR adding one.
 - **The library's cache is reset key by key** (`Overrides.reset_cache/1` walks `:persistent_term`); generation-based reset (spec §4.10 Б12) is a library change. Trigger: the library PR planned after block L.
