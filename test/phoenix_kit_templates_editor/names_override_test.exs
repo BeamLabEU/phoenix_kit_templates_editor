@@ -21,20 +21,44 @@ defmodule PhoenixKitTemplatesEditor.NamesOverrideTest do
   end
 
   describe "auth_emails/0" do
-    test "core's sign-in emails, by the names core sends them under" do
+    test "core's emails about getting into an account, by the names core sends them under" do
       assert Names.auth_emails() ==
-               ~w(register reset_password update_email magic_link magic_link_registration)
+               ~w(register reset_password update_email magic_link magic_link_registration
+                  organization_invitation new_login_alert failed_login_alert)
 
       core = for %{name: name} <- CoreTemplates.entries(), do: name
       assert Names.auth_emails() -- core == []
+    end
+
+    # A new email of core is either one of them or named here on purpose:
+    # a sign-in email core adds must not become overridable by `:all`
+    # without anyone deciding so.
+    test "every email core sends is classified" do
+      not_about_access = ~w(welcome notification)
+      core = for %{name: name} <- CoreTemplates.entries(), do: name
+
+      assert core -- (Names.auth_emails() ++ not_about_access) == []
+    end
+
+    test "an email with a sign-in, registration or security link is one of them" do
+      links =
+        ~w(confirmation_url reset_url update_url magic_link_url registration_url security_url)
+
+      for %{name: name, variables: variables} <- CoreTemplates.entries(),
+          variables = if(is_function(variables, 0), do: variables.(), else: variables),
+          Enum.any?(links, &Map.has_key?(variables, &1)) do
+        assert name in Names.auth_emails(), "#{name} carries an account link"
+      end
     end
   end
 
   describe "overridable?/2" do
     test ":all is every name but the sign-in emails" do
       assert Names.overridable?("billing_invoice", :all)
-      assert Names.overridable?("new_login_alert", :all)
+      assert Names.overridable?("welcome", :all)
       refute Names.overridable?("reset_password", :all)
+      refute Names.overridable?("organization_invitation", :all)
+      refute Names.overridable?("new_login_alert", :all)
       refute Names.overridable?("magic_link", :all)
     end
 

@@ -19,7 +19,8 @@ defmodule PhoenixKitTemplatesEditor.Names do
   Before all of that, a name in `reserved` — an email core or another module
   sends (`reserved_names/0`) — is refused, unless the rules' `overridable`
   lets it in (`overridable?/2`, spec §4.11 П2): `:all` is every such email
-  but core's sign-in emails (`auth_emails/0`), a list exactly its names.
+  but core's emails about getting into an account (`auth_emails/0`), a
+  list exactly its names.
   The same goes for a part of a module's own layout group (`module_groups`,
   the groups catalogue entries name with `layout: "<g>"`, exact — not
   namespaces): `_header-billing` is allowed only when it is overridable.
@@ -50,9 +51,16 @@ defmodule PhoenixKitTemplatesEditor.Names do
   @kinds [:header, :footer, :layout]
   @kind_names Map.new(@kinds, &{Atom.to_string(&1), &1})
 
-  # Core's emails that sign a user in or change how they do: a file that
-  # breaks one locks people out (spec §4.10 Б15).
-  @auth_emails ~w(register reset_password update_email magic_link magic_link_registration)
+  # Core's emails about getting into an account (spec §4.10 Б15): each
+  # carries a link that signs a user in, registers or confirms an address
+  # (`confirmation_url`, `reset_url`, `update_url`, `magic_link_url`,
+  # `registration_url`), or warns the owner about a sign-in
+  # (`security_url`). A file that breaks one locks people out, or hides an
+  # intrusion from them. The test checks every email of
+  # `PhoenixKit.Email.CoreTemplates` is either here or named as not about
+  # access, so a new one is decided on, not let through.
+  @auth_emails ~w(register reset_password update_email magic_link magic_link_registration
+                  organization_invitation new_login_alert failed_login_alert)
 
   @chrome ~r/\A_(header|footer|layout)(?:-([a-z0-9-]+))?\z/
 
@@ -148,9 +156,12 @@ defmodule PhoenixKitTemplatesEditor.Names do
   defp plain_prefixes(rules), do: Enum.reject(rules.prefixes, &chrome/1)
 
   @doc """
-  The names of core's sign-in emails (account confirmation, password
-  reset, email change, magic link): never overridable by `:all`, only by
-  name, and warned about when they are.
+  The names of core's emails about getting into an account: those with a
+  link that signs in, registers or confirms (account confirmation,
+  password reset, email change, magic link sign-in and registration,
+  organization invitation) and the sign-in alerts (new login, failed
+  sign-ins). Never overridable by `:all`, only by name, and warned about
+  when they are.
   """
   @spec auth_emails() :: [String.t()]
   def auth_emails, do: @auth_emails

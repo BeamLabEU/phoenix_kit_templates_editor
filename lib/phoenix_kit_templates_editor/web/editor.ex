@@ -2705,7 +2705,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             class="alert alert-warning text-sm"
           >
             {gettext(
-              "This email signs people in or resets their password: a mistake in it can keep everyone out. Send it to yourself before relying on it."
+              "This email lets people into their account or warns them about a sign-in: a mistake in it can keep everyone out or hide an intrusion. Send it to yourself before relying on it."
             )}
           </div>
 

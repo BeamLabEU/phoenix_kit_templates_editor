@@ -123,12 +123,12 @@ config :phoenix_kit_templates_editor, editable: true
 | `describe_variables` | `nil` | `(name) -> %{variable => description}`, shown in the variables panel |
 | `complete?` | `nil` | `(name, locale) -> boolean`; default: subject and body on `base_locale` |
 | `sent_by` | `nil` | `(name) -> :core \| :host` — who sends the email; default: PhoenixKit for the emails of its catalogue, your app for your own |
-| `test_send` | `nil` | `(name, locale, user) -> :ok \| {:ok, term} \| {:error, reason}` — your own way to send "Send to me" for your own emails (your test mode included); default, and always for the emails PhoenixKit and its modules send: `PhoenixKit.Mailer` |
+| `test_send` | `nil` | `(name, locale, user) -> {:ok, address} \| :ok \| {:ok, term} \| {:error, reason}` — your own way to send "Send to me" for your own emails (your test mode included: return `{:ok, address}` when it went elsewhere than to the user, and the notice names that address); default, and always for the emails PhoenixKit and its modules send: `PhoenixKit.Mailer` |
 | `block_placeholders` | `[]` | variables that stand as a block of their own |
 | `raw_variables` | `[]` | variables allowed in `{{{x}}}` besides `content`, `header`, `footer` |
 | `email_fallback` | `true` | whether emails get a locale-less *Fallback* tab |
 | `shared_layout_editable` | `false` | whether the shared `_header`/`_footer`/`_layout` (PhoenixKit's own system emails) may be edited |
-| `overridable` | `:all` | which emails PhoenixKit and its modules send may be given a file here: `:all` — every one but the sign-in emails (account confirmation, password reset, email change, magic link); a list — exactly those names |
+| `overridable` | `:all` | which emails PhoenixKit and its modules send may be given a file here: `:all` — every one but the emails about getting into an account (account confirmation, password reset, email change, magic link sign-in and registration, organization invitation, the new-login and failed-sign-in alerts); a list — exactly those names |
 | `catalog` | `false` | whether your templates are offered to PhoenixKit's email preview |
 | `watch` | same as `editable` | whether the files are re-read when they change on disk |
 
