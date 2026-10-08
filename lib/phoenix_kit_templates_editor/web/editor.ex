@@ -118,6 +118,13 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       an exception, throw or exit is logged. Default `nil`: complete is a
       subject and a body part (HTML, Markdown or text) in `base_locale`
       itself — the locale-less fallback does not count — none of them blank.
+    * `:email_fallback` — `false` for a host that sends an email only in
+      its own languages, never from its locale-less files: an email has no
+      Fallback tab then. Locale-less parts an email still has are shown on
+      a Fallback tab marked "not used", read-only, with a button to delete
+      them (after a confirmation; `layout.txt` and a host's own files stay).
+      Headers, footers and layouts (a leading `_`) keep their Fallback tab,
+      which is used. Default `true`.
 
   ## What it does
 
@@ -204,6 +211,8 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
        form_values: %{},
        form_rev: 0,
        confirm_delete?: false,
+       email_fallback: true,
+       confirm_fallback_delete?: false,
        preview_result: nil,
        preview_tab: :html,
        missing: [],
@@ -217,7 +226,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     socket = socket |> assign(assigns) |> sanitize_options()
 
     socket =
-      if editable?(socket.assigns), do: socket, else: assign(socket, confirm_delete?: false)
+      if editable?(socket.assigns), do: socket, else: no_confirmations(socket)
 
     socket = socket |> load_templates() |> settle_draft() |> keep_selection()
     {:ok, refresh_preview(socket, previous_files)}
@@ -244,8 +253,12 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       socket.assigns.selected && locale == socket.assigns.locale ->
         {:noreply, clear_transient(socket)}
 
-      socket.assigns.selected && locale in tabs(socket.assigns) ->
-        {:noreply, socket |> assign(locale: locale, notice: nil) |> load_contents() |> preview()}
+      socket.assigns.selected && locale in tabs(socket.assigns, socket.assigns.selected) ->
+        {:noreply,
+         socket
+         |> assign(locale: locale, notice: nil, confirm_fallback_delete?: false)
+         |> load_contents()
+         |> preview()}
 
       true ->
         {:noreply, socket}
@@ -259,10 +272,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
     {:noreply,
      permitted(socket, :convert, fn socket ->
-       if writable?(socket, socket.assigns.selected) and
-            converter(socket.assigns, conversion) != nil,
-          do: convert(socket, conversion, parts),
-          else: socket
+       if form_writable?(socket) and converter(socket.assigns, conversion) != nil,
+         do: convert(socket, conversion, parts),
+         else: socket
      end)}
   end
 
@@ -271,7 +283,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     if Map.get(params, "action", "save") == "save" do
       {:noreply,
        permitted(socket, :save, fn socket ->
-         if writable?(socket, socket.assigns.selected), do: save(socket, parts), else: socket
+         if form_writable?(socket), do: save(socket, parts), else: socket
        end)}
     else
       {:noreply, socket}
@@ -317,6 +329,28 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
      end)}
   end
 
+  def handle_event("delete_fallback", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(notice: nil)
+     |> permitted(:delete, fn socket ->
+       assign(socket, confirm_fallback_delete?: fallback_deletable?(socket))
+     end)}
+  end
+
+  def handle_event("cancel_delete_fallback", _params, socket) do
+    {:noreply, assign(socket, confirm_fallback_delete?: false)}
+  end
+
+  def handle_event("confirm_delete_fallback", _params, socket) do
+    {:noreply,
+     permitted(socket, :delete, fn socket ->
+       if socket.assigns.confirm_fallback_delete? and fallback_deletable?(socket),
+         do: delete_fallback(socket),
+         else: assign(socket, confirm_fallback_delete?: false)
+     end)}
+  end
+
   def handle_event(_event, _params, socket), do: {:noreply, socket}
 
   ## Actions
@@ -329,7 +363,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   defp permitted(socket, action, fun) do
     case permission(socket, action) do
       :ok -> fun.(socket)
-      {:error, message} -> socket |> assign(confirm_delete?: false) |> notice(:error, message)
+      {:error, message} -> socket |> no_confirmations() |> notice(:error, message)
     end
   end
 
@@ -357,7 +391,8 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   defp select(socket, name) do
     socket
-    |> assign(selected: name, confirm_delete?: false)
+    |> assign(selected: name)
+    |> no_confirmations()
     |> assign(locale: initial_locale(socket, name))
     |> load_contents()
     |> preview()
@@ -665,8 +700,39 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
           {:error, gettext("Not deleted: %{reason}", reason: describe(reason))}
       end
 
-    socket = socket |> assign(notice: notice, confirm_delete?: false) |> load_templates()
+    socket = socket |> assign(notice: notice) |> no_confirmations() |> load_templates()
     if result == :ok, do: deselect(socket), else: keep_selection(socket)
+  end
+
+  # The open email's locale-less parts, which nothing reads: the files go,
+  # the rest of the template (its languages, `layout.txt`, a host's own
+  # files) stays.
+  defp delete_fallback(socket) do
+    %{root: root, selected: name} = socket.assigns
+
+    results =
+      for %{part: part} <- fallback_files(socket.assigns, name),
+          do: {part, Overrides.delete(root, name, part, nil)}
+
+    deleted = for {part, :ok} <- results, do: part
+    errors = for {part, {:error, reason}} <- results, do: {part, reason}
+
+    notice =
+      case errors do
+        [] ->
+          {:info, gettext("Deleted the files without a language of “%{name}”.", name: name)}
+
+        errors ->
+          {:error, gettext("Not deleted: %{errors}", errors: describe_errors(errors))}
+      end
+
+    notified = notify_changed(socket, if(deleted == [], do: nil, else: name))
+
+    socket
+    |> assign(notice: with_notified(notice, notified), confirm_fallback_delete?: false)
+    |> load_templates()
+    |> keep_selection()
+    |> preview_selected()
   end
 
   ## State
@@ -722,7 +788,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   defp keep_selection(socket) do
     if visible?(socket, socket.assigns.selected) do
-      if socket.assigns.locale in tabs(socket.assigns),
+      if socket.assigns.locale in tabs(socket.assigns, socket.assigns.selected),
         do: refresh_contents(socket),
         else: socket |> reset_locale() |> load_contents()
     else
@@ -766,7 +832,10 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   defp reset_locale(socket),
     do: assign(socket, locale: initial_locale(socket, socket.assigns.selected))
 
-  defp clear_transient(socket), do: assign(socket, notice: nil, confirm_delete?: false)
+  defp clear_transient(socket), do: socket |> assign(notice: nil) |> no_confirmations()
+
+  defp no_confirmations(socket),
+    do: assign(socket, confirm_delete?: false, confirm_fallback_delete?: false)
 
   defp deselect(socket) do
     assign(socket,
@@ -777,7 +846,8 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       form_values: %{},
       preview_result: nil,
       missing: [],
-      confirm_delete?: false
+      confirm_delete?: false,
+      confirm_fallback_delete?: false
     )
   end
 
@@ -839,6 +909,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     |> Enum.uniq()
     |> Enum.sort()
   end
+
+  defp preview_selected(%{assigns: %{selected: nil}} = socket), do: socket
+  defp preview_selected(socket), do: preview(socket)
 
   defp preview(%{assigns: %{preview: nil}} = socket), do: assign(socket, preview_result: nil)
 
@@ -1041,6 +1114,19 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   defp writable?(socket, name), do: editable?(socket.assigns) and visible?(socket, name)
 
+  # The form of the open tab may be saved or converted into — not on an
+  # email's fallback tab nothing reads, which is shown read-only.
+  defp form_writable?(socket),
+    do: writable?(socket, socket.assigns.selected) and not unused_fallback?(socket.assigns)
+
+  # Locale-less files of the open email that nothing reads, on its tab.
+  defp fallback_deletable?(socket) do
+    %{selected: name} = socket.assigns
+
+    writable?(socket, name) and unused_fallback?(socket.assigns) and
+      fallback_files(socket.assigns, name) != []
+  end
+
   # Listed templates are already filtered by prefix; a draft is checked here,
   # since the host may have changed the prefixes since it was created.
   defp visible?(socket, name) do
@@ -1050,27 +1136,58 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   defp exists?(socket, name), do: Enum.any?(socket.assigns.templates, &(&1.name == name))
 
-  defp files_of(socket, name) do
-    case Enum.find(socket.assigns.templates, &(&1.name == name)) do
+  defp files_of(socket, name), do: template_files(socket.assigns, name)
+
+  defp template_files(assigns, name) do
+    case Enum.find(assigns.templates, &(&1.name == name)) do
       %{files: files} -> files
       nil -> []
     end
   end
 
-  defp tabs(assigns), do: assigns.locales ++ [nil]
+  # The language tabs of template `name`, then Fallback (`nil`) — which an
+  # email has only while the host uses it, or while locale-less files of it
+  # are left over, to be seen and deleted.
+  defp tabs(assigns, name) do
+    if fallback_used?(assigns, name) or fallback_files(assigns, name) != [],
+      do: assigns.locales ++ [nil],
+      else: assigns.locales
+  end
+
+  # A header, footer or layout (a leading "_") always falls back; an email
+  # does unless the host says it never does (`email_fallback: false`). With
+  # no languages, the fallback is all there is.
+  defp fallback_used?(%{email_fallback: false, locales: [_ | _]}, name) when is_binary(name),
+    do: String.starts_with?(name, "_")
+
+  defp fallback_used?(_assigns, _name), do: true
+
+  defp fallback_files(assigns, name) do
+    for %{locale: nil, part: part} = file <- template_files(assigns, name),
+        part in @parts,
+        do: file
+  end
+
+  # The open tab is an email's fallback nothing reads.
+  defp unused_fallback?(%{selected: nil}), do: false
+
+  defp unused_fallback?(assigns),
+    do: assigns.locale == nil and not fallback_used?(assigns, assigns.selected)
 
   # The first tab that has a file, so a locale-less shared part opens on
-  # its fallback tab rather than on an empty first language.
+  # its fallback tab rather than on an empty first language — but never an
+  # unused fallback.
   defp initial_locale(socket, name) do
     files = files_of(socket, name)
-    tabs = tabs(socket.assigns)
-    Enum.find(tabs, hd(tabs), fn tab -> Enum.any?(files, &(&1.locale == tab)) end)
+    tabs = tabs(socket.assigns, name)
+    candidates = if fallback_used?(socket.assigns, name), do: tabs, else: List.delete(tabs, nil)
+    Enum.find(candidates, hd(tabs), fn tab -> Enum.any?(files, &(&1.locale == tab)) end)
   end
 
   defp caption(socket, name, files) do
     labels = for %{part: :label} = file <- files, into: %{}, do: {file.locale, file.path}
 
-    Enum.find_value(tabs(socket.assigns), name, fn tab ->
+    Enum.find_value(socket.assigns.locales ++ [nil], name, fn tab ->
       with path when is_binary(path) <- labels[tab],
            {:ok, label} <- File.read(path),
            true <- String.valid?(label),
@@ -1124,7 +1241,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       assign(assigns,
         messages: Enum.reject(assigns.templates, &String.starts_with?(&1.name, "_")),
         shared: Enum.filter(assigns.templates, &String.starts_with?(&1.name, "_")),
-        tabs: tabs(assigns),
+        tabs: tabs(assigns, assigns.selected),
+        fallback_used: fallback_used?(assigns, assigns.selected),
+        fallback_unused: unused_fallback?(assigns),
         parts: @parts,
         can_edit: editable?(assigns),
         can_fill_text: converter(assigns, :to_text) != nil,
@@ -1247,11 +1366,67 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
               title={if(is_nil(tab), do: gettext("Used for any language without its own file"))}
             >
               {tab || gettext("Fallback")}
+              <span :if={is_nil(tab) && !@fallback_used} class="badge badge-ghost badge-xs ml-1">
+                {gettext("not used")}
+              </span>
             </button>
           </div>
 
+          <div
+            :if={@fallback_unused}
+            id={"#{@id}-fallback-unused"}
+            role="alert"
+            class="alert alert-warning text-sm"
+          >
+            <span>
+              {gettext(
+                "These files without a language are not used: an email is sent only in its own languages."
+              )}
+            </span>
+            <button
+              :if={@can_edit && !@confirm_fallback_delete?}
+              id={"#{@id}-fallback-delete"}
+              type="button"
+              phx-click="delete_fallback"
+              phx-target={@myself}
+              class="btn btn-sm btn-outline btn-error"
+            >
+              {gettext("Delete")}
+            </button>
+          </div>
+
+          <div
+            :if={@fallback_unused && @confirm_fallback_delete?}
+            role="alert"
+            class="alert alert-warning"
+          >
+            <span>
+              {gettext("Delete the files without a language of “%{name}”?", name: @selected)}
+            </span>
+            <div class="flex gap-2">
+              <button
+                id={"#{@id}-fallback-delete-confirm"}
+                type="button"
+                phx-click="confirm_delete_fallback"
+                phx-target={@myself}
+                class="btn btn-sm btn-error"
+              >
+                {gettext("Delete")}
+              </button>
+              <button
+                id={"#{@id}-fallback-delete-cancel"}
+                type="button"
+                phx-click="cancel_delete_fallback"
+                phx-target={@myself}
+                class="btn btn-sm btn-ghost"
+              >
+                {gettext("Cancel")}
+              </button>
+            </div>
+          </div>
+
           <form
-            :if={@selected && @can_edit}
+            :if={@selected && @can_edit && !@fallback_unused}
             id={"#{@id}-parts"}
             phx-submit="save"
             phx-target={@myself}
@@ -1304,7 +1479,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             </div>
           </form>
 
-          <dl :if={@selected && !@can_edit} class="flex flex-col gap-3">
+          <dl :if={@selected && (!@can_edit || @fallback_unused)} class="flex flex-col gap-3">
             <div :for={part <- @parts}>
               <dt class="text-sm font-semibold">{part_title(part)}</dt>
               <dd :if={@contents[part] && @contents[part][:invalid]} class="text-sm text-error">
