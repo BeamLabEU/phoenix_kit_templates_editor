@@ -117,6 +117,28 @@ defmodule PhoenixKitTemplatesEditor.Integration.TestSendTest do
     assert email.html_body =~ "Hello"
   end
 
+  # Spec §4.11 П3: the host's callback sends the host's own emails; an email
+  # PhoenixKit or a module sends goes through PhoenixKit's mailer, as it is
+  # sent for real.
+  test "with a callback, a module's email still through PhoenixKit's mailer", ctx do
+    config = %{ctx.config | test_send: fn _name, _locale, _user -> flunk("host callback") end}
+
+    entry = %{
+      name: "billing_invoice",
+      label: "Invoice",
+      defaults: fn -> %{subject: "Invoice {{n}}", text: "Pay {{n}}"} end,
+      variables: fn -> %{"n" => "INV-1"} end
+    }
+
+    with_test_mailer(fn ->
+      assert {:ok, _} = TestSend.deliver(config, ctx.scope, "billing_invoice", "en", entry)
+    end)
+
+    assert_received {:email, email}
+    assert email.to == [{"", ctx.user.email}]
+    assert email.subject == "Invoice INV-1"
+  end
+
   test "without a callback, a module's email in its built-in text", ctx do
     entry = %{
       name: "billing_invoice",

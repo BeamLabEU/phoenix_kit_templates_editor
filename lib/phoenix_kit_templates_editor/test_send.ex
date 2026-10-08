@@ -7,13 +7,14 @@ defmodule PhoenixKitTemplatesEditor.TestSend do
 
     * The user must see the tab (`PhoenixKitTemplatesEditor.authorize(scope, :read)`).
     * Not more often than once in 30 s per user (`PhoenixKitTemplatesEditor.Throttle`).
-    * Sent by the host's `test_send` callback when it has one —
-      `test_send(name, locale, user)`, returning `:ok`, `{:ok, _}` or
-      `{:error, reason}` (the host's own way of sending, its test mode
-      included) — else through `PhoenixKit.Mailer.send_from_template/4`:
-      an email core or a module sends with its catalogue entry's built-in
-      text, samples and layout; the host's own from the root's files with
-      its `sample_variables` and its layout (`layout.txt`, else
+    * The host's own email is sent by its `test_send` callback when it
+      has one — `test_send(name, locale, user)`, returning `:ok`,
+      `{:ok, _}` or `{:error, reason}` (the host's own way of sending, its
+      test mode included). Otherwise, and always for an email core or a
+      module sends, through `PhoenixKit.Mailer.send_from_template/4`: such
+      an email with its catalogue entry's built-in text, samples and
+      layout; the host's own from the root's files with its
+      `sample_variables` and its layout (`layout.txt`, else
       `layout_group`).
     * Every attempt is logged: who, which email, which language, and how
       it went.
@@ -87,9 +88,14 @@ defmodule PhoenixKitTemplatesEditor.TestSend do
     end
   end
 
+  # The host's callback sends only the host's own emails (`entry` nil): an
+  # email core or a module sends goes as it goes for real.
   defp send_now(config, name, locale, user, entry) do
-    case config.test_send do
-      nil ->
+    case {config.test_send, entry} do
+      {callback, nil} when callback != nil ->
+        callback |> call([name, locale, user]) |> result()
+
+      _core_or_none ->
         name
         |> Mailer.send_from_template(
           user.email,
@@ -97,9 +103,6 @@ defmodule PhoenixKitTemplatesEditor.TestSend do
           mail_opts(config, name, locale, user, entry)
         )
         |> result()
-
-      callback ->
-        callback |> call([name, locale, user]) |> result()
     end
   rescue
     exception -> {:error, Exception.message(exception)}

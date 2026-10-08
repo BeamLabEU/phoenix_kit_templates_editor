@@ -68,8 +68,8 @@
   `raw_variables` and a layout's `content`/`header`/`footer`, a subject one
   line of at most 998 bytes.
 - Send to me (`PhoenixKitTemplatesEditor.TestSend`, `Throttle`): to the user
-  asking only, once in 30 s, by the host's `test_send` or `PhoenixKit.Mailer`,
-  logged.
+  asking only, once in 30 s, logged; the host's own emails by its
+  `test_send`, if any, the rest by `PhoenixKit.Mailer`.
 - A part changed on disk since it was opened is not saved over; *Reload*
   reads the files again.
 - Every change in PhoenixKit's activity log (`PhoenixKitTemplatesEditor.Journal`).

@@ -123,7 +123,7 @@ config :phoenix_kit_templates_editor, editable: true
 | `describe_variables` | `nil` | `(name) -> %{variable => description}`, shown in the variables panel |
 | `complete?` | `nil` | `(name, locale) -> boolean`; default: subject and body on `base_locale` |
 | `sent_by` | `nil` | `(name) -> :core \| :host` — who sends the email; default: PhoenixKit for the emails of its catalogue, your app for your own |
-| `test_send` | `nil` | `(name, locale, user) -> :ok \| {:ok, term} \| {:error, reason}` — your own way to send "Send to me" (your test mode included); default: `PhoenixKit.Mailer` |
+| `test_send` | `nil` | `(name, locale, user) -> :ok \| {:ok, term} \| {:error, reason}` — your own way to send "Send to me" for your own emails (your test mode included); default, and always for the emails PhoenixKit and its modules send: `PhoenixKit.Mailer` |
 | `block_placeholders` | `[]` | variables that stand as a block of their own |
 | `raw_variables` | `[]` | variables allowed in `{{{x}}}` besides `content`, `header`, `footer` |
 | `email_fallback` | `true` | whether emails get a locale-less *Fallback* tab |
@@ -186,8 +186,9 @@ keeps working.
   `header`, `footer`); a subject one line of at most 998 bytes.
 - **Send to me.** One email, with the sample variables, in its layout, to the
   address of the user asking and nobody else — once in 30 s per user, logged,
-  read-only servers included. Your `test_send` callback sends it if you give
-  one; otherwise `PhoenixKit.Mailer`.
+  read-only servers included. Your `test_send` callback sends your own emails
+  if you give one; `PhoenixKit.Mailer` sends the rest, and the emails
+  PhoenixKit and its modules send always.
 - **Someone else changed the file.** A part's file is fingerprinted when the
   form is given it; a save of a part whose file has changed on disk since — by
   hand, by `git pull`, by another user — is refused, showing what is on disk
