@@ -172,6 +172,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   alias PhoenixKit.Templates
   alias PhoenixKit.Templates.Overrides
+  alias PhoenixKitTemplatesEditor.Files
 
   @parts [:label, :subject, :text, :markdown, :html]
 
@@ -194,6 +195,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
        after_change: nil,
        convert: nil,
        authorize: nil,
+       preview_image_origins: [],
        base_locale: nil,
        complete?: nil,
        base_language: nil,
@@ -489,7 +491,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         not_converted(socket, describe(:invalid_content))
 
       invalid_on_disk?(socket, target) ->
-        notice(socket, :error, invalid_on_disk(target))
+        notice(socket, :error, invalid_on_disk(socket, target))
 
       true ->
         case conversion_source(socket, conversion, values) do
@@ -497,7 +499,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             notice(socket, :info, nothing_to_convert(conversion))
 
           {:invalid, part} ->
-            notice(socket, :error, invalid_on_disk(part))
+            notice(socket, :error, invalid_on_disk(socket, part))
 
           {format, source} ->
             socket
@@ -538,10 +540,16 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   defp nothing_to_convert(:markdown_to_html),
     do: gettext("Nothing to convert: Markdown is empty.")
 
-  defp invalid_on_disk(part) do
-    gettext("Not converted: %{part} is not valid UTF-8 text on disk; fix it there first.",
-      part: part_title(part)
-    )
+  defp invalid_on_disk(socket, part) do
+    case socket.assigns.contents[part] do
+      %{reason: :invalid_content} ->
+        gettext("Not converted: %{part} is not valid UTF-8 text on disk; fix it there first.",
+          part: part_title(part)
+        )
+
+      _unreadable ->
+        gettext("Not converted: %{part} cannot be read here.", part: part_title(part))
+    end
   end
 
   defp not_converted(socket, reason),
@@ -555,6 +563,11 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       callback |> call(args) |> conversion_result()
     end)
   end
+
+  # The module's own converters' limits are told in words; any other reason
+  # is the host's own.
+  defp conversion_result({:error, reason}) when reason in [:too_large, :timeout],
+    do: {:error, describe(reason)}
 
   defp conversion_result({:error, reason}), do: {:error, describe_host(reason)}
 
@@ -759,8 +772,8 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   defp incomplete?(%{base_language: nil}, _name, _files), do: false
   defp incomplete?(_assigns, "_" <> _shared, _files), do: false
 
-  defp incomplete?(%{complete?: nil, base_language: locale}, _name, files),
-    do: not complete_files?(files, locale)
+  defp incomplete?(%{complete?: nil, base_language: locale, root: root}, _name, files),
+    do: not complete_files?(root, files, locale)
 
   defp incomplete?(%{complete?: callback, base_language: locale}, name, _files) do
     callable?(callback, 2) and
@@ -770,13 +783,15 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   # A subject and a body part (HTML, Markdown or text) in `locale` itself —
   # the locale-less fallback does not count — none of them blank.
-  defp complete_files?(files, locale) do
-    present = for %{locale: ^locale, part: part, path: path} <- files, filled?(path), do: part
+  defp complete_files?(root, files, locale) do
+    present =
+      for %{locale: ^locale, part: part, path: path} <- files, filled?(root, path), do: part
+
     :subject in present and Enum.any?([:html, :markdown, :text], &(&1 in present))
   end
 
-  defp filled?(path) do
-    case File.read(path) do
+  defp filled?(root, path) do
+    case Files.safe_read(root, path) do
       {:ok, content} -> content |> String.replace_invalid() |> String.trim() != ""
       {:error, _reason} -> false
     end
@@ -863,17 +878,32 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   end
 
   defp refresh_contents(socket) do
-    %{selected: name, locale: locale} = socket.assigns
+    %{root: root, selected: name, locale: locale} = socket.assigns
 
     contents =
       for %{part: part, locale: ^locale, path: path, mtime: mtime} <- files_of(socket, name),
           part in @parts,
-          {:ok, content} <- [File.read(path)],
+          file = read_part(root, path, mtime),
+          file != nil,
           into: %{},
-          do: {part, file_contents(content, mtime)}
+          do: {part, file}
 
     socket |> assign(contents: contents) |> load_missing()
   end
+
+  # Every file is read through `Files.safe_read/2`: a link, a file leading
+  # out of the root or one larger than a template may be is never read —
+  # shown as unavailable, like text that is not UTF-8, and never written
+  # over from here.
+  defp read_part(root, path, mtime) do
+    case Files.safe_read(root, path) do
+      {:ok, content} -> file_contents(content, mtime)
+      {:error, reason} when reason in [:unsafe_path, :too_large] -> unreadable(reason, mtime)
+      {:error, _gone} -> nil
+    end
+  end
+
+  defp unreadable(reason, mtime), do: %{invalid: true, reason: reason, mtime: mtime}
 
   defp baseline(contents) do
     for {part, %{content: content}} <- contents,
@@ -886,7 +916,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   defp file_contents(content, mtime) do
     if String.valid?(content),
       do: %{content: content, mtime: mtime},
-      else: %{invalid: true, mtime: mtime}
+      else: unreadable(:invalid_content, mtime)
   end
 
   defp load_missing(socket) do
@@ -901,9 +931,27 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     end
   end
 
+  # Only when every file the check would read passes `Files.check/2`: a
+  # link or a file out of the root is never read, not even for its
+  # placeholders.
   defp missing_variables(name, variables, locale, root) do
+    opts = [locale: locale, paths: [root]]
+
+    if sources_safe?(root, Templates.sources(name, %{}, opts)),
+      do: unbound(name, variables, opts),
+      else: []
+  end
+
+  defp sources_safe?(root, sources) do
+    Enum.all?(sources, fn
+      {_part, {:file, path}} -> match?({:ok, _stat}, Files.check(root, path))
+      {_part, _default} -> true
+    end)
+  end
+
+  defp unbound(name, variables, opts) do
     name
-    |> Templates.missing_variables(%{}, variables, locale: locale, paths: [root])
+    |> Templates.missing_variables(%{}, variables, opts)
     |> Map.values()
     |> List.flatten()
     |> Enum.uniq()
@@ -981,8 +1029,10 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     callback = socket.assigns.after_write
 
     safely({"after_write", callback, [paths]}, fn ->
-      call(callback, [paths])
-      :ok
+      case call(callback, [paths]) do
+        {:warning, message} when is_binary(message) -> {:warning, message}
+        _other -> :ok
+      end
     end)
     |> tag_failure("after_write")
   end
@@ -1001,6 +1051,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   end
 
   defp tag_failure(:ok, _role), do: :ok
+  defp tag_failure({:warning, _message} = warning, _role), do: warning
   defp tag_failure({:error, reason}, role), do: {:error, {role, reason}}
 
   # Both callbacks run even when the first fails; the notice reports the
@@ -1013,6 +1064,14 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   end
 
   defp with_notified(notice, :ok), do: notice
+
+  # The files are saved; something the host does after (setting their
+  # mode, say) did not quite work out. A warning, not an error.
+  defp with_notified({:info, message}, {:warning, warning}),
+    do: {:warning, gettext("%{message} But: %{warning}", message: message, warning: warning)}
+
+  defp with_notified({kind, message}, {:warning, warning}),
+    do: {kind, gettext("%{message} But: %{warning}", message: message, warning: warning)}
 
   defp with_notified({_kind, message}, {:error, {role, reason}}),
     do:
@@ -1091,8 +1150,12 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   # allows nothing rather than everything, or a crash. The same goes for
   # `locales` and `sample_variables`, which the page would otherwise crash on.
   defp sanitize_options(socket) do
-    %{name_prefixes: prefixes, locales: locales, sample_variables: variables} =
-      socket.assigns
+    %{
+      name_prefixes: prefixes,
+      locales: locales,
+      sample_variables: variables,
+      preview_image_origins: origins
+    } = socket.assigns
 
     locales = locales |> non_empty_strings() |> Enum.uniq()
 
@@ -1100,12 +1163,17 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       name_prefixes: non_empty_strings(prefixes),
       locales: locales,
       sample_variables: if(is_map(variables), do: variables, else: %{}),
+      preview_image_origins: origins |> non_empty_strings() |> Enum.filter(&origin?/1),
       base_language: base_language(socket.assigns.base_locale, locales)
     )
   end
 
   defp base_language(locale, _locales) when is_binary(locale) and locale != "", do: locale
   defp base_language(_none, locales), do: List.first(locales)
+
+  # An origin goes into the frame's policy as it is: only a plain
+  # `http(s)://host[:port]`, nothing that could end the directive.
+  defp origin?(origin), do: Regex.match?(~r/\Ahttps?:\/\/[a-z0-9.\-]+(?::[0-9]{1,5})?\z/i, origin)
 
   defp non_empty_strings(list) when is_list(list),
     do: Enum.filter(list, &(is_binary(&1) and &1 != ""))
@@ -1189,7 +1257,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
     Enum.find_value(socket.assigns.locales ++ [nil], name, fn tab ->
       with path when is_binary(path) <- labels[tab],
-           {:ok, label} <- File.read(path),
+           {:ok, label} <- Files.safe_read(socket.assigns.root, path),
            true <- String.valid?(label),
            label when label != "" <- String.trim(label) do
         label
@@ -1210,6 +1278,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   defp describe(:too_large),
     do: gettext("larger than %{size} KiB", size: div(Overrides.max_bytes(), 1024))
 
+  defp describe(:timeout), do: gettext("it took too long")
   defp describe(:invalid_content), do: gettext("not valid UTF-8 text")
   defp describe(:invalid_name), do: gettext("not a valid template name")
   defp describe(:invalid_part), do: gettext("not a part this editor writes")
@@ -1483,7 +1552,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             <div :for={part <- @parts}>
               <dt class="text-sm font-semibold">{part_title(part)}</dt>
               <dd :if={@contents[part] && @contents[part][:invalid]} class="text-sm text-error">
-                {invalid_utf8()}
+                {unreadable_message(@contents[part])}
               </dd>
               <dd :if={@contents[part] && !@contents[part][:invalid]}>
                 <pre class="whitespace-pre-wrap rounded-box bg-base-200 p-3 text-sm">{@contents[part].content}</pre>
@@ -1518,6 +1587,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
               id={@id}
               result={@preview_result}
               tab={@preview_tab}
+              csp={preview_csp(@preview_image_origins)}
               myself={@myself}
             />
           </div>
@@ -1579,7 +1649,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     <div class="flex flex-col gap-1">
       <span class="text-sm font-semibold">{part_title(@part)}</span>
       <div id={"#{@id}-invalid"} role="alert" class="alert alert-error text-sm">
-        {invalid_utf8()}
+        {unreadable_message(@file)}
       </div>
     </div>
     """
@@ -1615,6 +1685,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   attr(:id, :string, required: true)
   attr(:result, :any, required: true)
   attr(:tab, :atom, default: :html)
+  attr(:csp, :string, required: true)
   attr(:myself, :any, required: true)
 
   defp preview_pane(%{result: {:ok, subject, html, text}} = assigns) do
@@ -1646,9 +1717,15 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       </button>
     </div>
     <%!-- bg-white, not a theme colour: an email is drawn on white whatever the admin theme. --%>
+    <%!-- Nothing in an edited template runs (no allow-scripts), leaks the
+         admin page's address, or loads anything from outside but images
+         from the origins the host names (`csp`, where the browser honours
+         it). --%>
     <iframe
       :if={@show_html? && @html}
       sandbox=""
+      referrerpolicy="no-referrer"
+      csp={@csp}
       srcdoc={@html}
       title={gettext("Preview")}
       class="h-[32rem] w-full rounded-box border border-base-300 bg-white"
@@ -1679,7 +1756,16 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     """
   end
 
-  defp invalid_utf8,
+  defp unreadable_message(%{reason: :unsafe_path}),
+    do: gettext("This file is a link or outside the template directory: it is not read here.")
+
+  defp unreadable_message(%{reason: :too_large}),
+    do:
+      gettext("This file is larger than %{size} KiB: it is not read here.",
+        size: div(Overrides.max_bytes(), 1024)
+      )
+
+  defp unreadable_message(_invalid),
     do: gettext("This file is not valid UTF-8 text; fix it on disk to edit it here.")
 
   defp part_title(:label), do: gettext("Label")
@@ -1694,6 +1780,15 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   defp part_hint(:markdown), do: gettext("Optional, an alternative to HTML.")
   defp part_hint(:html), do: gettext("Optional.")
 
+  # The preview frame's policy: no script, no frame, no connection, no font
+  # or stylesheet from outside; inline styles (every email has them) and
+  # images inline or from the host's own origins (its logo).
+  defp preview_csp(origins) do
+    images = Enum.join(["data:" | origins], " ")
+    "default-src 'none'; img-src #{images}; style-src 'unsafe-inline'"
+  end
+
   defp notice_class(:info), do: "alert alert-success"
+  defp notice_class(:warning), do: "alert alert-warning"
   defp notice_class(:error), do: "alert alert-error"
 end

@@ -152,7 +152,6 @@ defmodule PhoenixKitTemplatesEditor.ConvertersTest do
         "<p>" <> String.duplicate(" ", size - 3),
         fill.("<a "),
         fill.("[a]("),
-        fill.("*_"),
         fill.("https://pk0.invalid/"),
         String.duplicate(" ", size)
       ]
@@ -172,6 +171,17 @@ defmodule PhoenixKitTemplatesEditor.ConvertersTest do
         assert micros < 1_000_000,
                "#{name} on #{inspect(binary_part(source, 0, 8))}…: #{div(micros, 1000)} ms"
       end
+    end
+
+    # Not a pattern of this module: core's Markdown pipeline costs about a
+    # second per 256 KiB of emphasis markers, in linear time — within the
+    # deadline, not within the patterns' budget above.
+    test "the largest source of emphasis markers converts within the deadline" do
+      size = Overrides.max_bytes()
+      source = binary_part(String.duplicate("*_", div(size, 2) + 1), 0, size)
+
+      assert is_binary(Converters.markdown_to_html(source))
+      assert is_binary(Converters.to_text(:markdown, source))
     end
   end
 end
