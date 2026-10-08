@@ -12,12 +12,12 @@ msgstr ""
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100 != 11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10||n%100>=20) ? 1 : 2);\n"
 
 #: lib/phoenix_kit_templates_editor.ex:89
-#: lib/phoenix_kit_templates_editor/web/section.ex:149
+#: lib/phoenix_kit_templates_editor/web/section.ex:171
 #, elixir-autogen, elixir-format
 msgid "Edit email templates"
 msgstr "Редактирование шаблонов писем"
 
-#: lib/phoenix_kit_templates_editor.ex:108
+#: lib/phoenix_kit_templates_editor.ex:128
 #, elixir-autogen, elixir-format
 msgid "Email templates"
 msgstr "Шаблоны писем"
@@ -28,427 +28,429 @@ msgstr "Шаблоны писем"
 msgid "Templates editor"
 msgstr "Редактор шаблонов"
 
-#: lib/phoenix_kit_templates_editor/web/section.ex:212
+#: lib/phoenix_kit_templates_editor/web/section.ex:234
 #, elixir-autogen, elixir-format
 msgid "The templates editor is not configured correctly."
 msgstr "Редактор шаблонов настроен неверно."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1455
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2138
 #, elixir-autogen, elixir-format
 msgid "%{message} But the host's %{role} failed: %{reason}"
 msgstr "%{message} Но обработчик приложения %{role} завершился ошибкой: %{reason}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1783
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1945
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2017
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2523
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2889
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2961
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3023
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "Отмена"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1850
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2650
 #, elixir-autogen, elixir-format
 msgid "Copy of %{name}"
 msgstr "Копия шаблона %{name}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1872
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2672
 #, elixir-autogen, elixir-format
 msgid "Create"
 msgstr "Создать"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:782
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1178
 #, elixir-autogen, elixir-format
 msgid "Created “%{name}” as a copy of “%{from}”."
 msgstr "Шаблон «%{name}» создан как копия «%{from}»."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1774
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1890
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1936
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1988
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2008
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2193
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2514
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2816
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2880
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2932
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2952
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3204
 #, elixir-autogen, elixir-format
 msgid "Delete"
 msgstr "Удалить"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1998
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2942
 #, elixir-autogen, elixir-format
 msgid "Delete the files without a language of “%{name}”?"
 msgstr "Удалить файлы без языка у шаблона «%{name}»?"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1927
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2871
 #, elixir-autogen, elixir-format
 msgid "Delete “%{name}” and all its files?"
 msgstr "Удалить шаблон «%{name}» со всеми его файлами?"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:854
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1251
 #, elixir-autogen, elixir-format
 msgid "Deleted the files without a language of “%{name}”."
 msgstr "Файлы без языка у шаблона «%{name}» удалены."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:826
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1223
 #, elixir-autogen, elixir-format
 msgid "Deleted “%{name}”."
 msgstr "Шаблон «%{name}» удалён."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2038
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3050
 #, elixir-autogen, elixir-format
 msgid "Each language is saved on its own: switching tabs or templates drops unsaved changes. A part saved empty has its file deleted."
 msgstr "Каждый язык сохраняется отдельно: при переходе на другую вкладку или шаблон несохранённые правки пропадают. Часть, сохранённая пустой, удаляет свой файл."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1848
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2648
 #, elixir-autogen, elixir-format
 msgid "Empty"
 msgstr "Пустой"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1962
-#: lib/phoenix_kit_templates_editor/web/section.ex:269
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2906
+#: lib/phoenix_kit_templates_editor/web/section.ex:291
 #, elixir-autogen, elixir-format
 msgid "Fallback"
 msgstr "Общий"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2060
-#: lib/phoenix_kit_templates_editor/web/section.ex:261
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3072
+#: lib/phoenix_kit_templates_editor/web/section.ex:283
 #, elixir-autogen, elixir-format
 msgid "Fill text from content"
 msgstr "Заполнить текст из содержимого"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:649
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1040
 #, elixir-autogen, elixir-format
 msgid "Filled %{target} from %{source}. It is not saved yet: check it, then Save."
 msgstr "Поле «%{target}» заполнено из «%{source}». Оно ещё не сохранено: проверьте его и нажмите «Сохранить»."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2357
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3450
 #, elixir-autogen, elixir-format
 msgid "HTML"
 msgstr "HTML"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2353
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3446
 #, elixir-autogen, elixir-format
 msgid "Label"
 msgstr "Название"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2356
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3449
 #, elixir-autogen, elixir-format
 msgid "Markdown"
 msgstr "Markdown"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2071
-#: lib/phoenix_kit_templates_editor/web/section.ex:262
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3083
+#: lib/phoenix_kit_templates_editor/web/section.ex:284
 #, elixir-autogen, elixir-format
 msgid "Markdown → HTML"
 msgstr "Markdown → HTML"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1735
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2475
 #, elixir-autogen, elixir-format
 msgid "Messages"
 msgstr "Письма"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1834
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2634
 #, elixir-autogen, elixir-format
 msgid "New template"
 msgstr "Новый шаблон"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2315
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3408
 #, elixir-autogen, elixir-format
 msgid "No HTML."
 msgstr "HTML нет."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:659
-#: lib/phoenix_kit_templates_editor/web/editor.ex:901
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1050
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1453
 #, elixir-autogen, elixir-format
 msgid "No changes."
 msgstr "Изменений нет."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2085
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3097
 #, elixir-autogen, elixir-format
 msgid "No file."
 msgstr "Файла нет."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1722
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2449
 #, elixir-autogen, elixir-format
 msgid "No template directory is configured."
 msgstr "Папка шаблонов не настроена."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1730
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2470
 #, elixir-autogen, elixir-format
 msgid "No templates yet."
 msgstr "Шаблонов пока нет."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2321
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3414
 #, elixir-autogen, elixir-format
 msgid "No text."
 msgstr "Текста нет."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:602
+#: lib/phoenix_kit_templates_editor/web/editor.ex:993
 #, elixir-autogen, elixir-format
 msgid "Not converted: %{part} is not valid UTF-8 text on disk; fix it there first."
 msgstr "Не преобразовано: «%{part}» на диске — некорректный текст UTF-8; сначала исправьте его там."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:612
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1003
 #, elixir-autogen, elixir-format
 msgid "Not converted: %{reason}"
 msgstr "Не преобразовано: %{reason}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:791
-#: lib/phoenix_kit_templates_editor/web/editor.ex:987
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1187
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1541
 #, elixir-autogen, elixir-format
 msgid "Not copied: %{reason}"
 msgstr "Не скопировано: %{reason}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:857
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1254
 #, elixir-autogen, elixir-format
 msgid "Not deleted: %{errors}"
 msgstr "Не удалено: %{errors}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:831
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1036
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1228
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1590
 #, elixir-autogen, elixir-format
 msgid "Not deleted: %{reason}"
 msgstr "Не удалено: %{reason}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2155
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3166
 #, elixir-autogen, elixir-format
 msgid "Not offered for sending: no subject or body in %{locale}."
 msgstr "Не будет предложено к отправке: нет темы или текста письма на языке %{locale}."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:663
-#: lib/phoenix_kit_templates_editor/web/editor.ex:914
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1054
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1466
 #, elixir-autogen, elixir-format
 msgid "Not saved: %{errors}"
 msgstr "Не сохранено: %{errors}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:594
+#: lib/phoenix_kit_templates_editor/web/editor.ex:985
 #, elixir-autogen, elixir-format
 msgid "Nothing to convert: Markdown and HTML are empty."
 msgstr "Нечего преобразовывать: Markdown и HTML пусты."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:597
+#: lib/phoenix_kit_templates_editor/web/editor.ex:988
 #, elixir-autogen, elixir-format
 msgid "Nothing to convert: Markdown is empty."
 msgstr "Нечего преобразовывать: Markdown пуст."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2404
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3577
 #, elixir-autogen, elixir-format
 msgid "One line."
 msgstr "Одна строка."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2406
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3579
 #, elixir-autogen, elixir-format
 msgid "Optional, an alternative to HTML."
 msgstr "Необязательно, вместо HTML."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2407
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3580
 #, elixir-autogen, elixir-format
 msgid "Optional."
 msgstr "Необязательно."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2110
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2312
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3121
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3405
 #, elixir-autogen, elixir-format
 msgid "Preview"
 msgstr "Предпросмотр"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2336
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3429
 #, elixir-autogen, elixir-format
 msgid "Preview unavailable: %{reason}"
 msgstr "Предпросмотр недоступен: %{reason}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2055
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3067
 #, elixir-autogen, elixir-format
 msgid "Put the Markdown, or else the HTML, as plain text in Text. Not saved until you Save."
 msgstr "Записывает Markdown, а если его нет — HTML, простым текстом в поле «Текст». Сохраняется только кнопкой «Сохранить»."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2069
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3081
 #, elixir-autogen, elixir-format
 msgid "Put the Markdown, rendered, in HTML. Not saved until you Save."
 msgstr "Записывает Markdown, преобразованный в HTML, в поле «HTML». Сохраняется только кнопкой «Сохранить»."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2045
-#: lib/phoenix_kit_templates_editor/web/section.ex:263
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3057
+#: lib/phoenix_kit_templates_editor/web/section.ex:285
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr "Сохранить"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2327
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3420
 #, elixir-autogen, elixir-format
 msgid "Save the template to preview it."
 msgstr "Сохраните шаблон, чтобы увидеть предпросмотр."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:660
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1051
 #, elixir-autogen, elixir-format
 msgid "Saved."
 msgstr "Сохранено."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:668
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1059
 #, elixir-autogen, elixir-format
 msgid "Saved: %{saved}. Not saved: %{errors}"
 msgstr "Сохранено: %{saved}. Не сохранено: %{errors}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1877
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2678
 #, elixir-autogen, elixir-format
 msgid "Select a template."
 msgstr "Выберите шаблон."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1806
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1845
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2546
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2645
 #, elixir-autogen, elixir-format
 msgid "Start from"
 msgstr "Основа"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2354
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3447
 #, elixir-autogen, elixir-format
 msgid "Subject"
 msgstr "Тема"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2284
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3377
 #, elixir-autogen, elixir-format
 msgid "Subject:"
 msgstr "Тема:"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1838
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2638
 #, elixir-autogen, elixir-format
 msgid "Template name"
 msgstr "Имя шаблона"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2355
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3448
 #, elixir-autogen, elixir-format
 msgid "Text"
 msgstr "Текст"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2403
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3576
 #, elixir-autogen, elixir-format
 msgid "The caption in lists. Never sent."
 msgstr "Название в списках. В письме не отправляется."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2405
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3578
 #, elixir-autogen, elixir-format
 msgid "The plain-text body."
 msgstr "Текст письма без оформления."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:721
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1114
 #, elixir-autogen, elixir-format
 msgid "There is no “%{name}” to copy."
 msgstr "Шаблона «%{name}» нет — копировать нечего."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1976
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2920
 #, elixir-autogen, elixir-format
 msgid "These files without a language are not used: an email is sent only in its own languages."
 msgstr "Эти файлы без языка не используются: письмо отправляется только на его собственных языках."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:431
+#: lib/phoenix_kit_templates_editor/web/editor.ex:590
 #, elixir-autogen, elixir-format
 msgid "These templates are read-only here: nothing was changed."
 msgstr "Здесь шаблоны только для просмотра: ничего не изменено."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2351
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3444
 #, elixir-autogen, elixir-format
 msgid "This file is not valid UTF-8 text; fix it on disk to edit it here."
 msgstr "Этот файл — некорректный текст UTF-8; исправьте его на диске, чтобы править здесь."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2095
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3107
 #, elixir-autogen, elixir-format
 msgid "Unknown placeholders: %{names}"
 msgstr "Неизвестные подстановки: %{names}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1960
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2904
 #, elixir-autogen, elixir-format
 msgid "Used for any language without its own file"
 msgstr "Используется для любого языка без своего файла"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2101
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3243
 #, elixir-autogen, elixir-format
 msgid "Variables"
 msgstr "Переменные"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:437
+#: lib/phoenix_kit_templates_editor/web/editor.ex:596
 #, elixir-autogen, elixir-format
 msgid "You are not allowed to change templates: nothing was changed."
 msgstr "У вас нет права менять шаблоны: ничего не изменено."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1685
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2391
 #, elixir-autogen, elixir-format
 msgid "already gone"
 msgstr "уже удалено"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2253
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3346
 #, elixir-autogen, elixir-format
 msgid "changed %{time}"
 msgstr "изменено %{time}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1673
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2379
 #, elixir-autogen, elixir-format
 msgid "larger than %{size} KiB"
 msgstr "больше %{size} КиБ"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1801
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1840
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2541
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2640
 #, elixir-autogen, elixir-format
 msgid "name"
 msgstr "имя"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1678
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2384
 #, elixir-autogen, elixir-format
 msgid "not a part this editor writes"
 msgstr "эту часть редактор не записывает"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1679
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2385
 #, elixir-autogen, elixir-format
 msgid "not a valid language tag"
 msgstr "неверный код языка"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1677
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2383
 #, elixir-autogen, elixir-format
 msgid "not a valid template name"
 msgstr "неверное имя шаблона"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1881
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2797
 #, elixir-autogen, elixir-format
 msgid "not saved yet"
 msgstr "ещё не сохранён"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1964
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2908
 #, elixir-autogen, elixir-format
 msgid "not used"
 msgstr "не используется"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1676
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2382
 #, elixir-autogen, elixir-format
 msgid "not valid UTF-8 text"
 msgstr "некорректный текст UTF-8"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1683
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2389
 #, elixir-autogen, elixir-format
 msgid "the path leads outside the template directory"
 msgstr "путь ведёт за пределы папки шаблонов"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1680
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2386
 #, elixir-autogen, elixir-format
 msgid "the template directory does not exist"
 msgstr "папки шаблонов нет"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1387
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2057
 #, elixir-autogen, elixir-format
 msgid "unexpected preview result"
 msgstr "неожиданный результат предпросмотра"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:631
-#: lib/phoenix_kit_templates_editor/web/editor.ex:634
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1022
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1025
 #, elixir-autogen, elixir-format
 msgid "unexpected result"
 msgstr "неожиданный результат"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:711
-#: lib/phoenix_kit_templates_editor/web/editor.ex:959
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1104
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1330
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1512
 #, elixir-autogen, elixir-format
 msgid "“%{name}” already exists."
 msgstr "«%{name}» уже существует."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:700
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1091
 #, elixir-autogen, elixir-format
 msgid "“%{name}” is not a valid template name: use lowercase letters, digits, “_” and “-”, with at most one leading “_”."
 msgstr "«%{name}» — неверное имя шаблона: используйте строчные латинские буквы, цифры, «_» и «-», в начале — не больше одного «_»."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:747
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1142
 #, elixir-autogen, elixir-format
 msgid "“%{name}” is not allowed here: names must start with %{prefixes}."
 msgstr "«%{name}» здесь не разрешено: имя должно начинаться с одного из: %{prefixes}."
@@ -463,262 +465,513 @@ msgstr "%{file} — ссылка или лежит вне папки шабло�
 msgid "%{file} is larger than %{size} KiB: not read."
 msgstr "%{file} больше %{size} КиБ: не прочитан."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1447
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1450
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2130
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2133
 #, elixir-autogen, elixir-format
 msgid "%{message} But: %{warning}"
 msgstr "%{message} Но: %{warning}"
 
-#: lib/phoenix_kit_templates_editor/web/section.ex:273
+#: lib/phoenix_kit_templates_editor/web/section.ex:295
 #, elixir-autogen, elixir-format
 msgid "%{variables} work only in the header, the footer and the layout."
 msgstr "%{variables} работают только в шапке, подвале и макете."
 
-#: lib/phoenix_kit_templates_editor/web/section.ex:304
+#: lib/phoenix_kit_templates_editor/web/section.ex:326
 #, elixir-autogen, elixir-format
 msgid "Changed on this server and not yet committed to git:"
 msgstr "Изменено на этом сервере и ещё не закоммичено в git:"
 
-#: lib/phoenix_kit_templates_editor/web/section.ex:315
+#: lib/phoenix_kit_templates_editor/web/section.ex:337
 #, elixir-autogen, elixir-format
 msgid "Everything here is committed to git."
 msgstr "Здесь всё закоммичено в git."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:607
+#: lib/phoenix_kit_templates_editor/web/editor.ex:998
 #, elixir-autogen, elixir-format
 msgid "Not converted: %{part} cannot be read here."
 msgstr "Не преобразовано: %{part} здесь не читается."
 
-#: lib/phoenix_kit_templates_editor/web/section.ex:227
+#: lib/phoenix_kit_templates_editor/web/section.ex:249
 #, elixir-autogen, elixir-format
 msgid "Read only on this server: the templates are changed where editing is allowed and come here with the program."
 msgstr "На этом сервере только просмотр: шаблоны меняются там, где правка разрешена, и приходят сюда вместе с программой."
 
-#: lib/phoenix_kit_templates_editor/web/section.ex:296
+#: lib/phoenix_kit_templates_editor/web/section.ex:318
 #, elixir-autogen, elixir-format
 msgid "Show what is not committed to git"
 msgstr "Показать, что не закоммичено в git"
 
-#: lib/phoenix_kit_templates_editor/web/section.ex:223
+#: lib/phoenix_kit_templates_editor/web/section.ex:245
 #, elixir-autogen, elixir-format
 msgid "The email templates of this server, as files. A change saved here changes the file; it reaches other servers once it is committed to git."
 msgstr "Шаблоны писем этого сервера — файлами. Сохранённая здесь правка меняет файл; на другие серверы она попадёт после коммита в git."
 
-#: lib/phoenix_kit_templates_editor/web/section.ex:147
+#: lib/phoenix_kit_templates_editor/web/section.ex:169
 #, elixir-autogen, elixir-format
 msgid "The templates are editable on this server, but not by you: changing them needs the “%{permission}” permission."
 msgstr "На этом сервере шаблоны можно править, но не вам: для правки нужно право «%{permission}»."
 
-#: lib/phoenix_kit_templates_editor/web/section.ex:138
+#: lib/phoenix_kit_templates_editor/web/section.ex:160
 #, elixir-autogen, elixir-format
 msgid "The templates are editable on this server, but the page does not tell the editor who you are, so they are shown read only (the module's scope hook is not set up)."
 msgstr "На этом сервере шаблоны можно править, но страница не сообщает редактору, кто вы, поэтому они только для просмотра (хук scope модуля не подключён)."
 
-#: lib/phoenix_kit_templates_editor/web/section.ex:143
+#: lib/phoenix_kit_templates_editor/web/section.ex:165
 #, elixir-autogen, elixir-format
 msgid "The templates editor is switched off: the templates are shown read only."
 msgstr "Редактор шаблонов выключен: шаблоны только для просмотра."
 
-#: lib/phoenix_kit_templates_editor/web/section.ex:267
+#: lib/phoenix_kit_templates_editor/web/section.ex:289
 #, elixir-autogen, elixir-format
 msgid "The “%{fallback}” tab holds the files without a language: a language with no file of its own gets them."
 msgstr "На вкладке «%{fallback}» — файлы без языка: их получает язык, у которого нет своего файла."
 
-#: lib/phoenix_kit_templates_editor/web/section.ex:248
+#: lib/phoenix_kit_templates_editor/web/section.ex:270
 #, elixir-autogen, elixir-format
 msgid "These templates are not offered to “Preview emails”: the templates directory is not the one the emails are read from."
 msgstr "Эти шаблоны не попадают в «Просмотр писем»: папка шаблонов — не та, из которой читаются письма."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2342
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3435
 #, elixir-autogen, elixir-format
 msgid "This file is a link or outside the template directory: it is not read here."
 msgstr "Этот файл — ссылка или лежит вне папки шаблонов: здесь он не читается."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2346
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3439
 #, elixir-autogen, elixir-format
 msgid "This file is larger than %{size} KiB: it is not read here."
 msgstr "Этот файл больше %{size} КиБ: здесь он не читается."
 
 #: lib/phoenix_kit_templates_editor/preview.ex:75
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1675
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2381
 #, elixir-autogen, elixir-format
 msgid "it took too long"
 msgstr "это заняло слишком много времени"
 
-#: lib/phoenix_kit_templates_editor/web/section.ex:259
+#: lib/phoenix_kit_templates_editor/web/section.ex:281
 #, elixir-autogen, elixir-format
 msgid "“%{fill}” writes the Markdown — or the HTML when there is no Markdown — into Text as plain text; “%{render}” writes the Markdown into HTML, with today's accent colour written into it for good. Neither saves: check the field, then “%{save}”."
 msgstr "«%{fill}» записывает Markdown — а если его нет, HTML — простым текстом в поле Text; «%{render}» записывает Markdown в поле HTML, и нынешний акцентный цвет остаётся в нём навсегда. Ни одна из кнопок не сохраняет: проверьте поле и нажмите «%{save}»."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1082
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1637
 #, elixir-autogen, elixir-format
 msgid "%{count} not shown here"
 msgstr "не показанные здесь: %{count}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1085
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1640
 #, elixir-autogen, elixir-format
 msgid "%{emails} and %{count} more not shown here"
 msgstr "%{emails} и не показанные здесь: %{count}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:809
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1205
 #, elixir-autogen, elixir-format
 msgid "%{files} could not be left out of the copy."
 msgstr "%{files}: не удалось исключить из копии."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1858
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2658
 #, elixir-autogen, elixir-format
 msgid "Also copy the host’s own files:"
 msgstr "Скопировать и собственные файлы приложения:"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1810
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2550
 #, elixir-autogen, elixir-format
 msgid "Copy of layout %{name}"
 msgstr "Копия оформления %{name}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1813
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2553
 #, elixir-autogen, elixir-format
 msgid "Create layout"
 msgstr "Создать оформление"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:977
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1531
 #, elixir-autogen, elixir-format
 msgid "Created the layout “%{name}” as a copy of “%{from}”."
 msgstr "Оформление «%{name}» создано копией «%{from}»."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1761
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2501
 #, elixir-autogen, elixir-format
 msgid "Delete the layout “%{name}”: its own header, footer and page layout, in every language?"
 msgstr "Удалить оформление «%{name}» — его собственные шапку, подвал и макет страницы на всех языках?"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1033
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1587
 #, elixir-autogen, elixir-format
 msgid "Deleted the layout “%{name}”."
 msgstr "Оформление «%{name}» удалено."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2360
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3453
 #, elixir-autogen, elixir-format
 msgid "Footer"
 msgstr "Подвал"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2359
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3452
 #, elixir-autogen, elixir-format
 msgid "Header"
 msgstr "Шапка"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1902
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1922
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2828
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2848
 #, elixir-autogen, elixir-format
 msgid "Layout"
 msgstr "Оформление"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1799
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2539
 #, elixir-autogen, elixir-format
 msgid "Layout name"
 msgstr "Имя оформления"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1742
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2482
 #, elixir-autogen, elixir-format
 msgid "Layouts"
 msgstr "Оформления"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1795
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2535
 #, elixir-autogen, elixir-format
 msgid "New layout"
 msgstr "Новое оформление"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2377
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3470
 #, elixir-autogen, elixir-format
 msgid "No email uses it."
 msgstr "Ни одно письмо его не использует."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2361
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3454
 #, elixir-autogen, elixir-format
 msgid "Page layout"
 msgstr "Макет страницы"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1820
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2620
 #, elixir-autogen, elixir-format
 msgid "Shared parts"
 msgstr "Общие части"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:962
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1515
 #, elixir-autogen, elixir-format
 msgid "There is no layout “%{name}” to copy."
 msgstr "Нет оформления «%{name}» для копирования."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2380
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3473
 #, elixir-autogen, elixir-format
 msgid "Used by %{emails}."
 msgstr "Используют: %{emails}."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2183
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2367
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3194
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3460
 #, elixir-autogen, elixir-format
 msgid "default"
 msgstr "по умолчанию"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2368
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3461
 #, elixir-autogen, elixir-format
 msgid "default (%{group})"
 msgstr "по умолчанию (%{group})"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2365
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3458
 #, elixir-autogen, elixir-format
 msgid "inherited: core’s default"
 msgstr "унаследован: стандартный из ядра"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2364
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3457
 #, elixir-autogen, elixir-format
 msgid "inherited: the shared one"
 msgstr "унаследован: общий"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2363
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3456
 #, elixir-autogen, elixir-format
 msgid "its own, not editable here"
 msgstr "свой, здесь не редактируется"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:758
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1153
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3556
 #, elixir-autogen, elixir-format
 msgid "none"
 msgstr "нет"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:907
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1459
 #, elixir-autogen, elixir-format
 msgid "“%{group}” is not one of this editor’s layouts: nothing was changed."
 msgstr "«%{group}» — не оформление этого редактора: ничего не изменено."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:1066
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1621
 #, elixir-autogen, elixir-format
 msgid "“%{group}” is the layout of %{emails}: give them another layout first."
 msgstr "«%{group}» — оформление писем %{emails}: сначала выберите им другое."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:941
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1494
 #, elixir-autogen, elixir-format
 msgid "“%{name}” is not a valid layout name: use lowercase letters, digits and “-”."
 msgstr "«%{name}» — недопустимое имя оформления: используйте строчные латинские буквы, цифры и «-»."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:732
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1127
 #, elixir-autogen, elixir-format
 msgid "“%{name}” is not created here: core or a module sends this email."
 msgstr "«%{name}» здесь не создаётся: это письмо отправляет ядро или модуль."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:741
-#: lib/phoenix_kit_templates_editor/web/editor.ex:952
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1136
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1505
 #, elixir-autogen, elixir-format
 msgid "“%{name}” is not in this editor’s layouts (%{layouts})."
 msgstr "«%{name}» не входит в оформления этого редактора (%{layouts})."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:735
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1130
 #, elixir-autogen, elixir-format
 msgid "“%{name}” is shared by every email, core’s own (sign-in, password reset) among them: not editable here."
 msgstr "«%{name}» — общая часть всех писем, в том числе писем ядра (вход, сброс пароля): здесь не редактируется."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:921
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1474
 #, elixir-autogen, elixir-format
 msgid "“%{name}” now has the default layout."
 msgstr "У «%{name}» теперь оформление по умолчанию."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:922
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1475
 #, elixir-autogen, elixir-format
 msgid "“%{name}” now has the layout “%{group}”."
 msgstr "У «%{name}» теперь оформление «%{group}»."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3563
+#, elixir-autogen, elixir-format
+msgid "%{names} belongs to the header, footer and layout, not to this email: in its body it stays as typed. Save anyway?"
+msgstr "%{names} — переменная шапки, подвала и макета, а не этого письма: в тексте письма она останется как есть. Всё равно сохранить?"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3570
+#, elixir-autogen, elixir-format
+msgid "%{names} is not a variable of headers, footers and layouts — an email's, or the page layout's: here it stays as typed. Save anyway?"
+msgstr "%{names} — не переменная шапок, подвалов и оформлений, а письма или макета страницы: здесь она останется как есть. Всё равно сохранить?"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:853
+#, elixir-autogen, elixir-format
+msgid "%{names} is not a variable of this template: it stays in the message as typed."
+msgstr "%{names} — не переменная этого шаблона: в письме она останется как есть."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2978
+#, elixir-autogen, elixir-format
+msgid "%{part} on disk now:"
+msgstr "%{part} сейчас на диске:"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2760
+#, elixir-autogen, elixir-format
+msgid "A file made here is this email's text from then on: translations a module update brings no longer reach this email."
+msgstr "Созданный здесь файл с этого момента и есть текст письма: переводы из обновлений модуля в это письмо больше не попадут."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2738
+#, elixir-autogen, elixir-format
+msgid "Built-in text"
+msgstr "Встроенный текст"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3245
+#, elixir-autogen, elixir-format
+msgid "Click a variable to put it where the cursor is in the field you were typing in."
+msgstr "Нажмите на переменную, чтобы вставить её на место курсора в поле, где вы печатали."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2751
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3310
+#, elixir-autogen, elixir-format
+msgid "Could not tell: %{reason}"
+msgstr "Не удалось определить: %{reason}"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2611
+#, elixir-autogen, elixir-format
+msgid "Create file"
+msgstr "Создать файл"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2773
+#, elixir-autogen, elixir-format
+msgid "Create file from the built-in text"
+msgstr "Создать файл из встроенного текста"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2784
+#, elixir-autogen, elixir-format
+msgid "Create file from the database template"
+msgstr "Создать файл из шаблона в БД"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1363
+#, elixir-autogen, elixir-format
+msgid "Created “%{name}” from its built-in text."
+msgstr "«%{name}» создан из встроенного текста."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1360
+#, elixir-autogen, elixir-format
+msgid "Created “%{name}” from the Emails module's database template."
+msgstr "«%{name}» создан из шаблона модуля Emails в БД."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3266
+#, elixir-autogen, elixir-format
+msgid "Markdown only"
+msgstr "только в Markdown"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2562
+#, elixir-autogen, elixir-format
+msgid "Module emails"
+msgstr "Письма модулей"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1373
+#, elixir-autogen, elixir-format
+msgid "Not created: %{reason}"
+msgstr "Не создано: %{reason}"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:831
+#, elixir-autogen, elixir-format
+msgid "Not saved: %{names} would be put into the message without escaping. Write them with two braces; three are only for %{allowed}."
+msgstr "Не сохранено: %{names} попадёт в письмо без экранирования. Пишите в двух фигурных скобках; три — только для %{allowed}."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2973
+#, elixir-autogen, elixir-format
+msgid "Not saved: the file changed on disk since you opened it — edited by hand, by a git pull or by another user. Your changes are still in the form; reload to work on what is on disk now."
+msgstr "Не сохранено: файл изменился на диске после того, как вы его открыли — вручную, через git pull или другим пользователем. Ваши изменения остались в форме; перечитайте, чтобы работать с тем, что на диске сейчас."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:808
+#, elixir-autogen, elixir-format
+msgid "Not saved: the subject must be one line of at most %{max} bytes."
+msgstr "Не сохранено: тема должна быть одной строкой не длиннее %{max} байт."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1403
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1406
+#, elixir-autogen, elixir-format
+msgid "Not sent: %{reason}"
+msgstr "Не отправлено: %{reason}"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:900
+#, elixir-autogen, elixir-format
+msgid "Read again from disk."
+msgstr "Перечитано с диска."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2465
+#, elixir-autogen, elixir-format
+msgid "Read the templates again from disk: after a change by hand or a git pull."
+msgstr "Перечитать шаблоны с диска: после ручной правки или git pull."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2468
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2995
+#, elixir-autogen, elixir-format
+msgid "Reload"
+msgstr "Перечитать"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3014
+#, elixir-autogen, elixir-format
+msgid "Save anyway"
+msgstr "Всё равно сохранить"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2704
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2806
+#, elixir-autogen, elixir-format
+msgid "Send to me"
+msgstr "Отправить себе"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2564
+#, elixir-autogen, elixir-format
+msgid "Sent by PhoenixKit and its modules in their built-in text, until an email has a file here."
+msgstr "Их отправляют PhoenixKit и его модули со своим встроенным текстом, пока у письма нет файла здесь."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2860
+#, elixir-autogen, elixir-format
+msgid "Sent by the application itself: these files are what it sends."
+msgstr "Отправляет само приложение: используются именно эти файлы."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1400
+#, elixir-autogen, elixir-format
+msgid "Sent to %{address}."
+msgstr "Отправлено на %{address}."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3296
+#, elixir-autogen, elixir-format
+msgid "The Emails module has an active database template of this name: that is what is sent, not these files."
+msgstr "У модуля Emails есть активный шаблон в БД с этим именем: уходит текст из БД, а не эти файлы."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3307
+#, elixir-autogen, elixir-format
+msgid "The HTML is made from the %{part}."
+msgstr "HTML строится из части %{part}."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2715
+#, elixir-autogen, elixir-format
+msgid "This email may not be overridden here: it is shown read only."
+msgstr "Это письмо здесь переопределять нельзя: оно показано только для чтения."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2687
+#, elixir-autogen, elixir-format
+msgid "This email signs people in or resets their password: a mistake in it can keep everyone out. Send it to yourself before relying on it."
+msgstr "Это письмо для входа или сброса пароля: ошибка в нём может закрыть вход всем. Отправьте его себе и проверьте, прежде чем полагаться на него."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3294
+#, elixir-autogen, elixir-format
+msgid "What is sent"
+msgstr "Что уходит"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3553
+#, elixir-autogen, elixir-format
+msgid "an empty file (%{file}): the part is left out"
+msgstr "пустой файл (%{file}): часть не отправляется"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2584
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3555
+#, elixir-autogen, elixir-format
+msgid "built-in text"
+msgstr "встроенный текст"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2985
+#, elixir-autogen, elixir-format
+msgid "cannot be read here"
+msgstr "здесь не читается"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2584
+#, elixir-autogen, elixir-format
+msgid "file"
+msgstr "файл"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2598
+#, elixir-autogen, elixir-format
+msgid "has its own file"
+msgstr "есть свой файл"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2983
+#, elixir-autogen, elixir-format
+msgid "no file"
+msgstr "файла нет"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:836
+#, elixir-autogen, elixir-format
+msgid "none here"
+msgstr "здесь ни для каких"
+
+#: lib/phoenix_kit_templates_editor/test_send.ex:79
+#, elixir-autogen, elixir-format
+msgid "one test email in %{interval} s: wait %{seconds} s."
+msgstr "одно тестовое письмо в %{interval} с: подождите %{seconds} с."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3269
+#, elixir-autogen, elixir-format
+msgid "rendered HTML, three braces"
+msgstr "готовый HTML, три скобки"
+
+#: lib/phoenix_kit_templates_editor/test_send.ex:86
+#, elixir-autogen, elixir-format
+msgid "test emails are not available: the module's processes are not running."
+msgstr "тестовые письма недоступны: процессы модуля не запущены."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3546
+#, elixir-autogen, elixir-format
+msgid "the Emails module's database template"
+msgstr "шаблон модуля Emails в БД"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3550
+#, elixir-autogen, elixir-format
+msgid "the file %{file}"
+msgstr "файл %{file}"
+
+#: lib/phoenix_kit_templates_editor/test_send.ex:61
+#, elixir-autogen, elixir-format
+msgid "the page does not tell who you are."
+msgstr "страница не сообщает, кто вы."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3547
+#, elixir-autogen, elixir-format
+msgid "this file"
+msgstr "этот файл"
+
+#: lib/phoenix_kit_templates_editor/test_send.ex:68
+#, elixir-autogen, elixir-format
+msgid "you may not see these templates."
+msgstr "у вас нет доступа к этим шаблонам."
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:1327
+#, elixir-autogen, elixir-format
+msgid "“%{name}” may not be overridden here."
+msgstr "«%{name}» здесь переопределять нельзя."

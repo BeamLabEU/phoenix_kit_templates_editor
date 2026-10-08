@@ -25,15 +25,15 @@ defmodule PhoenixKitTemplatesEditor.Config do
   | `layout_groups` | `[layout_group]` | layout namespaces the editor may show and write: `g` and `g-…` |
   | `preview` | `nil` | `(name, locale) -> {subject, html, text}`; `nil` — the module's own preview |
   | `sample_variables` | `%{}` | a map, or `() -> map` |
-  | `describe_variables` | `nil` | `(name) -> %{variable => description}` |
+  | `describe_variables` | `nil` | `(name) -> %{variable => description}`, shown in the variables panel |
   | `complete?` | `nil` | `(name, locale) -> boolean`; `nil` — subject and body on `base_locale` |
-  | `sent_by` | `nil` | `(name) -> :core \\| :host` |
-  | `test_send` | `nil` | `(name, locale, scope) -> :ok \\| {:error, reason}` |
+  | `sent_by` | `nil` | `(name) -> :core \\| :host` — who sends the email; `nil`: core for an email of core's catalogue, the host for its own |
+  | `test_send` | `nil` | `(name, locale, user) -> :ok \\| {:ok, term} \\| {:error, reason}` — "Send to me"; `nil`: `PhoenixKit.Mailer` |
   | `block_placeholders` | `[]` | variables that stand as a block of their own (taken out of `<p>`) |
   | `raw_variables` | `[]` | variables allowed in `{{{x}}}` besides `content`, `header`, `footer` |
   | `email_fallback` | `true` | whether emails get a locale-less *Fallback* tab |
   | `shared_layout_editable` | `false` | whether the shared `_header`/`_footer`/`_layout` (core's system emails) are editable |
-  | `overridable` | `:all` | which catalogue emails may get a file: `:all` or a list of names |
+  | `overridable` | `:all` | which emails core and other modules send may get a file here: `:all` — every one but core's sign-in emails (`PhoenixKitTemplatesEditor.Names.auth_emails/0`); a list — exactly those names (a sign-in email only so) |
   | `catalog` | `false` | whether the templates are offered to core's email preview |
   | `watch` | `editable` | whether a watcher re-reads the files on change |
 
