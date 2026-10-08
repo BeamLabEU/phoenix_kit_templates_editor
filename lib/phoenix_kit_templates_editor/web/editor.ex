@@ -77,12 +77,25 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       the host re-renders with a new callback, new variables or changed
       files — not for a template with no files yet. No callback, no preview
       pane.
-    * `:sample_variables` — the variables a template may use, as a map of
-      name to a sample value. Listed beside the editor, and any placeholder
-      in the current template that is not among them is flagged. The one map
-      applies to every template, shared parts included, so a host whose
-      headers and footers use its layout's variables (`{{site_url}}` and
-      the like) lists those too.
+    * `:sample_variables` — the variables of the host's own emails, as a
+      map of name to a sample value: listed in an email's variables panel,
+      and any placeholder in the current template that is not among them is
+      flagged.
+    * `:layout_variables` — the variables of headers, footers and layouts
+      with sample values. Default: core's, with this site's values
+      (`PhoenixKitTemplatesEditor.Variables.layout_variables/1`).
+    * `:raw_variables` — variables the host lets a template write with three
+      braces (`{{{x}}}`, not escaped), besides a page layout's `content`,
+      `header` and `footer`. Default `[]`.
+    * `:describe_variables` — `{module, function}` or a 1-arity function,
+      `describe_variables(name)` → `%{variable => description}`, shown in
+      the panel. A failure is logged and describes nothing.
+    * `:module_emails` — the catalogue entries of the emails core and other
+      modules send (`PhoenixKit.Email.Catalog`); their samples are an
+      email's variables. Default `[]`.
+    * `:sent_by` — `{module, function}` or a 1-arity function,
+      `sent_by(name)` → `:core` or `:host`. Default: `:core` for an email of
+      `:module_emails`, `:host` otherwise.
     * `:after_write` — `{module, function}` or a 1-arity function, called
       with the list of paths created by a save or a copy (a new template
       directory first, then files) — for example to change their owner.
@@ -171,9 +184,23 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     * A part is written only when the user changed it from what the form
       was given (on opening the template or tab, or after a save): a part
       left alone is never written back over another session's change made
-      meanwhile. An edited part wins — the last save of it, with no check
-      that another session changed the file since. A part filled by a
-      converter counts as edited.
+      meanwhile. An edited part whose file is no longer what the form was
+      given (a sha256 taken then: changed, created or deleted on disk since)
+      is not written either: the save is refused, the file as it is now is
+      shown, and the form keeps what the user typed (spec §4.11 П6).
+      *Reload* drops the cache and reads the list and the open part again.
+      A part filled by a converter counts as edited.
+    * The variables panel lists the open part's variables by the kind of
+      template (`PhoenixKitTemplatesEditor.Variables`): an email's, or the
+      layout's for a header, footer or page layout — with a sample and the
+      host's description. A click puts one at the cursor of the field last
+      typed in (the module's JS hook, `js_sources/0`); without the hook, at
+      the end of the body, in the form only.
+    * A save is checked first: a subject one line of at most 998 bytes,
+      `{{{x}}}` only for the HTML variables (refused otherwise), a variable
+      of the other kind of template (`{{site_url}}` in an email's body)
+      saved only after "Save anyway"; an unknown one is saved with a
+      warning.
     * The form's buttons all submit it, Save first (the form's default
       button), and a submit that names no button saves. A converter's
       button is told apart by the `action` it submits, which LiveView's
@@ -202,13 +229,20 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   alias PhoenixKit.Email.Layout
   alias PhoenixKit.Templates
   alias PhoenixKit.Templates.Overrides
+  alias PhoenixKit.Utils.RecipientLocale
   alias PhoenixKitTemplatesEditor.Files
   alias PhoenixKitTemplatesEditor.Layouts
   alias PhoenixKitTemplatesEditor.Names
+  alias PhoenixKitTemplatesEditor.Variables
 
   @parts [:label, :subject, :text, :markdown, :html]
 
   @part_rows %{label: 1, subject: 2, text: 10, markdown: 6, html: 10}
+
+  @part_extensions %{label: "txt", subject: "txt", text: "txt", markdown: "md", html: "html"}
+
+  # RFC 5322's limit for one line of a message header.
+  @max_subject_bytes 998
 
   # The form's `action` values for the host's converters, and their arity.
   @conversions %{"to_text" => :to_text, "md_to_html" => :markdown_to_html}
@@ -259,14 +293,30 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
        preview_result: nil,
        preview_tab: :html,
        missing: [],
-       notice: nil
+       notice: nil,
+       raw_variables: [],
+       describe_variables: nil,
+       layout_variables: nil,
+       layout_values: nil,
+       sent_by: nil,
+       module_emails: [],
+       # The variables of the open part (`Variables.context/2`), made when
+       # the form is given it.
+       var_context: nil,
+       # A save waiting for "save anyway": a variable of the other kind of
+       # template (`Variables.check/3`).
+       confirm_variables: nil,
+       # Each part's file as the form was given it (sha256, or `:none`), and
+       # the parts a save found changed on disk since (spec §4.11 П6).
+       hashes: %{},
+       conflict: nil
      )}
   end
 
   @impl true
   def update(assigns, socket) do
     previous_files = files_of(socket, socket.assigns.selected)
-    socket = socket |> assign(assigns) |> sanitize_options()
+    socket = socket |> assign(assigns) |> sanitize_options() |> assign_layout_values()
 
     socket =
       if editable?(socket.assigns), do: socket, else: no_confirmations(socket)
@@ -321,6 +371,15 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
      end)}
   end
 
+  # A variable button of the panel without the module's JS hook: the
+  # variable goes at the end of the body, in the form only.
+  def handle_event("save", %{"action" => "insert:" <> variable, "parts" => parts}, socket)
+      when is_map(parts) do
+    if form_writable?(socket),
+      do: {:noreply, insert_variable(socket, variable, parts)},
+      else: {:noreply, socket}
+  end
+
   # A submit that names no button, or names Save, saves.
   def handle_event("save", %{"parts" => parts} = params, socket) when is_map(parts) do
     if Map.get(params, "action", "save") == "save" do
@@ -332,6 +391,28 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       {:noreply, socket}
     end
   end
+
+  def handle_event("confirm_save", _params, socket) do
+    {:noreply,
+     permitted(socket, :save, fn socket ->
+       case socket.assigns.confirm_variables do
+         %{parts: parts} ->
+           if form_writable?(socket),
+             do: socket |> assign(confirm_variables: nil) |> save(parts, confirmed: true),
+             else: assign(socket, confirm_variables: nil)
+
+         nil ->
+           socket
+       end
+     end)}
+  end
+
+  def handle_event("cancel_save", _params, socket),
+    do: {:noreply, assign(socket, confirm_variables: nil)}
+
+  # The files again from disk, the cache dropped: after a hand edit, a git
+  # pull or another user's save. Writes nothing, so read only may too.
+  def handle_event("reload", _params, socket), do: {:noreply, reload(socket)}
 
   def handle_event("preview_tab", %{"tab" => "html"}, socket),
     do: {:noreply, assign(socket, preview_tab: :html)}
@@ -500,17 +581,14 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     assign(socket, preview_tab: tab)
   end
 
-  defp save(socket, params) do
-    %{
-      root: root,
-      selected: name,
-      locale: locale,
-      contents: contents,
-      baseline: baseline,
-      preview_result: previous_preview
-    } = socket.assigns
+  # The parts the user changed, checked before anything is written: the
+  # file still as the form was given it (П6), a subject one line (Б7),
+  # three braces only for HTML variables (Б9), no variable of the other kind
+  # of template unless confirmed (П4).
+  defp save(socket, params, opts \\ []) do
+    %{contents: contents, baseline: baseline} = socket.assigns
 
-    results =
+    changes =
       Enum.flat_map(@parts, fn part ->
         with value when is_binary(value) <- params[Atom.to_string(part)],
              value = normalize_newlines(value),
@@ -518,11 +596,40 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
              # this part since then must not be written back over.
              false <- value == Map.get(baseline, part, ""),
              {:ok, change} <- change(Map.get(contents, part), value) do
-          [{part, apply_change(change, root, name, part, locale)}]
+          [{part, change}]
         else
           _unchanged -> []
         end
       end)
+
+    findings = check_variables(socket.assigns.var_context, changes)
+
+    cond do
+      (conflicts = conflicts(socket, changes)) != [] ->
+        socket |> assign(conflict: conflicts, notice: nil) |> keep_form(params)
+
+      message = subject_refusal(changes) ->
+        socket |> notice(:error, message) |> keep_form(params)
+
+      findings.raw != [] ->
+        socket |> notice(:error, raw_refusal(socket, findings.raw)) |> keep_form(params)
+
+      findings.forbidden != [] and opts[:confirmed] != true ->
+        socket
+        |> assign(confirm_variables: %{parts: params, names: findings.forbidden}, notice: nil)
+        |> keep_form(params)
+
+      true ->
+        write_changes(socket, changes, params, findings.unknown)
+    end
+  end
+
+  defp write_changes(socket, changes, params, unknown) do
+    %{root: root, selected: name, locale: locale, preview_result: previous_preview} =
+      socket.assigns
+
+    results =
+      for {part, change} <- changes, do: {part, apply_change(change, root, name, part, locale)}
 
     paths = for {_part, {:ok, paths}} <- results, path <- paths, do: path
     saved = for {part, {:ok, _paths}} <- results, do: part
@@ -533,8 +640,13 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       |> notify_written(paths)
       |> then_notify_changed(socket, if(saved == [], do: nil, else: name))
 
+    notice =
+      save_notice(saved, errors)
+      |> with_notified(notified)
+      |> with_notified(unknown_warning(saved, unknown))
+
     socket
-    |> assign(notice: with_notified(save_notice(saved, errors), notified))
+    |> assign(notice: notice, conflict: nil, confirm_variables: nil)
     |> load_templates()
     |> redraft()
     |> load_contents()
@@ -547,6 +659,178 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   # selected template's.
   defp open_first_preview(socket, :unsaved), do: open_preview(socket)
   defp open_first_preview(socket, _previous), do: socket
+
+  # A refused save leaves the form as the user sent it.
+  defp keep_form(socket, params) do
+    values =
+      for part <- @parts,
+          value = params[Atom.to_string(part)],
+          is_binary(value) and String.valid?(value),
+          into: %{},
+          do: {part, normalize_newlines(value)}
+
+    assign(socket, form_values: values)
+  end
+
+  # The parts about to change whose file is no longer what the form was
+  # given: `{part, content on disk now}` (`nil` — no file, `:unreadable`).
+  defp conflicts(socket, changes) do
+    %{root: root, selected: name, locale: locale, hashes: hashes} = socket.assigns
+
+    for {part, _change} <- changes,
+        path = part_path(root, name, part, locale),
+        {fingerprint, content} = fingerprint(root, path),
+        fingerprint != Map.get(hashes, part, :none),
+        do: {part, content}
+  end
+
+  # `{fingerprint, content}` of the file at `path`: its sha256 and text,
+  # `:none` when there is no file, or the reason it cannot be read.
+  defp fingerprint(root, path) do
+    case Files.safe_read(root, path) do
+      {:ok, content} ->
+        {:crypto.hash(:sha256, content),
+         if(String.valid?(content), do: content, else: :unreadable)}
+
+      {:error, :enoent} ->
+        {:none, nil}
+
+      {:error, reason} ->
+        {{:error, reason}, :unreadable}
+    end
+  end
+
+  defp fingerprints(%{selected: nil}), do: %{}
+
+  defp fingerprints(%{root: root, selected: name, locale: locale}) when is_binary(root) do
+    Map.new(@parts, fn part ->
+      {part, root |> fingerprint(part_path(root, name, part, locale)) |> elem(0)}
+    end)
+  end
+
+  defp fingerprints(_assigns), do: %{}
+
+  # The file `Overrides.write/5` writes for this part.
+  defp part_path(root, name, part, locale) do
+    file =
+      Enum.join(
+        [Atom.to_string(part), locale, @part_extensions[part]] |> Enum.reject(&is_nil/1),
+        "."
+      )
+
+    Path.join([root, name, file])
+  end
+
+  # Б7: a subject is one line of a message header.
+  defp subject_refusal(changes) do
+    case List.keyfind(changes, :subject, 0) do
+      {:subject, {:write, value}} ->
+        subject = String.trim(value)
+
+        if String.contains?(subject, ["\n", "\r"]) or byte_size(subject) > @max_subject_bytes,
+          do:
+            gettext("Not saved: the subject must be one line of at most %{max} bytes.",
+              max: @max_subject_bytes
+            )
+
+      _none ->
+        nil
+    end
+  end
+
+  defp check_variables(nil, _changes), do: %{forbidden: [], unknown: [], raw: []}
+
+  defp check_variables(context, changes) do
+    found =
+      for {part, {:write, value}} <- changes, do: Variables.check(value, part, context)
+
+    for key <- [:forbidden, :unknown, :raw], into: %{} do
+      {key, found |> Enum.flat_map(&Map.fetch!(&1, key)) |> Enum.uniq()}
+    end
+  end
+
+  defp raw_refusal(socket, names) do
+    allowed = raw_allowed(socket.assigns)
+
+    gettext(
+      "Not saved: %{names} would be put into the message without escaping. Write them with two braces; three are only for %{allowed}.",
+      names: Enum.map_join(names, ", ", &"{{{#{&1}}}}"),
+      allowed:
+        if(allowed == [],
+          do: gettext("none here"),
+          else: Enum.map_join(allowed, ", ", &"{{{#{&1}}}}")
+        )
+    )
+  end
+
+  defp raw_allowed(%{var_context: %{kind: :layout, raw: raw}}),
+    do: raw ++ ~w(content header footer)
+
+  defp raw_allowed(%{var_context: %{raw: raw}}), do: raw
+  defp raw_allowed(_assigns), do: []
+
+  defp unknown_warning([], _unknown), do: :ok
+  defp unknown_warning(_saved, []), do: :ok
+
+  defp unknown_warning(_saved, unknown) do
+    {:warning,
+     gettext("%{names} is not a variable of this template: it stays in the message as typed.",
+       names: Enum.map_join(unknown, ", ", &"{{#{&1}}}")
+     )}
+  end
+
+  # Without the JS hook a panel button submits the form: its variable goes
+  # at the end of the body — the Markdown, else the HTML when it holds
+  # anything, else the text; a header's, footer's or layout's HTML.
+  defp insert_variable(socket, variable, params) do
+    values =
+      for part <- @parts,
+          value = params[Atom.to_string(part)],
+          is_binary(value),
+          into: %{},
+          do: {part, normalize_newlines(value)}
+
+    row = Enum.find(panel_rows(socket.assigns), &(&1.name == variable))
+
+    if row && Enum.all?(values, fn {_part, value} -> String.valid?(value) end) do
+      target = insert_target(socket.assigns.var_context, values)
+
+      assign(socket,
+        form_values: Map.update(values, target, placeholder(row), &(&1 <> placeholder(row))),
+        form_rev: socket.assigns.form_rev + 1,
+        notice: nil
+      )
+    else
+      socket
+    end
+  end
+
+  defp insert_target(%{kind: :email}, values),
+    do: Enum.find([:markdown, :html], :text, &present?(values[&1]))
+
+  defp insert_target(_context, _values), do: :html
+
+  defp placeholder(%{scope: :html, name: name}), do: "{{{#{name}}}}"
+  defp placeholder(%{name: name}), do: "{{#{name}}}"
+
+  defp panel_rows(%{var_context: nil}), do: []
+  defp panel_rows(%{var_context: context}), do: Variables.panel(context)
+
+  defp reload(socket) do
+    if is_binary(socket.assigns.root), do: Files.reload(socket.assigns.root)
+
+    socket =
+      socket
+      |> assign(notice: {:info, gettext("Read again from disk.")})
+      |> no_confirmations()
+      |> load_templates()
+      |> settle_draft()
+      |> keep_selection()
+
+    if socket.assigns.selected,
+      do: socket |> load_contents() |> preview(),
+      else: socket
+  end
 
   # A refused part stays in the form as the user sent it: drawn from the
   # file again, a part a conversion filled would be lost. Text that is not
@@ -1256,7 +1540,8 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       assign(socket,
         confirm_delete?: false,
         confirm_fallback_delete?: false,
-        confirm_layout_delete: nil
+        confirm_layout_delete: nil,
+        confirm_variables: nil
       )
 
   defp deselect(socket) do
@@ -1269,7 +1554,11 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       preview_result: nil,
       missing: [],
       confirm_delete?: false,
-      confirm_fallback_delete?: false
+      confirm_fallback_delete?: false,
+      confirm_variables: nil,
+      var_context: nil,
+      hashes: %{},
+      conflict: nil
     )
   end
 
@@ -1281,7 +1570,98 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   # files again (but for the parts a save refused: `save/2`).
   defp load_contents(socket) do
     socket = refresh_contents(socket)
-    assign(socket, baseline: baseline(socket.assigns.contents), form_values: %{})
+
+    socket
+    |> assign(
+      baseline: baseline(socket.assigns.contents),
+      form_values: %{},
+      hashes: fingerprints(socket.assigns),
+      conflict: nil,
+      confirm_variables: nil
+    )
+    |> assign_var_context()
+  end
+
+  defp assign_var_context(%{assigns: %{selected: nil}} = socket),
+    do: assign(socket, var_context: nil)
+
+  defp assign_var_context(socket) do
+    %{selected: name, locale: locale} = assigns = socket.assigns
+
+    context =
+      Variables.context(name,
+        email: email_variables(assigns, name, locale),
+        layout: assigns.layout_values || %{},
+        raw: assigns.raw_variables,
+        sent_by: sent_by(assigns, name),
+        descriptions: descriptions(assigns, name)
+      )
+
+    assign(socket, var_context: context)
+  end
+
+  # An email core or a module sends has its catalogue entry's samples,
+  # evaluated in the tab's language as core's preview does; the host's own,
+  # the host's sample variables.
+  defp email_variables(assigns, name, locale) do
+    case module_email(assigns, name) do
+      %{variables: variables} ->
+        safely({"variables", variables, []}, fn ->
+          RecipientLocale.in_locale(locale || assigns.base_language, fn ->
+            case variables do
+              fun when is_function(fun, 0) -> fun.()
+              map -> map
+            end
+          end)
+        end)
+        |> then(fn
+          map when is_map(map) -> map
+          _failed -> %{}
+        end)
+
+      _host ->
+        assigns.sample_variables
+    end
+  end
+
+  defp module_email(assigns, name), do: Enum.find(assigns.module_emails, &(&1.name == name))
+
+  # Who sends the email: the host's `sent_by` when it gives `:core` or
+  # `:host`, else core for an email of the catalogue (`module_emails`), the
+  # host for its own.
+  defp sent_by(assigns, name) do
+    default = if module_email(assigns, name), do: :core, else: :host
+
+    case assigns.sent_by do
+      nil ->
+        default
+
+      callback ->
+        if callable?(callback, 1) do
+          case safely({"sent_by", callback, [name]}, fn -> call(callback, [name]) end) do
+            answer when answer in [:core, :host] -> answer
+            _other -> default
+          end
+        else
+          default
+        end
+    end
+  end
+
+  defp descriptions(%{describe_variables: nil}, _name), do: %{}
+
+  defp descriptions(%{describe_variables: callback}, name) do
+    if callable?(callback, 1) do
+      case safely({"describe_variables", callback, [name]}, fn -> call(callback, [name]) end) do
+        %{} = map ->
+          for {key, value} <- map, is_binary(value), into: %{}, do: {to_string(key), value}
+
+        _other ->
+          %{}
+      end
+    else
+      %{}
+    end
   end
 
   defp refresh_contents(socket) do
@@ -1575,6 +1955,8 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
     assign(socket,
       name_prefixes: prefixes,
+      raw_variables: non_empty_strings(socket.assigns.raw_variables),
+      module_emails: module_emails(socket.assigns.module_emails),
       locales: locales,
       sample_variables: if(is_map(variables), do: variables, else: %{}),
       preview_image_origins: origins |> non_empty_strings() |> Enum.filter(&origin?/1),
@@ -1588,6 +1970,22 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       }
     )
   end
+
+  # The layout's variables with this site's values: the host's, or core's,
+  # read once.
+  defp assign_layout_values(%{assigns: %{layout_variables: %{} = variables}} = socket),
+    do: assign(socket, layout_values: Map.new(variables, fn {k, v} -> {to_string(k), v} end))
+
+  defp assign_layout_values(%{assigns: %{layout_values: %{}}} = socket), do: socket
+
+  defp assign_layout_values(socket),
+    do: assign(socket, layout_values: Variables.layout_variables(socket.assigns.layout_group))
+
+  # Catalogue entries (`PhoenixKit.Email.Catalog`): a map with a name each.
+  defp module_emails(entries) when is_list(entries),
+    do: for(%{name: name} = entry <- entries, is_binary(name), do: entry)
+
+  defp module_emails(_other), do: []
 
   # The emails core and other modules send; a host may pass its own list.
   defp reserved_names(names) when is_list(names), do: non_empty_strings(names)
@@ -1745,6 +2143,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         fallback_unused: unused_fallback?(assigns),
         parts: @parts,
         can_edit: editable?(assigns),
+        form_shown:
+          assigns.selected != nil and editable?(assigns) and not unused_fallback?(assigns),
+        variable_rows: panel_rows(assigns),
         can_fill_text: converter(assigns, :to_text) != nil,
         can_render_markdown: converter(assigns, :markdown_to_html) != nil
       )
@@ -1760,6 +2161,19 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
       <div class="grid gap-6 lg:grid-cols-4">
         <aside class="flex flex-col gap-4 lg:col-span-1">
+          <button
+            :if={is_binary(@root)}
+            id={"#{@id}-reload"}
+            type="button"
+            phx-click="reload"
+            phx-target={@myself}
+            class="btn btn-sm btn-ghost self-start"
+            title={
+              gettext("Read the templates again from disk: after a change by hand or a git pull.")
+            }
+          >
+            {gettext("Reload")}
+          </button>
           <p :if={@templates == []} class="text-sm opacity-70">{gettext("No templates yet.")}</p>
 
           <.template_group
@@ -2052,92 +2466,195 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             </div>
           </div>
 
-          <form
-            :if={@selected && @can_edit && !@fallback_unused}
-            id={"#{@id}-parts"}
-            phx-submit="save"
-            phx-target={@myself}
-            class="flex flex-col gap-3"
-          >
-            <.part_field
-              :for={part <- @parts}
-              id={"#{@id}-part-#{part}"}
-              part={part}
-              file={@contents[part]}
-              value={@form_values[part]}
-              rev={@form_rev}
-            />
-            <p class="text-xs opacity-70">
-              {gettext(
-                "Each language is saved on its own: switching tabs or templates drops unsaved changes. A part saved empty has its file deleted."
-              )}
-            </p>
-            <%!-- Save comes first: the form's default button. --%>
-            <div class="flex flex-wrap gap-2">
-              <button type="submit" name="action" value="save" class="btn btn-primary btn-sm">
-                {gettext("Save")}
-              </button>
-              <button
-                :if={@can_fill_text}
-                id={"#{@id}-to-text"}
-                type="submit"
-                name="action"
-                value="to_text"
-                class="btn btn-sm"
-                title={
-                  gettext(
-                    "Put the Markdown, or else the HTML, as plain text in Text. Not saved until you Save."
-                  )
-                }
-              >
-                {gettext("Fill text from content")}
-              </button>
-              <button
-                :if={@can_render_markdown}
-                id={"#{@id}-md-to-html"}
-                type="submit"
-                name="action"
-                value="md_to_html"
-                class="btn btn-sm"
-                title={gettext("Put the Markdown, rendered, in HTML. Not saved until you Save.")}
-              >
-                {gettext("Markdown → HTML")}
-              </button>
-            </div>
-          </form>
-
-          <dl :if={@selected && (!@can_edit || @fallback_unused)} class="flex flex-col gap-3">
-            <div :for={part <- @parts}>
-              <dt class="text-sm font-semibold">{part_title(part)}</dt>
-              <dd :if={@contents[part] && @contents[part][:invalid]} class="text-sm text-error">
-                {unreadable_message(@contents[part])}
-              </dd>
-              <dd :if={@contents[part] && !@contents[part][:invalid]}>
-                <pre class="whitespace-pre-wrap rounded-box bg-base-200 p-3 text-sm">{@contents[part].content}</pre>
-              </dd>
-              <dd :if={!@contents[part]} class="text-sm opacity-60">{gettext("No file.")}</dd>
-            </div>
-          </dl>
-
           <div
-            :if={@selected && @missing != []}
-            id={"#{@id}-missing"}
+            :if={@conflict}
+            id={"#{@id}-conflict"}
             role="alert"
-            class="alert alert-warning text-sm"
+            class="alert alert-error flex-col items-start text-sm"
           >
-            {gettext("Unknown placeholders: %{names}",
-              names: Enum.map_join(@missing, ", ", &"{{#{&1}}}")
-            )}
+            <span>
+              {gettext(
+                "Not saved: the file changed on disk since you opened it — edited by hand, by a git pull or by another user. Your changes are still in the form; reload to work on what is on disk now."
+              )}
+            </span>
+            <div :for={{part, content} <- @conflict} class="w-full">
+              <span class="font-semibold">{gettext("%{part} on disk now:", part: part_title(part))}</span>
+              <pre
+                :if={is_binary(content)}
+                class="whitespace-pre-wrap rounded-box bg-base-200 p-2 text-xs"
+              >{content}</pre>
+              <span :if={is_nil(content)} class="opacity-70">{gettext("no file")}</span>
+              <span :if={content == :unreadable} class="opacity-70">
+                {gettext("cannot be read here")}
+              </span>
+            </div>
+            <button
+              id={"#{@id}-conflict-reload"}
+              type="button"
+              phx-click="reload"
+              phx-target={@myself}
+              class="btn btn-sm"
+            >
+              {gettext("Reload")}
+            </button>
           </div>
 
-          <details :if={@selected && @sample_variables != %{}} class="text-sm">
-            <summary class="cursor-pointer">{gettext("Variables")}</summary>
-            <ul class="mt-2 font-mono">
-              <li :for={{name, value} <- Enum.sort(@sample_variables)}>
-                {"{{#{name}}}"} <span class="opacity-60">{inspect(value)}</span>
-              </li>
-            </ul>
-          </details>
+          <div
+            :if={@confirm_variables}
+            id={"#{@id}-confirm-variables"}
+            role="alert"
+            class="alert alert-warning flex-col items-start text-sm"
+          >
+            <span>{confirm_variables_message(@var_context, @confirm_variables.names)}</span>
+            <div class="flex gap-2">
+              <button
+                id={"#{@id}-confirm-variables-save"}
+                type="button"
+                phx-click="confirm_save"
+                phx-target={@myself}
+                class="btn btn-sm btn-warning"
+              >
+                {gettext("Save anyway")}
+              </button>
+              <button
+                id={"#{@id}-confirm-variables-cancel"}
+                type="button"
+                phx-click="cancel_save"
+                phx-target={@myself}
+                class="btn btn-sm btn-ghost"
+              >
+                {gettext("Cancel")}
+              </button>
+            </div>
+          </div>
+
+          <div
+            :if={@selected}
+            id={"#{@id}-form"}
+            phx-hook={if(@form_shown, do: "PhoenixKitTemplatesEditorInsertVariable")}
+            class="flex flex-col gap-4"
+          >
+            <form
+              :if={@form_shown}
+              id={"#{@id}-parts"}
+              phx-submit="save"
+              phx-target={@myself}
+              class="flex flex-col gap-3"
+            >
+              <.part_field
+                :for={part <- @parts}
+                id={"#{@id}-part-#{part}"}
+                part={part}
+                file={@contents[part]}
+                value={@form_values[part]}
+                rev={@form_rev}
+              />
+              <p class="text-xs opacity-70">
+                {gettext(
+                  "Each language is saved on its own: switching tabs or templates drops unsaved changes. A part saved empty has its file deleted."
+                )}
+              </p>
+              <%!-- Save comes first: the form's default button. --%>
+              <div class="flex flex-wrap gap-2">
+                <button type="submit" name="action" value="save" class="btn btn-primary btn-sm">
+                  {gettext("Save")}
+                </button>
+                <button
+                  :if={@can_fill_text}
+                  id={"#{@id}-to-text"}
+                  type="submit"
+                  name="action"
+                  value="to_text"
+                  class="btn btn-sm"
+                  title={
+                    gettext(
+                      "Put the Markdown, or else the HTML, as plain text in Text. Not saved until you Save."
+                    )
+                  }
+                >
+                  {gettext("Fill text from content")}
+                </button>
+                <button
+                  :if={@can_render_markdown}
+                  id={"#{@id}-md-to-html"}
+                  type="submit"
+                  name="action"
+                  value="md_to_html"
+                  class="btn btn-sm"
+                  title={gettext("Put the Markdown, rendered, in HTML. Not saved until you Save.")}
+                >
+                  {gettext("Markdown → HTML")}
+                </button>
+              </div>
+            </form>
+
+            <dl :if={@selected && (!@can_edit || @fallback_unused)} class="flex flex-col gap-3">
+              <div :for={part <- @parts}>
+                <dt class="text-sm font-semibold">{part_title(part)}</dt>
+                <dd :if={@contents[part] && @contents[part][:invalid]} class="text-sm text-error">
+                  {unreadable_message(@contents[part])}
+                </dd>
+                <dd :if={@contents[part] && !@contents[part][:invalid]}>
+                  <pre class="whitespace-pre-wrap rounded-box bg-base-200 p-3 text-sm">{@contents[part].content}</pre>
+                </dd>
+                <dd :if={!@contents[part]} class="text-sm opacity-60">{gettext("No file.")}</dd>
+              </div>
+            </dl>
+
+            <div
+              :if={@selected && @missing != []}
+              id={"#{@id}-missing"}
+              role="alert"
+              class="alert alert-warning text-sm"
+            >
+              {gettext("Unknown placeholders: %{names}",
+                names: Enum.map_join(@missing, ", ", &"{{#{&1}}}")
+              )}
+            </div>
+
+            <div
+              :if={@variable_rows != []}
+              id={"#{@id}-variables"}
+              class="flex flex-col gap-1 text-sm"
+            >
+              <span class="font-semibold">{gettext("Variables")}</span>
+              <p :if={@form_shown} class="text-xs opacity-70">
+                {gettext(
+                  "Click a variable to put it where the cursor is in the field you were typing in."
+                )}
+              </p>
+              <ul class="flex flex-col gap-1">
+                <li
+                  :for={row <- @variable_rows}
+                  id={"#{@id}-variables-#{row.name}"}
+                  class="flex flex-wrap items-baseline gap-2"
+                >
+                  <button
+                    :if={@form_shown}
+                    type="submit"
+                    form={"#{@id}-parts"}
+                    name="action"
+                    value={"insert:#{row.name}"}
+                    data-variable={placeholder(row)}
+                    class="btn btn-xs font-mono"
+                  >
+                    {placeholder(row)}
+                  </button>
+                  <code :if={!@form_shown} class="font-mono">{placeholder(row)}</code>
+                  <span :if={row.sample not in [nil, ""]} class="font-mono text-xs opacity-60">
+                    {row.sample}
+                  </span>
+                  <span :if={row.description} class="text-xs">{row.description}</span>
+                  <span :if={row.scope == :markdown} class="badge badge-ghost badge-xs">
+                    {gettext("Markdown only")}
+                  </span>
+                  <span :if={row.scope == :html} class="badge badge-ghost badge-xs">
+                    {gettext("rendered HTML, three braces")}
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </div>
 
           <div :if={@selected && @preview_result} id={"#{@id}-preview"} class="flex flex-col gap-2">
             <span class="text-sm font-semibold">{gettext("Preview")}</span>
@@ -2432,6 +2949,20 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   defp selected_email(assigns),
     do: Enum.find(assigns.templates, &(&1.name == assigns.selected))
+
+  defp confirm_variables_message(%{kind: :email}, names) do
+    gettext(
+      "%{names} belongs to the header, footer and layout, not to this email: in its body it stays as typed. Save anyway?",
+      names: Enum.map_join(names, ", ", &"{{#{&1}}}")
+    )
+  end
+
+  defp confirm_variables_message(_context, names) do
+    gettext(
+      "%{names} is not a variable of headers, footers and layouts — an email's, or the page layout's: here it stays as typed. Save anyway?",
+      names: Enum.map_join(names, ", ", &"{{#{&1}}}")
+    )
+  end
 
   defp part_hint(:label), do: gettext("The caption in lists. Never sent.")
   defp part_hint(:subject), do: gettext("One line.")

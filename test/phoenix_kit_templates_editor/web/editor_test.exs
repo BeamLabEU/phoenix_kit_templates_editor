@@ -891,7 +891,9 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
       assert File.read!(Path.join([root, "order_offer", "text.et.txt"])) == "Uus tekst\n"
     end
 
-    test "an edited part still wins over another session's change", %{tmp_dir: root} do
+    # Spec §4.11 П6: an edited part no longer wins — the save is refused
+    # (editor_conflict_test.exs has the rest).
+    test "an edited part does not win over another session's change", %{tmp_dir: root} do
       seed(root)
       view = mount_editor(root)
       select(view, "order_offer")
@@ -905,7 +907,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
       |> with_target("#editor")
       |> render_submit("save", %{"parts" => %{"subject" => "Minu muudatus"}})
 
-      assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "Minu muudatus"
+      assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "Teine sessioon\n"
     end
   end
 

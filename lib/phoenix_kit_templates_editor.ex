@@ -98,6 +98,24 @@ defmodule PhoenixKitTemplatesEditor do
 
   @impl PhoenixKit.Module
   @doc """
+  The editor's JS hook (`PhoenixKitTemplatesEditorInsertVariable`: a
+  variable put at the cursor), a prebuilt file in `priv/static/assets`
+  folded into the host's LiveSocket by core's `:phoenix_kit_js_sources`
+  compiler — no inline script. Without it a variable goes at the end of the
+  body instead.
+  """
+  def js_sources do
+    [
+      %{
+        app: :phoenix_kit_templates_editor,
+        file: "static/assets/phoenix_kit_templates_editor.js",
+        global: "PhoenixKitTemplatesEditorHooks"
+      }
+    ]
+  end
+
+  @impl PhoenixKit.Module
+  @doc """
   `PhoenixKitTemplatesEditor.Watcher`, always: it decides in its `init/1`
   whether to run (only where the files are edited or watched).
   """

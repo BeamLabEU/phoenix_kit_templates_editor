@@ -87,6 +87,18 @@ defmodule PhoenixKitTemplatesEditorTest do
     end
   end
 
+  describe "js_sources/0" do
+    test "one bundle in priv/static, defining the namespaced insert hook under its global" do
+      assert [%{app: :phoenix_kit_templates_editor, file: file, global: global}] =
+               PhoenixKitTemplatesEditor.js_sources()
+
+      assert global == "PhoenixKitTemplatesEditorHooks"
+      bundle = File.read!(Path.join(:code.priv_dir(:phoenix_kit_templates_editor), file))
+      assert bundle =~ "window.#{global}"
+      assert bundle =~ "PhoenixKitTemplatesEditorInsertVariable"
+    end
+  end
+
   describe "optional callbacks" do
     test "no migrations, tabs or routes of its own" do
       assert PhoenixKitTemplatesEditor.migration_module() == nil
