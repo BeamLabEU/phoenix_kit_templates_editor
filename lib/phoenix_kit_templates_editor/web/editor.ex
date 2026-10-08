@@ -98,6 +98,16 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       through it (the README's note on `markdown`). Nothing is written:
       the result waits in the form, the user's other unsaved fields as
       they were, until the user saves it.
+    * `:authorize` — `{module, function}` or a 1-arity function, asked on
+      the server before every change, as `authorize(action)` with `:save`,
+      `:convert`, `:create` or `:delete` (the delete button and its
+      confirmation each ask). `:ok` allows it; anything else — an error, a
+      callback that cannot be called, an exception, throw or exit (logged)
+      — refuses it: nothing is written and a notice says so. Asked only when
+      `:editable` is `true`, which is checked first. Default `nil`: editable
+      is all it takes. A host passes its permission check here (for
+      example `fn _action -> MyApp.authorize(scope, :write) end`), so a
+      permission taken away while the page is open counts at once.
 
   ## What it does
 
@@ -166,6 +176,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
        after_write: nil,
        after_change: nil,
        convert: nil,
+       authorize: nil,
        templates: [],
        selected: nil,
        draft?: false,
@@ -233,19 +244,22 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       when is_map_key(@conversions, action) and is_map(parts) do
     conversion = Map.fetch!(@conversions, action)
 
-    if writable?(socket, socket.assigns.selected) and
-         converter(socket.assigns, conversion) != nil do
-      {:noreply, convert(socket, conversion, parts)}
-    else
-      {:noreply, socket}
-    end
+    {:noreply,
+     permitted(socket, :convert, fn socket ->
+       if writable?(socket, socket.assigns.selected) and
+            converter(socket.assigns, conversion) != nil,
+          do: convert(socket, conversion, parts),
+          else: socket
+     end)}
   end
 
   # A submit that names no button, or names Save, saves.
   def handle_event("save", %{"parts" => parts} = params, socket) when is_map(parts) do
-    if Map.get(params, "action", "save") == "save" and
-         writable?(socket, socket.assigns.selected) do
-      {:noreply, save(socket, parts)}
+    if Map.get(params, "action", "save") == "save" do
+      {:noreply,
+       permitted(socket, :save, fn socket ->
+         if writable?(socket, socket.assigns.selected), do: save(socket, parts), else: socket
+       end)}
     else
       {:noreply, socket}
     end
@@ -261,11 +275,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       when is_binary(name) do
     case Map.get(params, "copy_from", "") do
       copy_from when is_binary(copy_from) ->
-        if editable?(socket.assigns) do
-          {:noreply, create(socket, String.trim(name), copy_from)}
-        else
-          {:noreply, socket}
-        end
+        {:noreply, permitted(socket, :create, &create(&1, String.trim(name), copy_from))}
 
       _malformed ->
         {:noreply, socket}
@@ -274,7 +284,11 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   def handle_event("delete", _params, socket) do
     {:noreply,
-     assign(socket, confirm_delete?: writable?(socket, socket.assigns.selected), notice: nil)}
+     socket
+     |> assign(notice: nil)
+     |> permitted(:delete, fn socket ->
+       assign(socket, confirm_delete?: writable?(socket, socket.assigns.selected))
+     end)}
   end
 
   def handle_event("cancel_delete", _params, socket) do
@@ -282,16 +296,51 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   end
 
   def handle_event("confirm_delete", _params, socket) do
-    if socket.assigns.confirm_delete? and writable?(socket, socket.assigns.selected) do
-      {:noreply, delete(socket)}
-    else
-      {:noreply, assign(socket, confirm_delete?: false)}
-    end
+    {:noreply,
+     permitted(socket, :delete, fn socket ->
+       if socket.assigns.confirm_delete? and writable?(socket, socket.assigns.selected),
+         do: delete(socket),
+         else: assign(socket, confirm_delete?: false)
+     end)}
   end
 
   def handle_event(_event, _params, socket), do: {:noreply, socket}
 
   ## Actions
+
+  # Every change is checked here, on the server, whatever the page showed:
+  # the editor must be editable (the host's config, strictly `true`) and the
+  # host's `authorize` must answer `:ok` for this user, now — a permission
+  # taken away while the page is open counts at once. A refusal changes
+  # nothing and says so.
+  defp permitted(socket, action, fun) do
+    case permission(socket, action) do
+      :ok -> fun.(socket)
+      {:error, message} -> socket |> assign(confirm_delete?: false) |> notice(:error, message)
+    end
+  end
+
+  defp permission(socket, action) do
+    cond do
+      not editable?(socket.assigns) ->
+        {:error, gettext("These templates are read-only here: nothing was changed.")}
+
+      authorized?(socket.assigns.authorize, action) ->
+        :ok
+
+      true ->
+        {:error, gettext("You are not allowed to change templates: nothing was changed.")}
+    end
+  end
+
+  # No callback: editable is all it takes. One that cannot be called, raises
+  # or answers anything but `:ok` refuses.
+  defp authorized?(nil, _action), do: true
+
+  defp authorized?(callback, action) do
+    callable?(callback, 1) and
+      safely({"authorize", callback, [action]}, fn -> call(callback, [action]) end) == :ok
+  end
 
   defp select(socket, name) do
     socket
@@ -899,6 +948,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   end
 
   defp converter(_assigns, _conversion), do: nil
+
+  defp callable?({module, function}, _arity), do: is_atom(module) and is_atom(function)
+  defp callable?(fun, arity), do: is_function(fun, arity)
 
   defp call({module, function}, args), do: apply(module, function, args)
   defp call(fun, args) when is_function(fun, length(args)), do: apply(fun, args)

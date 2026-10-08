@@ -51,9 +51,13 @@ defmodule PhoenixKitTemplatesEditor.EditorCase do
   @doc """
   Mounts the editor on `root` with `opts` over the defaults. `opts` may hold
   `:locale`, the page's language, which is not an editor attribute.
+
+  A session cannot carry a function, so an option holding one is handed to
+  the host right after the mount, as a host re-render.
   """
   def mount_editor(root, opts \\ %{}) do
     {locale, opts} = Map.pop(opts, :locale)
+    {functions, opts} = Map.split_with(opts, fn {_key, value} -> function?(value) end)
 
     opts =
       Map.merge(
@@ -73,8 +77,19 @@ defmodule PhoenixKitTemplatesEditor.EditorCase do
     {:ok, view, _html} =
       live_isolated(build_conn(), PhoenixKitTemplatesEditor.Test.EditorHost, session: session)
 
+    if functions != %{} do
+      send(view.pid, {:put, functions})
+      _ = render(view)
+    end
+
     view
   end
+
+  defp function?(value) when is_function(value), do: true
+  defp function?(value) when is_map(value), do: value |> Map.values() |> Enum.any?(&function?/1)
+  defp function?(value) when is_list(value), do: Enum.any?(value, &function?/1)
+  defp function?(value) when is_tuple(value), do: value |> Tuple.to_list() |> function?()
+  defp function?(_value), do: false
 
   def select(view, name) do
     view |> element("#editor [phx-click=select][phx-value-name=#{name}]") |> render_click()
