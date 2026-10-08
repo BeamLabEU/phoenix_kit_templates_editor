@@ -72,7 +72,9 @@ lib/
 └── phoenix_kit_templates_editor/
     ├── config.ex                            # Config.load/1 — config :phoenix_kit_templates_editor, checked
     ├── gettext.ex                           # Gettext backend (priv/gettext)
-    └── web/section.ex                       # the tab's LiveComponent (core mounts it)
+    └── web/
+        ├── editor.ex                        # Web.Editor — the editor LiveComponent (from phoenix_kit_templates 0.2.4)
+        └── section.ex                       # the tab's LiveComponent (core mounts it)
 ```
 
 | Callback | Value |
@@ -96,6 +98,7 @@ None — settings only. `migration_module/0` is not set; the one setting row (`t
 - Without Postgres: behaviour, `Config`, section render, i18n and conformance tests run; `test/integration/` is tagged `:integration` through `DataCase` and excluded automatically.
 - `test_helper.exs` probes the database with core's `PhoenixKit.TestSupport.PostgresPreflight`, starts `Test.Repo`, builds the schema with `PhoenixKit.Migration.ensure_current/2`, starts `PhoenixKit.PubSub.Manager` and `PhoenixKit.ModuleRegistry`, and sets core's URL-prefix cache to `"/"`.
 - The settings cache (`PhoenixKit.Cache`) is deliberately not started: a cached value would outlive each test's sandbox rollback. Core logs a warning about it on every settings read, so `config/test.exs` sets the logger to `:error`.
+- Editor tests (`test/phoenix_kit_templates_editor/web/editor*_test.exs`) use `PhoenixKitTemplatesEditor.EditorCase`: a `tmp_dir` root, the editor mounted in `Test.EditorHost` (a LiveView) on `Test.Endpoint` through `live_isolated/3`. A session cannot carry a function, so `mount_editor/2` hands function-valued options to the host right after the mount. The page language is `opts[:locale]`, put on the module's Gettext backend in the host's `mount`.
 - `Config` tests that pass `root: nil` change `config :phoenix_kit, :template_paths` and restore it; that file and the section test are not `async`.
 
 ```bash
