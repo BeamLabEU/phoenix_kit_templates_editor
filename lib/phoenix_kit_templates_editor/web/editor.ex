@@ -95,7 +95,15 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       email's variables. Default `[]`.
     * `:sent_by` — `{module, function}` or a 1-arity function,
       `sent_by(name)` → `:core` or `:host`. Default: `:core` for an email of
-      `:module_emails`, `:host` otherwise.
+      `:module_emails` or `:reserved_names`, `:host` otherwise.
+    * `:overridable` — which of those emails (and parts of a module's own
+      layout group) may be given a file here: `:all` — every one but core's
+      sign-in emails (`PhoenixKitTemplatesEditor.Names.auth_emails/0`) — or a
+      list of names. Default `[]`: none.
+    * `:test_send` — a 2-arity function, `test_send(name, locale)` →
+      `{:ok, address}` or `{:error, message}`: the *Send to me* button on an
+      email (read only too). The host checks who asks and how often
+      (`PhoenixKitTemplatesEditor.TestSend`). Default `nil`: no button.
     * `:after_write` — `{module, function}` or a 1-arity function, called
       with the list of paths created by a save or a copy (a new template
       directory first, then files) — for example to change their owner.
@@ -222,6 +230,18 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     * A file that is not UTF-8 is shown as such, read-only, and never
       written over: fix it on disk.
     * Deletes a template, after a confirmation.
+    * Lists *Module emails* (`:module_emails`): read only — the built-in text
+      by language, and where each part comes from — until one has a file;
+      where `:overridable` allows, a button writes one from the built-in
+      text or from the Emails module's active database template
+      (`PhoenixKitTemplatesEditor.Overriding`), and from then on it is
+      edited like any template. A module's own layout group (`layout:` of
+      its entries) gets its parts the same way. The sign-in emails carry a
+      warning wherever they are shown.
+    * For an email core sends, says where each part comes from
+      (`PhoenixKitTemplatesEditor.Sources`) — a red notice when a database
+      template wins over the files; for one the host sends, that the files
+      are what it uses.
 
   A reason a host's callback gives (a preview's or a converter's
   `{:error, reason}`) is shown in the host's own words, untranslated.
