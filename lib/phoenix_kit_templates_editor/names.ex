@@ -17,7 +17,15 @@ defmodule PhoenixKitTemplatesEditor.Names do
     * **anything else** — allowed when it starts with a plain name prefix.
 
   Before all of that, a name in `reserved` — an email core or another module
-  sends (`reserved_names/0`) — is refused.
+  sends (`reserved_names/0`) — is refused, unless the rules' `overridable`
+  lets it in (`overridable?/2`, spec §4.11 П2): `:all` is every such email
+  but core's sign-in emails (`auth_emails/0`), a list exactly its names.
+  The same goes for a part of a module's own layout group (`module_groups`,
+  the groups catalogue entries name with `layout: "<g>"`, exact — not
+  namespaces): `_header-billing` is allowed only when it is overridable.
+
+  `overridable` and `module_groups` are optional in the rules: without them
+  nothing is overridden.
   """
 
   require Logger
@@ -28,15 +36,23 @@ defmodule PhoenixKitTemplatesEditor.Names do
 
   @type kind :: :header | :footer | :layout
 
+  @type overridable :: :all | [String.t()]
+
   @type rules :: %{
-          prefixes: [String.t()],
-          layout_groups: [String.t()],
-          shared_layout_editable: boolean(),
-          reserved: [String.t()]
+          required(:prefixes) => [String.t()],
+          required(:layout_groups) => [String.t()],
+          required(:shared_layout_editable) => boolean(),
+          required(:reserved) => [String.t()],
+          optional(:overridable) => overridable(),
+          optional(:module_groups) => [String.t()]
         }
 
   @kinds [:header, :footer, :layout]
   @kind_names Map.new(@kinds, &{Atom.to_string(&1), &1})
+
+  # Core's emails that sign a user in or change how they do: a file that
+  # breaks one locks people out (spec §4.10 Б15).
+  @auth_emails ~w(register reset_password update_email magic_link magic_link_registration)
 
   @chrome ~r/\A_(header|footer|layout)(?:-([a-z0-9-]+))?\z/
 
@@ -76,9 +92,11 @@ defmodule PhoenixKitTemplatesEditor.Names do
   """
   @spec check(term(), rules()) :: :ok | {:error, :reserved | :shared | :namespace | :prefix}
   def check(name, rules) when is_binary(name) do
-    if name in rules.reserved,
-      do: {:error, :reserved},
-      else: check_kind(chrome(name), name, rules)
+    cond do
+      name not in rules.reserved -> check_kind(chrome(name), name, rules)
+      overridable?(name, Map.get(rules, :overridable)) -> :ok
+      true -> {:error, :reserved}
+    end
   end
 
   def check(_name, _rules), do: {:error, :prefix}
@@ -87,12 +105,21 @@ defmodule PhoenixKitTemplatesEditor.Names do
     if rules.shared_layout_editable == true, do: :ok, else: {:error, :shared}
   end
 
-  defp check_kind({kind, group}, _name, rules) do
-    if part_allowed?(kind, group, rules), do: :ok, else: {:error, :namespace}
+  defp check_kind({kind, group}, name, rules) do
+    cond do
+      part_allowed?(kind, group, rules) -> :ok
+      module_part?(name, group, rules) -> :ok
+      true -> {:error, :namespace}
+    end
   end
 
   defp check_kind(nil, name, rules) do
     if String.starts_with?(name, plain_prefixes(rules)), do: :ok, else: {:error, :prefix}
+  end
+
+  defp module_part?(name, group, rules) do
+    group in Map.get(rules, :module_groups, []) and
+      overridable?(name, Map.get(rules, :overridable))
   end
 
   @doc "Whether `rules` allow part `kind` of `group`."
@@ -119,6 +146,33 @@ defmodule PhoenixKitTemplatesEditor.Names do
   end
 
   defp plain_prefixes(rules), do: Enum.reject(rules.prefixes, &chrome/1)
+
+  @doc """
+  The names of core's sign-in emails (account confirmation, password
+  reset, email change, magic link): never overridable by `:all`, only by
+  name, and warned about when they are.
+  """
+  @spec auth_emails() :: [String.t()]
+  def auth_emails, do: @auth_emails
+
+  @doc """
+  Whether a name core or a module sends may be given a file here:
+  `overridable` `:all` — any but `auth_emails/0`; a list — exactly its
+  names; anything else — none.
+  """
+  @spec overridable?(String.t(), term()) :: boolean()
+  def overridable?(name, :all), do: name not in @auth_emails
+  def overridable?(name, names) when is_list(names), do: name in names
+  def overridable?(_name, _none), do: false
+
+  @doc """
+  The layout groups catalogue `entries` name (`layout: "<g>"`, a valid
+  group), each once, in order.
+  """
+  @spec module_groups([map()]) :: [String.t()]
+  def module_groups(entries) do
+    for(%{layout: group} <- entries, Layout.valid_group?(group), do: group) |> Enum.uniq()
+  end
 
   @doc """
   The names of the emails core and every other registered module send
