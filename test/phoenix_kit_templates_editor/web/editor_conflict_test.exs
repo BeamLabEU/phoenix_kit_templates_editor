@@ -85,10 +85,9 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorConflictTest do
     assert File.read!(path(root, "subject.et.txt")) == "Minu muudatus"
   end
 
-  test "Reload drops the cache: a template put on disk by hand is listed, read only too",
-       %{tmp_dir: root} do
+  test "Reload drops the cache: a template put on disk by hand is listed", %{tmp_dir: root} do
     seed(root)
-    view = mount_editor(root, %{editable: false})
+    view = mount_editor(root)
     refute has_element?(view, "#editor [phx-value-name=order_new]")
 
     put(root, "order_new", "subject.et.txt", "Uus")

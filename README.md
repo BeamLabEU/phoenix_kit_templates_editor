@@ -135,6 +135,8 @@ config :phoenix_kit_templates_editor, editable: true
 | `overridable` | `:all` | which emails PhoenixKit and its modules send may be given a file here: `:all` — every one but the emails about getting into an account (account confirmation, password reset, email change, magic link sign-in and registration, organization invitation, the new-login and failed-sign-in alerts); a list — exactly those names |
 | `catalog` | `false` | whether your templates are offered to PhoenixKit's email preview |
 | `watch` | same as `editable` | whether the files are re-read when they change on disk |
+| `max_templates` | `500` | the most templates the root may hold: a new one past it is refused (`nil` — no limit) |
+| `max_root_bytes` | `52_428_800` (50 MiB) | the most bytes the root's files may take: a save, copy or new file past it is refused (`nil` — no limit) |
 
 Callbacks are `{module, function}` or a function of that arity. A config that
 does not check out is shown on the tab as a list of problems — the page itself

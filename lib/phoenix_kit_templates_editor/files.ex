@@ -309,6 +309,14 @@ defmodule PhoenixKitTemplatesEditor.Files do
     end
   end
 
+  @doc """
+  The bytes of the regular files directly in template `name` under `root`
+  (links not followed); `0` for a missing one.
+  """
+  @spec template_bytes(Path.t(), String.t()) :: non_neg_integer()
+  def template_bytes(root, name) when is_binary(root) and is_binary(name),
+    do: dir_bytes(Path.join(root, name))
+
   defp dir_bytes(dir) do
     case File.ls(dir) do
       {:ok, entries} ->

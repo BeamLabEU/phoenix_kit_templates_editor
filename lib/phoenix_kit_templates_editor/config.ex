@@ -35,6 +35,8 @@ defmodule PhoenixKitTemplatesEditor.Config do
   | `shared_layout_editable` | `false` | whether the shared `_header`/`_footer`/`_layout` (core's system emails) are editable |
   | `overridable` | `:all` | which emails core and other modules send may get a file here: `:all` — every one but core's sign-in emails (`PhoenixKitTemplatesEditor.Names.auth_emails/0`); a list — exactly those names (a sign-in email only so) |
   | `catalog` | `false` | whether the templates are offered to core's email preview |
+  | `max_templates` | `500` | the most templates the root may hold; a new one past it is refused (`nil` — no limit) |
+  | `max_root_bytes` | `52_428_800` (50 MiB) | the most bytes the root's files may take; a save or copy past it is refused (`nil` — no limit) |
   | `watch` | `editable` | whether a watcher re-reads the files on change |
 
   Callbacks are `{module, function}` or a function of the given arity.
@@ -73,7 +75,9 @@ defmodule PhoenixKitTemplatesEditor.Config do
           shared_layout_editable: boolean(),
           overridable: :all | [String.t()],
           catalog: boolean(),
-          watch: boolean()
+          watch: boolean(),
+          max_templates: pos_integer() | nil,
+          max_root_bytes: pos_integer() | nil
         }
 
   defstruct root: nil,
@@ -95,7 +99,9 @@ defmodule PhoenixKitTemplatesEditor.Config do
             shared_layout_editable: false,
             overridable: :all,
             catalog: false,
-            watch: false
+            watch: false,
+            max_templates: 500,
+            max_root_bytes: 52_428_800
 
   # `PhoenixKit.Templates.Overrides`' own locale pattern.
   @locale_pattern ~r/\A[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8}){0,3}\z/
@@ -130,7 +136,9 @@ defmodule PhoenixKitTemplatesEditor.Config do
         email_fallback: boolean(env, :email_fallback, true),
         shared_layout_editable: boolean(env, :shared_layout_editable, false),
         catalog: boolean(env, :catalog, false),
-        overridable: overridable(Keyword.get(env, :overridable, :all))
+        overridable: overridable(Keyword.get(env, :overridable, :all)),
+        max_templates: limit(env, :max_templates, 500),
+        max_root_bytes: limit(env, :max_root_bytes, 52_428_800)
       ] ++
         Enum.map(@callbacks, fn {key, arity} ->
           {key, callback(key, Keyword.get(env, key), arity)}
@@ -207,6 +215,13 @@ defmodule PhoenixKitTemplatesEditor.Config do
 
       value ->
         {:error, "#{key}: expected a list of strings, got #{inspect(value)}"}
+    end
+  end
+
+  defp limit(env, key, default) do
+    case Keyword.get(env, key, default) do
+      value when is_nil(value) or (is_integer(value) and value > 0) -> {:ok, value}
+      value -> {:error, "#{key}: expected a positive integer or nil, got #{inspect(value)}"}
     end
   end
 

@@ -75,8 +75,12 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       rather than crashing the page, and the last three are logged. It is
       called on selecting a template or tab, after a save or copy, and when
       the host re-renders with a new callback, new variables or changed
-      files — not for a template with no files yet. No callback, no preview
-      pane.
+      files — not for a template with no files yet. It runs in a task with
+      a deadline (`:preview_timeout`), and not at all while the template,
+      its layout's chrome (or, for a layout part, any email) has a link
+      among its files (`PhoenixKitTemplatesEditor.Files.check_template/2`):
+      the library's lookup a host reads with follows links. *Send to me* is
+      checked the same way. No callback, no preview pane.
     * `:sample_variables` — the variables of the host's own emails, as a
       map of name to a sample value: listed in an email's variables panel,
       and any placeholder in the current template that is not among them is
@@ -139,14 +143,20 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       they were, until the user saves it.
     * `:authorize` — `{module, function}` or a 1-arity function, asked on
       the server before every change, as `authorize(action)` with `:save`,
-      `:convert`, `:create` or `:delete` (the delete button and its
-      confirmation each ask). `:ok` allows it; anything else — an error, a
+      `:convert`, `:create`, `:delete` (the delete button and its
+      confirmation each ask) or `:reload` (*Reload*, which drops the
+      library's cache: a writer's action, once in 5 s). `:ok` allows it; anything else — an error, a
       callback that cannot be called, an exception, throw or exit (logged)
       — refuses it: nothing is written and a notice says so. Asked only when
       `:editable` is `true`, which is checked first. Default `nil`: editable
       is all it takes. A host passes its permission check here (for
       example `fn _action -> MyApp.authorize(scope, :write) end`), so a
       permission taken away while the page is open counts at once.
+    * `:max_templates`, `:max_root_bytes` — the most templates the root may
+      hold, and the most bytes its files may take (spec §4.10 Б7): a save,
+      copy or new file past either is refused. Default `nil`: no limit.
+    * `:preview_timeout` — how long `:preview` may take, in ms, before it
+      is shown as too slow. Default `5_000`.
     * `:journal` — `{module, function}` or a 1-arity function, called with
       an event map after every change on disk — `%{action: :file_saved,
       template:, part:, locale:, before:, after:}` and the like
@@ -255,10 +265,12 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   alias PhoenixKit.Templates
   alias PhoenixKit.Templates.Overrides
   alias PhoenixKit.Utils.RecipientLocale
+  alias PhoenixKitTemplatesEditor.Bounded
   alias PhoenixKitTemplatesEditor.Files
   alias PhoenixKitTemplatesEditor.Layouts
   alias PhoenixKitTemplatesEditor.Names
   alias PhoenixKitTemplatesEditor.Overriding
+  alias PhoenixKitTemplatesEditor.Preview
   alias PhoenixKitTemplatesEditor.Sources
   alias PhoenixKitTemplatesEditor.Variables
 
@@ -330,6 +342,13 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
        overridable: [],
        journal: nil,
        test_send: nil,
+       # The root's limits (spec §4.10 Б7): `nil` — none.
+       max_templates: nil,
+       max_root_bytes: nil,
+       # How long the host's preview may take, in ms.
+       preview_timeout: 5_000,
+       # When this page last read everything again (`System.monotonic_time/1`, ms).
+       reloaded_at: nil,
        # Where each part of the open email comes from, when core sends it
        # (`Sources.of/4`), and the names with a directory in the root.
        sources: nil,
@@ -450,8 +469,12 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     do: {:noreply, assign(socket, confirm_variables: nil)}
 
   # The files again from disk, the cache dropped: after a hand edit, a git
-  # pull or another user's save. Writes nothing, so read only may too.
-  def handle_event("reload", _params, socket), do: {:noreply, reload(socket)}
+  # pull or another user's save. Dropping the cache costs the whole VM a
+  # collection per entry (spec §4.10 Б12), so it is a writer's action, and
+  # once in a few seconds; where nothing is written, nothing changes on disk
+  # but by a deploy (or the watcher reads it).
+  def handle_event("reload", _params, socket),
+    do: {:noreply, permitted(socket, :reload, &reload_throttled/1)}
 
   # An email core or a module sends: opened in the editor once it is a
   # template here, else shown read only with its built-in text.
@@ -677,6 +700,12 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
       message = subject_refusal(changes) ->
         socket |> notice(:error, message) |> keep_form(params)
+
+      message = directory_refusal(socket, socket.assigns.selected) ->
+        socket |> notice(:error, not_saved(message)) |> keep_form(params)
+
+      message = limit_refusal(socket, new_templates(socket), written_bytes(changes)) ->
+        socket |> notice(:error, not_saved(message)) |> keep_form(params)
 
       findings.raw != [] ->
         socket |> notice(:error, raw_refusal(socket, findings.raw)) |> keep_form(params)
@@ -912,6 +941,26 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   defp panel_rows(%{var_context: nil}), do: []
   defp panel_rows(%{var_context: context}), do: Variables.panel(context)
 
+  @reload_interval_ms 5_000
+
+  defp reload_throttled(socket) do
+    now = System.monotonic_time(:millisecond)
+
+    case socket.assigns.reloaded_at do
+      last when is_integer(last) and now - last < @reload_interval_ms ->
+        notice(
+          socket,
+          :info,
+          gettext("Read again a moment ago: wait %{seconds} s.",
+            seconds: div(last + @reload_interval_ms - now + 999, 1000)
+          )
+        )
+
+      _long_ago ->
+        socket |> assign(reloaded_at: now) |> reload()
+    end
+  end
+
   defp reload(socket) do
     if is_binary(socket.assigns.root), do: Files.reload(socket.assigns.root)
 
@@ -1127,13 +1176,88 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         socket |> assign(notice: nil, draft?: true) |> select(name)
 
       # Only a template on disk can be copied; a draft has no directory.
+      # Every file of it is checked first: the library's copy reads them by
+      # following links.
       exists?(socket, copy_from) ->
-        copy(socket, copy_from, name, skipped_files(socket, copy_from, params))
+        case template_refusal(socket, copy_from) ||
+               limit_refusal(socket, 1, template_bytes(socket, copy_from)) do
+          nil -> copy(socket, copy_from, name, skipped_files(socket, copy_from, params))
+          message -> notice(socket, :error, gettext("Not copied: %{reason}", reason: message))
+        end
 
       true ->
         notice(socket, :error, gettext("There is no “%{name}” to copy.", name: copy_from))
     end
   end
+
+  # Why a write into template `name` is refused: its directory is a link
+  # (spec §4.10 Б4) — `nil` when it is a real one, or none yet.
+  defp directory_refusal(%{assigns: %{root: root}}, name) do
+    case Files.check_template_dir(root, name) do
+      :ok ->
+        nil
+
+      {:error, {_reason, path}} ->
+        gettext("%{file} is a link or outside the template directory: nothing is written there.",
+          file: Files.relative(root, path)
+        )
+    end
+  end
+
+  # Why the files of template `name` (or of `names`) may not be read by the
+  # library: a link among them — `nil` when there is none.
+  defp template_refusal(socket, name), do: check_refusal(socket, [name])
+
+  defp check_refusal(%{assigns: %{root: root}}, _names) when not is_binary(root), do: nil
+
+  defp check_refusal(%{assigns: %{root: root}}, names) do
+    case Preview.check_templates(root, names) do
+      :ok -> nil
+      {:error, message} -> message
+    end
+  end
+
+  # Why the root may not take `new_templates` more templates and `bytes`
+  # more bytes (spec §4.10 Б7) — `nil` within the host's limits.
+  defp limit_refusal(%{assigns: %{max_templates: nil, max_root_bytes: nil}}, _new, _bytes),
+    do: nil
+
+  defp limit_refusal(%{assigns: %{root: root} = assigns}, new_templates, bytes) do
+    usage = Files.usage(root)
+    max_templates = assigns.max_templates
+    max_bytes = assigns.max_root_bytes
+
+    cond do
+      is_integer(max_templates) and new_templates > 0 and
+          usage.templates + new_templates > max_templates ->
+        gettext(
+          "the templates directory already holds %{count} templates, as many as it may here.",
+          count: usage.templates
+        )
+
+      is_integer(max_bytes) and bytes > 0 and usage.bytes + bytes > max_bytes ->
+        gettext("the templates directory may not grow past %{size} KiB here.",
+          size: div(max_bytes, 1024)
+        )
+
+      true ->
+        nil
+    end
+  end
+
+  # A save of a draft makes its directory.
+  defp new_templates(%{assigns: %{root: root, selected: name}}),
+    do: if(File.dir?(Path.join(root, name)), do: 0, else: 1)
+
+  defp written_bytes(changes),
+    do: Enum.reduce(changes, 0, fn {_part, change}, sum -> sum + change_bytes(change) end)
+
+  defp change_bytes({:write, value}), do: byte_size(value)
+  defp change_bytes(:delete), do: 0
+
+  defp template_bytes(%{assigns: %{root: root}}, name), do: Files.template_bytes(root, name)
+
+  defp not_saved(message), do: gettext("Not saved: %{errors}", errors: message)
 
   # Why `rules` refuse a name, in words; `nil` when they allow it.
   defp name_refusal(socket, name, opts) do
@@ -1349,6 +1473,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       File.exists?(Path.join(root, name)) ->
         notice(socket, :error, gettext("“%{name}” already exists.", name: name))
 
+      message = limit_refusal(socket, 1, 0) ->
+        notice(socket, :error, gettext("Not created: %{reason}", reason: message))
+
       true ->
         result =
           case source do
@@ -1409,9 +1536,11 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     %{test_send: callback} = assigns = socket.assigns
 
     with {name, locale} <- test_send_target(assigns),
+         nil <- check_refusal(socket, preview_names(assigns, name)),
          answer when answer != :none <- ask(callback, "test_send", [name, locale]) do
       test_sent(answer, socket)
     else
+      message when is_binary(message) -> test_sent({:error, message}, socket)
       _none -> socket
     end
   end
@@ -1450,6 +1579,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
     result =
       cond do
+        message = directory_refusal(socket, name) ->
+          {:error, message}
+
         group == "" and not file? ->
           :unchanged
 
@@ -1533,6 +1665,11 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
       kinds == [] ->
         notice(socket, :error, gettext("There is no layout “%{name}” to copy.", name: from))
+
+      message =
+          check_refusal(socket, Enum.map(kinds, &Names.part_name(&1, from))) ||
+            limit_refusal(socket, length(kinds), 0) ->
+        notice(socket, :error, gettext("Not copied: %{reason}", reason: message))
 
       true ->
         copy_layout(socket, from, group, kinds)
@@ -2003,9 +2140,10 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   defp missing_variables(name, variables, locale, root) do
     opts = [locale: locale, paths: [root]]
 
-    if sources_safe?(root, Templates.sources(name, %{}, opts)),
-      do: unbound(name, variables, opts),
-      else: []
+    if Files.check_template(root, name) == :ok and
+         sources_safe?(root, Templates.sources(name, %{}, opts)),
+       do: unbound(name, variables, opts),
+       else: []
   end
 
   defp sources_safe?(root, sources) do
@@ -2035,15 +2173,55 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     # A template with no files (a draft) has nothing to show, and rendering
     # it would leave cache entries behind for a name that may never be saved.
     result =
-      if files_of(socket, name) == [] do
-        :unsaved
-      else
-        safely({"preview", callback, [name, locale]}, fn ->
-          callback |> call([name, locale]) |> preview_result()
-        end)
+      cond do
+        files_of(socket, name) == [] ->
+          :unsaved
+
+        # The host reads the files by the library's lookup, which follows
+        # links: none of them may be one (spec §4.10 Б4).
+        message = check_refusal(socket, preview_names(socket.assigns, name)) ->
+          {:error, message}
+
+        true ->
+          bounded_preview(callback, name, locale, socket.assigns.preview_timeout)
       end
 
     assign(socket, preview_result: result)
+  end
+
+  # In a task with a deadline, as the module's own preview (spec §4.10 Б7):
+  # a slow template costs the page at most that long.
+  defp bounded_preview(callback, name, locale, timeout) do
+    safely({"preview", callback, [name, locale]}, fn ->
+      case Bounded.run(fn -> call(callback, [name, locale]) end, timeout) do
+        {:ok, result} -> preview_result(result)
+        {:error, :timeout} -> {:error, describe(:timeout)}
+      end
+    end)
+  end
+
+  # The templates a preview of `name` reads: an email and its layout's
+  # chrome; a layout part, its group's chrome and the emails it may be
+  # shown around.
+  defp preview_names(assigns, "_" <> _ = name) do
+    group =
+      case Names.chrome(name) do
+        {_kind, group} -> group
+        nil -> assigns.layout_group
+      end
+
+    Preview.chrome_names(group) ++
+      for(%{name: email} <- assigns.templates, not String.starts_with?(email, "_"), do: email)
+  end
+
+  defp preview_names(assigns, name) do
+    group =
+      case Enum.find(assigns.templates, &(&1.name == name)) do
+        %{layout: layout} when is_binary(layout) -> layout
+        _none -> assigns.layout_group
+      end
+
+    [name | Preview.chrome_names(group)]
   end
 
   # Only text is trusted into the page: `{:safe, iodata}` is turned back into
@@ -2475,7 +2653,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       <div class="grid gap-6 lg:grid-cols-4">
         <aside class="flex flex-col gap-4 lg:col-span-1">
           <button
-            :if={is_binary(@root)}
+            :if={@can_edit}
             id={"#{@id}-reload"}
             type="button"
             phx-click="reload"
@@ -3414,14 +3592,15 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     <%!-- bg-white, not a theme colour: an email is drawn on white whatever the admin theme. --%>
     <%!-- Nothing in an edited template runs (no allow-scripts), leaks the
          admin page's address, or loads anything from outside but images
-         from the origins the host names (`csp`, where the browser honours
-         it). --%>
+         from the origins the host names (`csp` on the frame, which only
+         Chromium honours, and the same policy as a meta tag at the top of
+         the document, which every browser does). --%>
     <iframe
       :if={@show_html? && @html}
       sandbox=""
       referrerpolicy="no-referrer"
       csp={@csp}
-      srcdoc={@html}
+      srcdoc={with_policy(@html, @csp)}
       title={gettext("Preview")}
       class="h-[32rem] w-full rounded-box border border-base-300 bg-white"
     ></iframe>
@@ -3605,6 +3784,25 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   defp preview_csp(origins) do
     images = Enum.join(["data:" | origins], " ")
     "default-src 'none'; img-src #{images}; style-src 'unsafe-inline'"
+  end
+
+  @doctype ~r/\A\s*+<!doctype\b[^<>]*+>/i
+
+  # The policy as the document's first element, so Firefox and Safari keep
+  # an edited template's remote image (a tracking pixel) out as well: a
+  # `<meta>` before anything else lands in the document's head. After a
+  # doctype, not before it: the document keeps its rendering mode.
+  defp with_policy(html, csp) do
+    meta = ~s(<meta http-equiv="Content-Security-Policy" content="#{csp}">)
+
+    case Regex.run(@doctype, html, return: :index) do
+      [{0, length}] ->
+        binary_part(html, 0, length) <>
+          meta <> binary_part(html, length, byte_size(html) - length)
+
+      nil ->
+        meta <> html
+    end
   end
 
   defp notice_class(:info), do: "alert alert-success"

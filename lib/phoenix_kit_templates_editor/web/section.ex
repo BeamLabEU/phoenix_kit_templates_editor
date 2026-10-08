@@ -365,6 +365,8 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
           overridable={@config.overridable}
           sent_by={@config.sent_by}
           test_send={@test_send}
+          max_templates={@config.max_templates}
+          max_root_bytes={@config.max_root_bytes}
         />
       <% end %>
     </div>
