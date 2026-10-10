@@ -1,6 +1,6 @@
 defmodule PhoenixKitTemplatesEditor.TestSend do
   @moduledoc """
-  "Send to me" (spec §4.11 П3): one email, to the address of the user
+  "Send to me": one email, to the address of the user
   asking and nobody else, with sample variables, in its layout — as the
   editor shows it. Works where the templates are read only too: it writes
   nothing.

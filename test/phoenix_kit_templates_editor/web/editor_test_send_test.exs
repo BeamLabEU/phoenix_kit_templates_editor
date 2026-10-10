@@ -1,5 +1,5 @@
 defmodule PhoenixKitTemplatesEditor.Web.EditorTestSendTest do
-  # "Send to me" in the editor (spec §4.11 П3): a button on an email, the
+  # "Send to me" in the editor: a button on an email, the
   # host's `test_send` called with the email and the tab's language, what
   # it answers told — read only too.
   use PhoenixKitTemplatesEditor.EditorCase, async: true

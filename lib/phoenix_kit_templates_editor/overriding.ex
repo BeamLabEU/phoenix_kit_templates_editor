@@ -1,7 +1,7 @@
 defmodule PhoenixKitTemplatesEditor.Overriding do
   @moduledoc """
   Files for an email core or another module sends — an override of it in
-  the host's templates root (spec §4.11 П2). The editor offers these only
+  the host's templates root. The editor offers these only
   where the email is overridable (`PhoenixKitTemplatesEditor.Names`) and
   has no file yet.
 

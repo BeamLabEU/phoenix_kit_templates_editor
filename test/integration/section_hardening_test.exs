@@ -1,7 +1,7 @@
 defmodule PhoenixKitTemplatesEditor.Integration.SectionHardeningTest do
   # Round 1 of the final and security reviews: asking git what is not
   # committed is a writer's action, and not more often than once in a few
-  # seconds (spec §4.10 Б6); an event the section does not know changes
+  # seconds; an event the section does not know changes
   # nothing; the scope hook keeps no scope in the process of a page's first,
   # disconnected render (the HTTP connection's, reused across requests).
   use PhoenixKitTemplatesEditor.DataCase, async: false

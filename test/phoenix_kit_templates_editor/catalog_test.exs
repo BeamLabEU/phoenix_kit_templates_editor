@@ -1,5 +1,5 @@
 defmodule PhoenixKitTemplatesEditor.CatalogTest do
-  # The host's emails for core's "Preview emails" (spec §4.4): with
+  # The host's emails for core's "Preview emails": with
   # `catalog: true`, every email under `name_prefixes` (no leading `_`),
   # labelled in PhoenixKit's language, then `base_locale`, then by name;
   # ordered by label, then name; the sample variables; the layout of

@@ -1,5 +1,5 @@
 defmodule PhoenixKitTemplatesEditor.Web.EditorJournalTest do
-  # Every change on disk is told to the host's `journal` (spec §4.10 Б3):
+  # Every change on disk is told to the host's `journal`:
   # what, which template, part and language, and the text before and after.
   use PhoenixKitTemplatesEditor.EditorCase, async: true
 

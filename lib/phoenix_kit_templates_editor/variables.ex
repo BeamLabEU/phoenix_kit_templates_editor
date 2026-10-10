@@ -1,8 +1,7 @@
 defmodule PhoenixKitTemplatesEditor.Variables do
   @moduledoc """
   Which placeholders a part may hold, by the kind of template it belongs to
-  (spec §4.11 П4, §4.10 Б9) — for the editor's variables panel and its
-  check on saving.
+  — for the editor's variables panel and its check on saving.
 
     * **An email** (no leading `_`) is rendered with its own variables:
       the catalogue entry's samples for an email core or a module sends,
@@ -22,7 +21,8 @@ defmodule PhoenixKitTemplatesEditor.Variables do
   *forbidden here*: it stays in the message as typed. One of neither kind
   is *unknown*. `{{{x}}}` (inserted without escaping) is allowed only for
   the host's `raw_variables` and, in a page layout, `content`, `header` and
-  `footer`; anywhere else it is refused (Б9). The `label` part is never
+  `footer`; anywhere else it is refused, since its value would go into the
+  message unescaped. The `label` part is never
   sent and is not checked.
   """
 
@@ -32,7 +32,7 @@ defmodule PhoenixKitTemplatesEditor.Variables do
   @html_variables ~w(content header footer)
 
   # `PhoenixKit.Templates.Substitution`'s placeholder: it starts with
-  # literal braces, so a long input cannot make it backtrack (Б8).
+  # literal braces, so a long input cannot make it backtrack.
   @placeholder ~r/\{\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}\}|\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/
 
   @type kind :: :email | :chrome | :layout
@@ -109,8 +109,8 @@ defmodule PhoenixKitTemplatesEditor.Variables do
 
   @doc """
   What is wrong with the placeholders in `content`, part `part` of the
-  template `context` describes: `raw` — names in `{{{x}}}` not allowed so
-  (Б9); `forbidden` — names of the other kind of template; `unknown` — the
+  template `context` describes: `raw` — names in `{{{x}}}` not allowed so;
+  `forbidden` — names of the other kind of template; `unknown` — the
   rest that are not allowed here.
   """
   @spec check(String.t(), atom(), context()) :: findings()

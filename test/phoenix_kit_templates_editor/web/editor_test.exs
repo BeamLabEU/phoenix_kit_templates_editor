@@ -891,7 +891,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
       assert File.read!(Path.join([root, "order_offer", "text.et.txt"])) == "Uus tekst\n"
     end
 
-    # Spec §4.11 П6: an edited part no longer wins — the save is refused
+    # An edited part no longer wins — the save is refused
     # (editor_conflict_test.exs has the rest).
     test "an edited part does not win over another session's change", %{tmp_dir: root} do
       seed(root)

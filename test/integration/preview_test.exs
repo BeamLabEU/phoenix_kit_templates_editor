@@ -1,5 +1,5 @@
 defmodule PhoenixKitTemplatesEditor.Integration.PreviewTest do
-  # The module's own preview, for a host that gives none (spec §4.5): an
+  # The module's own preview, for a host that gives none: an
   # email's parts from the root by its language chain, the HTML body from
   # html, else Markdown, else text; the text body from text, else Markdown,
   # else the HTML; the sample variables (and the branding) filled in; the
@@ -184,7 +184,7 @@ defmodule PhoenixKitTemplatesEditor.Integration.PreviewTest do
       assert html =~ "Body of B"
     end
 
-    # Spec §4.8: the default layout is the one of every email without a
+    # The default layout is the one of every email without a
     # layout.txt, so its parts wrap the first of those — not the first
     # email of all, which uses another layout here.
     test "the default layout's part around the first email with no layout.txt",

@@ -276,7 +276,7 @@ defmodule PhoenixKitTemplatesEditor.ConfigTest do
     end
   end
 
-  # Spec §4.10 Б7: how much a root may hold.
+  # How much a root may hold.
   describe "max_templates and max_root_bytes" do
     test "500 templates and 50 MiB by default", %{tmp_dir: tmp_dir} do
       assert {:ok, %Config{max_templates: 500, max_root_bytes: 52_428_800}} = load(tmp_dir, [])

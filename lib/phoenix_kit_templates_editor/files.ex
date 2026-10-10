@@ -57,7 +57,7 @@ defmodule PhoenixKitTemplatesEditor.Files do
   Asked as `git -c core.fsmonitor=false <filters> --no-optional-locks status
   --porcelain=v1 -z --untracked-files=all --no-renames --ignore-submodules=all
   -- .` in `root`. Nothing the repository's config names runs as the
-  server's user (spec §12 item 6): no fsmonitor hook, and no filter driver —
+  server's user: no fsmonitor hook, and no filter driver —
   `<filters>` sets the `clean`, `smudge` and `process` command of every
   driver the config defines (`git config --get-regexp`, which only reads) to
   nothing; a driver name `-c` cannot carry, or more than #{@max_filters} of

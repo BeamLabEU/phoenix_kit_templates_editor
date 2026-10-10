@@ -1,5 +1,5 @@
 defmodule PhoenixKitTemplatesEditor.Web.EditorModuleEmailsTest do
-  # "Module emails" (spec §4.11 П1, П2; §4.10 Б11, Б15): the emails core
+  # "Module emails": the emails core
   # and other modules send, read only until they have a file; a file made
   # from the built-in text where the email is overridable; where each part
   # of such an email comes from; the sign-in emails only by name, with a
@@ -131,7 +131,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorModuleEmailsTest do
     end
   end
 
-  describe "the sign-in emails (Б15)" do
+  describe "the sign-in emails" do
     test "not overridable by :all: no button, and a forged event writes nothing",
          %{tmp_dir: root} do
       seed(root)

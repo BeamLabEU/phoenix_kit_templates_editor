@@ -1,7 +1,7 @@
 defmodule PhoenixKitTemplatesEditor.Throttle do
   @moduledoc """
-  "Not more often than once in so long" per key — for "Send to me" (spec
-  §4.11 П3: one test email per user every 30 s). One public ETS table,
+  "Not more often than once in so long" per key — for "Send to me" (one
+  test email per user every 30 s). One public ETS table,
   owned by this process (a child of the module, `children/0`), so a key's
   last time outlives the page that set it.
   """

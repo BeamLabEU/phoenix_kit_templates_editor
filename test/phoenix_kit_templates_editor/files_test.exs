@@ -193,7 +193,7 @@ defmodule PhoenixKitTemplatesEditor.FilesTest do
     end
 
     # A filter driver is a command the repository's config names, run by
-    # `git status` on every file whose stat changed (spec §12 item 6): the
+    # `git status` on every file whose stat changed: the
     # repository's owner must not run commands as the server's user.
     test "runs no filter driver the repository configures", %{tmp_dir: tmp} do
       {repo, root} = repo!(tmp)

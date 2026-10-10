@@ -1,5 +1,5 @@
 defmodule PhoenixKitTemplatesEditor.NamesTest do
-  # Which names an editor may show and write (spec §4.10 Б11): the shared
+  # Which names an editor may show and write: the shared
   # header, footer and layout only where the host allows them, a layout's
   # parts by the exact namespace of its group, the emails core and other
   # modules send never — whatever the name prefixes say.

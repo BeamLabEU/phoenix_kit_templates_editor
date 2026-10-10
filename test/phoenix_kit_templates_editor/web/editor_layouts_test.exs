@@ -1,8 +1,8 @@
 defmodule PhoenixKitTemplatesEditor.Web.EditorLayoutsTest do
-  # Layouts in the editor (spec §4.8): the list of a group's header, footer
+  # Layouts in the editor: the list of a group's header, footer
   # and page layout, a new layout as a copy, deleting one no email uses, an
   # email's choice of layout (its layout.txt); the names it may touch
-  # (§4.10 Б11) and the host's files a copy takes (Б14).
+  # and the host's files a copy takes.
   use PhoenixKitTemplatesEditor.EditorCase, async: true
 
   @refused "You are not allowed to change templates"

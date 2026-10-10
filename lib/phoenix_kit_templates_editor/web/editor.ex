@@ -153,7 +153,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       example `fn _action -> MyApp.authorize(scope, :write) end`), so a
       permission taken away while the page is open counts at once.
     * `:max_templates`, `:max_root_bytes` — the most templates the root may
-      hold, and the most bytes its files may take (spec §4.10 Б7): a save,
+      hold, and the most bytes its files may take: a save,
       copy or new file past either is refused. Default `nil`: no limit.
     * `:preview_timeout` — how long `:preview` may take, in ms, before it
       is shown as too slow. Default `5_000`.
@@ -210,7 +210,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       meanwhile. An edited part whose file is no longer what the form was
       given (a sha256 taken then: changed, created or deleted on disk since)
       is not written either: the save is refused, the file as it is now is
-      shown, and the form keeps what the user typed (spec §4.11 П6).
+      shown, and the form keeps what the user typed.
       *Reload* drops the cache and reads the list and the open part again.
       A part filled by a converter counts as edited.
     * The variables panel lists the open part's variables by the kind of
@@ -343,7 +343,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
        overridable: [],
        journal: nil,
        test_send: nil,
-       # The root's limits (spec §4.10 Б7): `nil` — none.
+       # The root's limits: `nil` — none.
        max_templates: nil,
        max_root_bytes: nil,
        # How long the host's preview may take, in ms.
@@ -366,7 +366,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
        # template (`Variables.check/3`).
        confirm_variables: nil,
        # Each part's file as the form was given it (sha256, or `:none`), and
-       # the parts a save found changed on disk since (spec §4.11 П6).
+       # the parts a save found changed on disk since.
        hashes: %{},
        conflict: nil
      )}
@@ -471,7 +471,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   # The files again from disk, the cache dropped: after a hand edit, a git
   # pull or another user's save. Dropping the cache costs the whole VM a
-  # collection per entry (spec §4.10 Б12), so it is a writer's action, and
+  # collection per entry, so it is a writer's action, and
   # once in a few seconds; where nothing is written, nothing changes on disk
   # but by a deploy (or the watcher reads it).
   def handle_event("reload", _params, socket),
@@ -678,9 +678,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   end
 
   # The parts the user changed, checked before anything is written: the
-  # file still as the form was given it (П6), a subject one line (Б7),
-  # three braces only for HTML variables (Б9), no variable of the other kind
-  # of template unless confirmed (П4).
+  # file still as the form was given it, a subject one line, three braces
+  # only for HTML variables, no variable of the other kind of template
+  # unless confirmed.
   defp save(socket, params, opts \\ []) do
     %{contents: contents, baseline: baseline} = socket.assigns
 
@@ -852,7 +852,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     Path.join([root, name, file])
   end
 
-  # Б7: a subject is one line of a message header.
+  # A subject is one line of a message header.
   defp subject_refusal(changes) do
     case List.keyfind(changes, :subject, 0) do
       {:subject, {:write, value}} ->
@@ -1176,7 +1176,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         )
 
       # An email core or a module sends gets a file only from its own
-      # buttons (П2), never by this form.
+      # buttons, never by this form.
       refusal = name_refusal(socket, name, overridable: []) ->
         notice(socket, :error, refusal)
 
@@ -1197,8 +1197,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     end
   end
 
-  # Why a write into template `name` is refused: its directory is a link
-  # (spec §4.10 Б4) — `nil` when it is a real one, or none yet.
+  # Why a write into template `name` is refused: its directory is a link,
+  # which a write would follow out of the root — `nil` when it is a real
+  # one, or none yet.
   defp directory_refusal(%{assigns: %{root: root}}, name) do
     case Files.check_template_dir(root, name) do
       :ok ->
@@ -1225,7 +1226,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   end
 
   # Why the root may not take `new_templates` more templates and `bytes`
-  # more bytes (spec §4.10 Б7) — `nil` within the host's limits.
+  # more bytes — `nil` within the host's limits.
   defp limit_refusal(%{assigns: %{max_templates: nil, max_root_bytes: nil}}, _new, _bytes),
     do: nil
 
@@ -1471,7 +1472,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     assign(socket, module_view: view)
   end
 
-  # Files for an email core or a module sends (П2), only where the rules
+  # Files for an email core or a module sends, only where the rules
   # let it be overridden and it has none yet.
   defp override(socket, name, source) do
     socket = load_templates(socket)
@@ -2225,7 +2226,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
           :unsaved
 
         # The host reads the files by the library's lookup, which follows
-        # links: none of them may be one (spec §4.10 Б4).
+        # links: none of them may be one.
         message = check_refusal(socket, preview_names(socket.assigns, name)) ->
           {:error, message}
 
@@ -2236,8 +2237,8 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     assign(socket, preview_result: result)
   end
 
-  # In a task with a deadline, as the module's own preview (spec §4.10 Б7):
-  # a slow template costs the page at most that long.
+  # In a task with a deadline, as the module's own preview: a slow template
+  # costs the page at most that long.
   defp bounded_preview(callback, name, locale, timeout) do
     safely({"preview", callback, [name, locale]}, fn ->
       callback |> run_bounded([name, locale], timeout) |> bounded_result()
@@ -2449,9 +2450,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   # With no usable root there is nothing to write to, whatever the host says.
   defp editable?(assigns), do: assigns.editable == true and is_binary(assigns.root)
 
-  # Spec §4.10 Б11: the shared layout parts, the emails core and other
-  # modules send, and layout groups outside the namespace are refused
-  # whatever the prefixes say (`PhoenixKitTemplatesEditor.Names`).
+  # The shared layout parts, the emails core and other modules send, and
+  # layout groups outside the namespace are refused whatever the prefixes
+  # say (`PhoenixKitTemplatesEditor.Names`).
   defp allowed?(socket, name), do: Names.check(name, socket.assigns.rules) == :ok
 
   # A host's mistake (no list, an empty prefix that would match every name)
@@ -3532,7 +3533,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   attr(:own, :map, default: %{})
   attr(:root, :string, required: true)
 
-  # Where each part of an email core sends comes from (П1).
+  # Where each part of an email core sends comes from.
   defp sources_box(assigns) do
     {sources, error} =
       case assigns.result do

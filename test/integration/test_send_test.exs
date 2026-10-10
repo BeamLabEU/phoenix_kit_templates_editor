@@ -1,5 +1,5 @@
 defmodule PhoenixKitTemplatesEditor.Integration.TestSendTest do
-  # "Send to me" (spec §4.11 П3): to the user asking only, once in 30 s,
+  # "Send to me": to the user asking only, once in 30 s,
   # by the host's callback or by PhoenixKit's mailer, logged.
   use PhoenixKitTemplatesEditor.DataCase, async: false
 
@@ -167,7 +167,7 @@ defmodule PhoenixKitTemplatesEditor.Integration.TestSendTest do
     assert email.html_body =~ "Hello"
   end
 
-  # Spec §4.11 П3: the host's callback sends the host's own emails; an email
+  # The host's callback sends the host's own emails; an email
   # PhoenixKit or a module sends goes through PhoenixKit's mailer, as it is
   # sent for real.
   test "with a callback, a module's email still through PhoenixKit's mailer", ctx do

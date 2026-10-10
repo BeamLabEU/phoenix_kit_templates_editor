@@ -1,5 +1,5 @@
 defmodule PhoenixKitTemplatesEditor.VariablesTest do
-  # Which placeholders a part may hold (spec §4.11 П4, §4.10 Б9): an email's
+  # Which placeholders a part may hold an email's
   # body has the email's variables (and the branding in Markdown, or
   # everywhere when core sends it), a header or footer the layout's, the page
   # layout the layout's and the rendered content, header and footer — and

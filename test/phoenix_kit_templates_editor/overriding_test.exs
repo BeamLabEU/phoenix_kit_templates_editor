@@ -1,5 +1,5 @@
 defmodule PhoenixKitTemplatesEditor.OverridingTest do
-  # Files for an email core or a module sends (spec §4.11 П2): from its
+  # Files for an email core or a module sends: from its
   # built-in text, by language, evaluated in that language as core's preview
   # does; from the Emails module's active database template by that
   # module's own export; a module layout's part from the shared one or

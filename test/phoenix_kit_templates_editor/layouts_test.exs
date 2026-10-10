@@ -1,5 +1,5 @@
 defmodule PhoenixKitTemplatesEditor.LayoutsTest do
-  # Layouts (spec §4.8): a group's header, footer and page layout, each its
+  # Layouts: a group's header, footer and page layout, each its
   # own or inherited (the shared part, else core's), and the emails using
   # the group — by their layout.txt, else the default group.
   use ExUnit.Case, async: true

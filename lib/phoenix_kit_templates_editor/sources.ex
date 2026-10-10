@@ -1,6 +1,6 @@
 defmodule PhoenixKitTemplatesEditor.Sources do
   @moduledoc """
-  Where each part of an email core sends would come from (spec §4.11 П1) —
+  Where each part of an email core sends would come from —
   asked of core's own resolution, `PhoenixKit.Email.Content.resolve_with_sources/5`,
   so the answer is the one a send gets: the Emails module's active database
   template (`:db`, which wins over every file), a file of the root

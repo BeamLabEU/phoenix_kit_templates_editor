@@ -135,7 +135,7 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionTest do
   end
 
   # The README's setup, not the module: a setgid root passes its group on,
-  # and the module changes no mode after the write (spec §12 item 5).
+  # and the module changes no mode after the write.
   test "a new template's directory takes the root's setgid bit", %{root: root} do
     File.chmod!(root, 0o2775)
     view = mount_section(scope: writer())

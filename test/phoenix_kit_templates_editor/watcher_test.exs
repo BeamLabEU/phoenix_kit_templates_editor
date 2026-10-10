@@ -1,7 +1,7 @@
 defmodule PhoenixKitTemplatesEditor.WatcherTest do
   # Where the templates are edited (`editable: true`, or `watch: true`), a
   # change of the files on disk — a hand edit, a `git pull` — reaches the
-  # next email without a restart (spec §4.9 Н2): every 2 s the watcher
+  # next email without a restart: every 2 s the watcher
   # compares the root's files (name, mtime, size) with its last look and, on
   # a difference, drops the cached lookups (`Files.reload/1`) and says so on
   # PubSub. Elsewhere it does not run. The comparison, `check/2`, is called

@@ -18,7 +18,7 @@ defmodule PhoenixKitTemplatesEditor.Names do
 
   Before all of that, a name in `reserved` — an email core or another module
   sends (`reserved_names/0`) — is refused, unless the rules' `overridable`
-  lets it in (`overridable?/2`, spec §4.11 П2): `:all` is every such email
+  lets it in (`overridable?/2`): `:all` is every such email
   but core's emails about getting into an account (`auth_emails/0`), a
   list exactly its names.
   The same goes for a part of a module's own layout group (`module_groups`,
@@ -51,7 +51,7 @@ defmodule PhoenixKitTemplatesEditor.Names do
   @kinds [:header, :footer, :layout]
   @kind_names Map.new(@kinds, &{Atom.to_string(&1), &1})
 
-  # Core's emails about getting into an account (spec §4.10 Б15): each
+  # Core's emails about getting into an account: each
   # carries a link that signs a user in, registers or confirms an address
   # (`confirmation_url`, `reset_url`, `update_url`, `magic_link_url`,
   # `registration_url`), or warns the owner about a sign-in

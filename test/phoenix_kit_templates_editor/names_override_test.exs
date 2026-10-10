@@ -1,8 +1,8 @@
 defmodule PhoenixKitTemplatesEditor.NamesOverrideTest do
-  # The explicit override of an email core or another module sends (spec
-  # §4.11 П2, §4.10 Б11/Б15): `overridable` lets a reserved name in — by
-  # default every one but the sign-in emails — and a module's own layout
-  # group (`layout: "billing"` in its catalogue entry) the same way.
+  # The explicit override of an email core or another module sends:
+  # `overridable` lets a reserved name in — with `:all` every one but the
+  # sign-in emails — and a module's own layout group (`layout: "billing"` in
+  # its catalogue entry) the same way.
   use ExUnit.Case, async: true
 
   alias PhoenixKit.Email.CoreTemplates

@@ -1,5 +1,5 @@
 defmodule PhoenixKitTemplatesEditor.Web.EditorSafetyTest do
-  # What the editor reads and shows (spec §4.10 Б4, Б7, Б10, Б13, §4.9 Н3):
+  # What the editor reads and shows:
   # a part file that is a link, or leads out of the root, or is larger than
   # a template file may be, is never read — the part is shown unavailable;
   # the preview's iframe loads nothing from outside; the module's converter

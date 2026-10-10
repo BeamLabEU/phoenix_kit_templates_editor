@@ -1,10 +1,9 @@
 defmodule PhoenixKitTemplatesEditor.Web.EditorHardeningTest do
   # Round 1 of the final and security reviews: a host's preview and "Send
-  # to me" never get a template with a link in it (spec §4.10 Б4) and the
-  # preview is bounded (Б7); a copy refuses a source with a link, a save a
-  # template directory that is a link; the preview frame carries its policy
-  # inside the document too (Б10); "Reload" is a change (Б12); the root's
-  # limits (Б7).
+  # to me" never get a template with a link in it and the preview is
+  # bounded; a copy refuses a source with a link, a save a template
+  # directory that is a link; the preview frame carries its policy inside
+  # the document too; "Reload" is a change; the root's limits.
   use PhoenixKitTemplatesEditor.EditorCase, async: true
 
   defp counting_preview(test_pid) do

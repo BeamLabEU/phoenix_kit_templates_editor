@@ -1,10 +1,10 @@
 defmodule PhoenixKitTemplatesEditor.Web.EditorVariablesTest do
-  # The variables panel (spec §4.11 П4): a part's variables with a sample
+  # The variables panel: a part's variables with a sample
   # and the host's description, inserted with a click — at the cursor
   # through the module's JS hook, at the end of the body without it — and
   # checked on saving by the kind of template: a variable of the other kind
   # needs a confirmation, an unknown one is a warning, `{{{x}}}` only for
-  # the HTML variables (Б9), a subject one line of at most 998 bytes (Б7).
+  # the HTML variables, a subject one line of at most 998 bytes.
   use PhoenixKitTemplatesEditor.EditorCase, async: true
 
   defp file(root, name, file), do: File.read(Path.join([root, name, file]))

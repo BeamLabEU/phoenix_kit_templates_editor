@@ -1,5 +1,5 @@
 defmodule PhoenixKitTemplatesEditor.SourcesTest do
-  # Where each part of an email core sends comes from (spec §4.11 П1),
+  # Where each part of an email core sends comes from,
   # through core's own resolution: the Emails module's database template,
   # a file of the root (blank or not), or the built-in text.
   use ExUnit.Case, async: false

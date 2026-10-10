@@ -44,7 +44,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorM5I18nTest do
     assert has_element?(view, "#editor-reload", "Laadi uuesti")
   end
 
-  # Spec §4.10 Б9: three braces refused where no variable may take them —
+  # Three braces refused where no variable may take them —
   # a sentence of its own, not "only for" with "none here" put in.
   for {locale, none, allowed} <- [
         {"en", "Write them with two braces: no variable is written with three here.",

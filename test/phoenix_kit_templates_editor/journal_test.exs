@@ -1,5 +1,5 @@
 defmodule PhoenixKitTemplatesEditor.JournalTest do
-  # What a change leaves in PhoenixKit's activity log (spec §4.10 Б3): who,
+  # What a change leaves in PhoenixKit's activity log: who,
   # the template, the part, the language and a short diff.
   use ExUnit.Case, async: true
 

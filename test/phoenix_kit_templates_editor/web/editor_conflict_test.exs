@@ -1,5 +1,5 @@
 defmodule PhoenixKitTemplatesEditor.Web.EditorConflictTest do
-  # Two people, or a person and git (spec §4.11 П6): a part's file is
+  # Two people, or a person and git: a part's file is
   # fingerprinted when the form is given it, and a save of that part is
   # refused when the file on disk is no longer what the form was given —
   # changed, created or deleted meanwhile. "Reload" drops the cache and

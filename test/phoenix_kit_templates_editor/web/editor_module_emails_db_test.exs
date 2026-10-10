@@ -1,6 +1,6 @@
 defmodule PhoenixKitTemplatesEditor.Web.EditorModuleEmailsDbTest do
-  # An email with an active database template of the Emails module (spec
-  # §4.11 П1, П2): the red notice that the row, not the file, is sent, and a
+  # An email with an active database template of the Emails module: the
+  # red notice that the row, not the file, is sent, and a
   # file made from the row by that module's export. The provider and the
   # export are the application environment's, so not async.
   use PhoenixKitTemplatesEditor.EditorCase, async: false
