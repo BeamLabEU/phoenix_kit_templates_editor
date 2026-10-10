@@ -107,7 +107,7 @@ defmodule PhoenixKitTemplatesEditorTest do
       assert PhoenixKitTemplatesEditor.route_module() == nil
     end
 
-    test "email_templates/0 is empty until the catalogue lands" do
+    test "email_templates/0 is empty without catalog: true (the default)" do
       assert PhoenixKitTemplatesEditor.email_templates() == []
     end
   end
