@@ -39,6 +39,10 @@ config :phoenix_kit,
 This is read when your router compiles. Without it the tab works, but shows the
 templates read-only and says why.
 
+The hook is a stopgap: once PhoenixKit's email settings page passes its
+`phoenix_kit_current_scope` to the tabs it mounts (a one-line change there), the
+tab takes the scope from that and the hook can go.
+
 ### The variables panel's hook
 
 A click on a variable puts it at the cursor through a LiveView hook the module
@@ -104,7 +108,7 @@ config :phoenix_kit_templates_editor,
   locales: ~w(et ru en),
   base_locale: "et",
   layout_group: "shop",
-  preview: {MyApp.Emails, :preview},                    # (name, locale) -> {subject, html, text}
+  preview: {MyApp.Emails, :preview},                    # (name, locale) -> {subject, html, text}, see below
   sample_variables: {MyApp.Emails, :sample_variables},  # () -> map
   block_placeholders: ["documents_list"],
   catalog: true
@@ -116,18 +120,18 @@ config :phoenix_kit_templates_editor, editable: true
 | Key | Default | Meaning |
 |---|---|---|
 | `root` | first of `PhoenixKit.Email.Content.override_paths/0` | the templates directory; it must exist |
-| `editable` | `false` | exactly `true` allows writing; anything else is read-only. Leave it unset in production |
+| `editable` | `false` | `true` allows writing, `false` shows the files read-only; any other value is a config error (the tab lists it, no editor). Leave it unset in production |
 | `name_prefixes` | `[]` | which templates the editor sees and may write — nothing until you say. A prefix shaped like a layout part (`_header-shop`) allows that part of layout `shop` and `shop-…`, not every name starting with the string |
 | `locales` | PhoenixKit's enabled languages (base codes), else just `base_locale` | the language tabs, in order |
 | `base_locale` | first of `locales`, else PhoenixKit's default language, else `"en"` | the language labels and notes fall back to |
 | `layout_group` | `nil` | the layout (`_header-<g>`, `_footer-<g>`, `_layout-<g>`) of an email without `layout.txt` |
 | `layout_groups` | `[layout_group]` | layout namespaces the editor may show and create: `g` and `g-…` (not `gx`) |
-| `preview` | `nil` | your preview callback; without one the module renders its own |
-| `sample_variables` | `%{}` | a map, or `{module, function}` returning one |
-| `describe_variables` | `nil` | `(name) -> %{variable => description}`, shown in the variables panel |
-| `complete?` | `nil` | `(name, locale) -> boolean`; default: subject and body on `base_locale` |
-| `sent_by` | `nil` | `(name) -> :core \| :host` — who sends the email; default: PhoenixKit for the emails of its catalogue, your app for your own |
-| `test_send` | `nil` | `(name, locale, user) -> {:ok, address} \| :ok \| {:ok, term} \| {:error, reason}` — your own way to send "Send to me" for your own emails (your test mode included: return `{:ok, address}` when it went elsewhere than to the user, and the notice names that address); default, and always for the emails PhoenixKit and its modules send: `PhoenixKit.Mailer` |
+| `preview` | `nil` | your preview callback (below); without one the module renders its own |
+| `sample_variables` | `%{}` | a map, or a callback returning one (below) |
+| `describe_variables` | `nil` | `(name) -> %{variable => description}`, shown in the variables panel (below) |
+| `complete?` | `nil` | `(name, base_locale) -> boolean` (below); default: subject and body on `base_locale` |
+| `sent_by` | `nil` | `(name) -> :core \| :host` — who sends the email (below); default: PhoenixKit for the emails of its catalogue, your app for your own |
+| `test_send` | `nil` | `(name, locale, user)` — your own way to send "Send to me" for your own emails (below); default, and always for the emails PhoenixKit and its modules send: `PhoenixKit.Mailer` |
 | `block_placeholders` | `[]` | variables that stand as a block of their own |
 | `raw_variables` | `[]` | variables allowed in `{{{x}}}` besides `content`, `header`, `footer` |
 | `email_fallback` | `true` | whether emails get a locale-less *Fallback* tab |
@@ -138,9 +142,47 @@ config :phoenix_kit_templates_editor, editable: true
 | `max_templates` | `500` | the most templates the root may hold: a new one past it is refused (`nil` — no limit) |
 | `max_root_bytes` | `52_428_800` (50 MiB) | the most bytes the root's files may take: a save, copy or new file past it is refused (`nil` — no limit) |
 
-Callbacks are `{module, function}` or a function of that arity. A config that
-does not check out is shown on the tab as a list of problems — the page itself
-keeps working.
+A config that does not check out is shown on the tab as a list of problems —
+the page itself keeps working.
+
+### Callbacks
+
+Each is `{module, function}` or a function of the arity shown. One that raises,
+throws or exits is logged and never takes the page down.
+
+- **`preview(name, locale)`** — the preview of the template open in the editor.
+  `name` is one of your emails, an email PhoenixKit or a module sends once it
+  has files here, or a layout part: `_header-<g>`, `_footer-<g>`, `_layout-<g>`
+  (and the shared `_header`, `_footer`, `_layout` with
+  `shared_layout_editable: true`). `locale` is `nil` on the *Fallback* tab.
+  Return `{subject, html}`, `{subject, html, text}` — each a string or `nil`;
+  a `{:safe, iodata}` is escaped like a string — or `{:error, reason}`, shown
+  in your words. Anything else is shown as an error. It runs with a 5 s
+  deadline, past which the preview says it is too slow; it is not called for a
+  template with no files yet, nor while the template or its layout has a file
+  the module will not read (see *What is never read*).
+- **`sample_variables()`** — or a plain map: your emails' variables,
+  `%{name => sample}`, read when the tab is mounted. Anything but a map is
+  logged and taken as `%{}`.
+- **`describe_variables(name)`** — `%{variable => description}` for the
+  variables panel of template `name`, layout parts included. Descriptions that
+  are not strings are left out; any other answer describes nothing.
+- **`complete?(name, base_locale)`** — asked for each of your emails (no
+  leading `_`) on every listing; only `false` flags the email in the list: it
+  will not be offered for sending.
+- **`sent_by(name)`** — `:core` or `:host` for the open template; any other
+  answer is the default (PhoenixKit for the emails of its catalogue, your app
+  for your own).
+- **`test_send(name, locale, user)`** — "Send to me" for one of your own
+  emails: never a layout part, never an email PhoenixKit or a module sends
+  (those go through `PhoenixKit.Mailer`, as they do for real). `locale` is the
+  tab's, `base_locale` on the *Fallback* tab; `user` is the user asking, once
+  the module has checked that the page says who it is, that they may see the
+  tab and that they sent none in the last 30 s. Return `{:ok, address}` when
+  it went elsewhere than to the user (your test mode, say — the notice names
+  that address), `:ok` or `{:ok, _}` when it went to the user, or
+  `{:error, reason}`. It runs in the page's process with no deadline: keep it
+  fast.
 
 ## The tab
 

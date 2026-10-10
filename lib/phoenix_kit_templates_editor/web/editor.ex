@@ -63,7 +63,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       own file.
     * `:preview` — `{module, function}` or a 2-arity function called as
       `preview(name, locale)` (`locale` is `nil` on the fallback tab, and
-      `name` may be a shared part such as `_header-x`). It returns
+      `name` may be a layout part such as `_header-x`). It returns
       `{subject, html}` or `{subject, html, text}` — each a string or `nil`
       — or `{:error, reason}`. With a text version the preview has two
       tabs, *HTML* and *Text*, and a template opens on HTML (on Text when
@@ -227,10 +227,12 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     * The form's buttons all submit it, Save first (the form's default
       button), and a submit that names no button saves. A converter's
       button is told apart by the `action` it submits, which LiveView's
-      client sends along since 1.0 — this package's minimum.
-    * The host's callbacks (`preview`, `after_write`, `after_change`, the
-      converters) run in the LiveView's process and block the page while
-      they run: keep them fast.
+      client sends along since LiveView 1.0 (this package requires 1.1).
+    * The host's callbacks run in the LiveView's process. `preview` runs in
+      a task with a deadline (`:preview_timeout`), so a slow one costs the
+      page at most that long; the rest (`after_write`, `after_change`,
+      `authorize`, `journal`, `test_send`, the converters and the variable
+      callbacks) hold the page while they run: keep them fast.
     * Creates a template empty (it exists on disk once its first part is
       saved) or as a copy of a listed one — every file in its directory,
       including any of the host's own beside the parts
