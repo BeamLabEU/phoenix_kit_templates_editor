@@ -6,7 +6,7 @@ Guidance for AI agents working on `phoenix_kit_templates_editor`.
 
 A PhoenixKit module that edits the host's email template files — the `phoenix_kit_templates` overrides core renders its emails from — in a tab of Settings › Emails Transactional (`/admin/settings/email-sending?tab=module_templates_editor`). The host keeps its templates (one directory of files) and a `config :phoenix_kit_templates_editor` block; the tool lives here, so another project gets the same tab by adding the dependency and the config. The tab is a `Phoenix.LiveComponent` core mounts through `email_settings_sections/0`: the config check, an introduction and hints, the project's README notes, the uncommitted-files list and the editor.
 
-- **Depends on:** `phoenix_kit` `>= 2.57.0 and < 3.0.0` (Hex; 2.57.0 is the first core whose section contract carries `:link`), `phoenix_kit_templates` `~> 0.2.4` (hard: the file API), `phoenix_live_view` `~> 1.1`, `gettext` `~> 1.0`. No sibling `phoenix_kit_*` module deps.
+- **Depends on:** `phoenix_kit` `>= 2.57.0 and < 3.0.0` (Hex; 2.57.0 is the first core whose section contract carries `:link`), `phoenix_kit_templates` `~> 0.2.3` (hard: the file API, first in 0.2.3), `phoenix_live_view` `~> 1.1`, `gettext` `~> 1.0`. No sibling `phoenix_kit_*` module deps.
 - **Consumed by:** host apps only.
 - **Admin surface:** no admin tab or route of its own. One section on core's email settings page (`id: :templates_editor`, button beside "Preview emails" via `:link`) and a card on Admin › Modules.
 - **Module key** `"templates_editor"`; settings prefix `templates_editor_` (one key: `templates_editor_enabled`, default off). Sub-permission `templates_editor.write`.
