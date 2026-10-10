@@ -493,6 +493,27 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorLayoutsTest do
       refute has_element?(view, "#editor-create-extras")
     end
 
+    # The copy is on disk: what the host's callbacks say after it is told,
+    # but the form is done with.
+    test "a copy made empties the form even when the host's after_write fails",
+         %{tmp_dir: root} do
+      seed(root)
+      view = mount_editor(root, %{after_write: fn _paths -> raise "chown failed" end})
+      name_field = ~s(#editor-create input[name="create[name]"])
+
+      choose_source(view, "order_copy", "order_offer")
+
+      log =
+        capture_log(fn ->
+          assert create(view, "order_copy", "order_offer") =~ "chown failed"
+        end)
+
+      assert log =~ "after_write"
+
+      assert File.exists?(Path.join([root, "order_copy", "subject.et.txt"]))
+      assert has_element?(view, ~s(#{name_field}[value=""]))
+    end
+
     test "none to list, no list", %{tmp_dir: root} do
       seed(root)
       view = mount_editor(root)

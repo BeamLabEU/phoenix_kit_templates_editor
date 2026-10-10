@@ -516,12 +516,13 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     case Map.get(params, "copy_from", "") do
       copy_from when is_binary(copy_from) ->
         name = String.trim(name)
+        on_disk = socket.assigns.disk_names
 
         {:noreply,
          socket
          |> assign_create_form(params)
          |> permitted(:create, &create(&1, name, copy_from, params))
-         |> clear_create_form(name)}
+         |> clear_create_form(name, on_disk)}
 
       _malformed ->
         {:noreply, socket}
@@ -1874,14 +1875,20 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     end
   end
 
-  # A template made (it is open, no error said) empties the form; a refused
-  # one leaves it as given, to correct.
-  defp clear_create_form(%{assigns: %{notice: {:error, _message}}} = socket, _name), do: socket
+  # A template made empties the form; a refused one leaves it as given, to
+  # correct. Made: open, and either no error said (an empty one) or on disk
+  # now and not before (a copy, whatever the host's callbacks said after).
+  defp clear_create_form(socket, name, on_disk) do
+    if created?(socket.assigns, name, on_disk),
+      do: assign(socket, create_name: "", create_from: nil, create_extras: []),
+      else: socket
+  end
 
-  defp clear_create_form(%{assigns: %{selected: name}} = socket, name),
-    do: assign(socket, create_name: "", create_from: nil, create_extras: [])
+  defp created?(%{selected: name, notice: {:error, _message}} = assigns, name, on_disk),
+    do: MapSet.member?(assigns.disk_names, name) and not MapSet.member?(on_disk, name)
 
-  defp clear_create_form(socket, _name), do: socket
+  defp created?(%{selected: name}, name, _on_disk), do: true
+  defp created?(_assigns, _name, _on_disk), do: false
 
   # The host's own files in the create form's source, to tick.
   defp assign_create_extras(socket) do
