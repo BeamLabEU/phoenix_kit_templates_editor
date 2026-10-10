@@ -45,11 +45,13 @@ defmodule PhoenixKitTemplatesEditor.TestSend do
   @spec deliver(Config.t(), Scope.t() | nil, String.t(), String.t(), map() | nil, keyword()) ::
           {:ok, String.t()} | {:error, String.t()}
   def deliver(%Config{} = config, scope, name, locale, entry, opts \\ []) do
-    with {:ok, user} <- user(scope),
+    actor = Scope.user(scope)
+
+    with {:ok, user} <- user(actor),
          :ok <- allowed(scope),
          :ok <- throttle(user, opts[:interval] || @interval_ms) do
       result = send_now(config, name, locale, user, entry)
-      log(Scope.user(scope), name, locale, result)
+      log(actor, name, locale, result)
 
       case result do
         :ok -> {:ok, user.email}
@@ -58,13 +60,13 @@ defmodule PhoenixKitTemplatesEditor.TestSend do
       end
     else
       {:refused, reason, message} ->
-        log(Scope.user(scope), name, locale, {:refused, reason})
+        log(actor, name, locale, {:refused, reason})
         {:error, message}
     end
   end
 
-  defp user(scope) do
-    case Scope.user(scope) do
+  defp user(actor) do
+    case actor do
       %{email: email} = user when is_binary(email) -> {:ok, user}
       _none -> {:refused, "no user", gettext("the page does not tell who you are.")}
     end
@@ -171,8 +173,13 @@ defmodule PhoenixKitTemplatesEditor.TestSend do
         _unknown -> "an unknown user"
       end
 
-    Logger.info(
+    Logger.log(
+      level(result),
       "[PhoenixKitTemplatesEditor] test email #{inspect(name)} (#{locale}) to #{to}: #{outcome}"
     )
   end
+
+  # Someone without access asking is worth a second look; the rest is routine.
+  defp level({:refused, "no access"}), do: :warning
+  defp level(_result), do: :info
 end
