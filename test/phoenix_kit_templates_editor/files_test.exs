@@ -280,6 +280,33 @@ defmodule PhoenixKitTemplatesEditor.FilesTest do
       assert Files.uncommitted(root) == []
       assert File.read!(marker) |> String.split("\n", trim: true) |> Enum.uniq() == ["null"]
     end
+
+    # "dubious ownership" and the like: git exits 128, and without a trace
+    # the tab shows an empty list as if all were committed.
+    test "a git that fails is logged with its exit status, not its output", %{tmp_dir: tmp} do
+      root = Path.join(tmp, "plain")
+      put(root, "order_offer", "subject.et.txt", "Offer")
+      bin = Path.join(tmp, "bin")
+      File.mkdir_p!(bin)
+
+      File.write!(Path.join(bin, "git"), """
+      #!/bin/sh
+      echo "fatal: detected dubious ownership in repository at '#{root}'" >&2
+      echo "dubious-stdout #{root}"
+      exit 128
+      """)
+
+      File.chmod!(Path.join(bin, "git"), 0o755)
+      with_env([{"PATH", bin <> ":" <> System.get_env("PATH", "")}])
+      Logger.put_module_level(Files, :warning)
+      on_exit(fn -> Logger.delete_module_level(Files) end)
+
+      log = capture_log([level: :warning], fn -> assert Files.uncommitted(root) == [] end)
+
+      assert log =~ "git status failed (exit 128)"
+      refute log =~ "dubious"
+      refute log =~ tmp
+    end
   end
 
   describe "safe_read/2" do

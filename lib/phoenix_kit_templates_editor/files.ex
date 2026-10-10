@@ -68,7 +68,8 @@ defmodule PhoenixKitTemplatesEditor.Files do
   #{div(@git_timeout, 1000)} s (`timeout`, where installed), and what it
   prints on stderr is dropped. `[]` when the
   root is not in a git work tree, git is not installed, or it does not
-  answer in time.
+  answer in time; a git that fails or times out is logged with its exit
+  status, nothing of its output.
   """
   @spec uncommitted(Path.t()) :: [String.t()]
   def uncommitted(root) when is_binary(root) do
@@ -87,6 +88,10 @@ defmodule PhoenixKitTemplatesEditor.Files do
           "[PhoenixKitTemplatesEditor] git status not asked: the repository's filter drivers cannot be switched off"
         )
 
+        []
+
+      {:ok, {:error, {:git_exit, status}}} ->
+        Logger.warning("[PhoenixKitTemplatesEditor] git status failed (exit #{status})")
         []
 
       _no_status ->
@@ -108,7 +113,7 @@ defmodule PhoenixKitTemplatesEditor.Files do
       {:ok, output}
     else
       {:error, reason} -> {:error, reason}
-      {_output, _status} -> {:error, :git}
+      {_output, status} -> {:error, {:git_exit, status}}
     end
   end
 
@@ -118,7 +123,7 @@ defmodule PhoenixKitTemplatesEditor.Files do
     case run_git(git, root, ~w(config -z --get-regexp ^filter\.)) do
       {output, 0} -> output |> filter_names() |> filter_options()
       {_none, 1} -> {:ok, []}
-      {_output, _status} -> {:error, :git}
+      {_output, status} -> {:error, {:git_exit, status}}
     end
   end
 
