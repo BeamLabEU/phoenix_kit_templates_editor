@@ -39,6 +39,7 @@ defmodule PhoenixKitTemplatesEditor.Overriding do
   @export_parts %{"subject" => :subject, "text" => :text, "html" => :html}
 
   @type result :: {:ok, [Path.t()]} | {:error, atom() | String.t()}
+  @type option :: {:max_root_bytes, pos_integer() | nil}
 
   @doc """
   The built-in parts of catalogue `entry` in `locale`: its `defaults` (a
@@ -68,12 +69,15 @@ defmodule PhoenixKitTemplatesEditor.Overriding do
     kind, reason -> {:error, Exception.format_banner(kind, reason)}
   end
 
-  @doc "Writes `entry`'s built-in text as files in each of `locales` (see the moduledoc)."
-  @spec from_defaults(Path.t(), map(), [String.t()]) :: result()
-  def from_defaults(root, %{name: name} = entry, locales) do
+  @doc """
+  Writes `entry`'s built-in text as files in each of `locales` (see the moduledoc).
+  Options: `:max_root_bytes`, checked against the complete plan before any write.
+  """
+  @spec from_defaults(Path.t(), map(), [String.t()], [option()]) :: result()
+  def from_defaults(root, %{name: name} = entry, locales, opts \\ []) do
     with :ok <- fresh(root, name),
          {:ok, files} <- default_files(entry, locales) do
-      write_all(root, name, files)
+      write_all(root, name, files, opts)
     end
   end
 
@@ -109,14 +113,17 @@ defmodule PhoenixKitTemplatesEditor.Overriding do
     _kind, _reason -> nil
   end
 
-  @doc "Writes the Emails module's active database template `name` as files (see the moduledoc)."
-  @spec from_db(Path.t(), String.t()) :: result()
-  def from_db(root, name) do
+  @doc """
+  Writes the Emails module's active database template `name` as files (see the moduledoc).
+  Options: `:max_root_bytes`, checked before any write.
+  """
+  @spec from_db(Path.t(), String.t(), [option()]) :: result()
+  def from_db(root, name, opts \\ []) do
     with true <- emails_module?() || {:error, :no_emails_module},
          template when is_map(template) <- db_template(name) || {:error, :no_db_template},
          :ok <- fresh(root, name),
          {:ok, files} <- export(root, name, template) do
-      write_all(root, name, files)
+      write_all(root, name, files, opts)
     end
   end
 
@@ -172,12 +179,15 @@ defmodule PhoenixKitTemplatesEditor.Overriding do
     end
   end
 
-  @doc "Writes `layout_default/2` as the part's locale-less HTML."
-  @spec from_layout_default(Path.t(), String.t()) :: result()
-  def from_layout_default(root, name) do
+  @doc """
+  Writes `layout_default/2` as the part's locale-less HTML.
+  Options: `:max_root_bytes`, checked before any write.
+  """
+  @spec from_layout_default(Path.t(), String.t(), [option()]) :: result()
+  def from_layout_default(root, name, opts \\ []) do
     with :ok <- fresh(root, name),
          {:ok, html} <- layout_default(root, name) do
-      write_all(root, name, [{:html, nil, html}])
+      write_all(root, name, [{:html, nil, html}], opts)
     end
   end
 
@@ -201,12 +211,31 @@ defmodule PhoenixKitTemplatesEditor.Overriding do
 
   # Only a name with no files yet: an override is made once, then edited.
   defp fresh(root, name) do
-    if File.exists?(Path.join(root, name)), do: {:error, :exists}, else: :ok
+    case Files.check_template_dir(root, name) do
+      :ok -> if File.exists?(Path.join(root, name)), do: {:error, :exists}, else: :ok
+      {:error, _unsafe} -> {:error, :unsafe_path}
+    end
   end
 
-  defp write_all(_root, _name, []), do: {:error, :empty}
+  defp write_all(_root, _name, [], _opts), do: {:error, :empty}
 
-  defp write_all(root, name, files) do
+  defp write_all(root, name, files, opts) do
+    with :ok <- root_limit(root, files, opts[:max_root_bytes]),
+         :ok <- fresh(root, name) do
+      write_files(root, name, files)
+    end
+  end
+
+  defp root_limit(_root, _files, nil), do: :ok
+
+  defp root_limit(root, files, max_bytes) do
+    bytes =
+      Enum.reduce(files, 0, fn {_part, _locale, content}, sum -> sum + byte_size(content) end)
+
+    if Files.usage(root).bytes + bytes > max_bytes, do: {:error, :root_limit}, else: :ok
+  end
+
+  defp write_files(root, name, files) do
     Enum.reduce_while(files, {:ok, []}, fn {part, locale, content}, {:ok, paths} ->
       case Overrides.write(root, name, part, locale, content) do
         {:ok, written} ->

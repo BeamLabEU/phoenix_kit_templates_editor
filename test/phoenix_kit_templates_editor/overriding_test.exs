@@ -43,6 +43,29 @@ defmodule PhoenixKitTemplatesEditor.OverridingTest do
   end
 
   describe "from_defaults/3" do
+    test "the whole multilingual plan must fit before writing anything", %{tmp_dir: root} do
+      File.write!(Path.join(root, "README.md"), "123")
+      entry = entry(%{subject: "S", text: "Body"})
+
+      assert {:error, :root_limit} =
+               Overriding.from_defaults(root, entry, ["en", "et"], max_root_bytes: 12)
+
+      refute File.exists?(Path.join(root, "billing_invoice"))
+
+      assert {:ok, _paths} =
+               Overriding.from_defaults(root, entry, ["en", "et"], max_root_bytes: 13)
+    end
+
+    test "a dangling destination link is refused before a write", %{tmp_dir: root} do
+      File.ln_s!("missing", Path.join(root, "billing_invoice"))
+
+      assert {:error, :unsafe_path} =
+               Overriding.from_defaults(root, entry(%{text: "Body"}), ["en"])
+
+      assert File.read_link!(Path.join(root, "billing_invoice")) == "missing"
+      refute File.exists?(Path.join(root, "missing"))
+    end
+
     test "writes each part per language", %{tmp_dir: root} do
       entry = entry(fn -> %{subject: "S-" <> Gettext.get_locale(), markdown: "M"} end)
 
@@ -131,9 +154,29 @@ defmodule PhoenixKitTemplatesEditor.OverridingTest do
       assert read(root, "billing_invoice", "html.et.html") == {:ok, "<p>Arve</p>"}
       assert Overriding.from_db(root, "other") == {:error, :no_db_template}
     end
+
+    test "a database export must fit before any file is written", %{tmp_dir: root} do
+      Application.put_env(:phoenix_kit_templates_editor, :template_export, FakeTemplateExport)
+
+      FakeProvider.put_db_templates(%{
+        "billing_invoice" => %{name: "billing_invoice", subject: %{"en" => "Invoice"}}
+      })
+
+      assert {:error, :root_limit} =
+               Overriding.from_db(root, "billing_invoice", max_root_bytes: 1)
+
+      refute File.exists?(Path.join(root, "billing_invoice"))
+    end
   end
 
   describe "layout parts of a module's layout" do
+    test "a layout override must fit before any file is written", %{tmp_dir: root} do
+      assert {:error, :root_limit} =
+               Overriding.from_layout_default(root, "_layout-billing", max_root_bytes: 1)
+
+      refute File.exists?(Path.join(root, "_layout-billing"))
+    end
+
     test "the shared part's HTML when the root has it, else core's", %{tmp_dir: root} do
       assert {:ok, footer} = Overriding.layout_default(root, "_footer-billing")
 

@@ -40,6 +40,21 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorLayoutsTest do
     view |> form("#editor-email-layout", email_layout: %{group: group}) |> render_change()
   end
 
+  test "choosing a layout respects the byte limit and permits a smaller replacement",
+       %{tmp_dir: root} do
+    layout_seed(root)
+    bytes = PhoenixKitTemplatesEditor.Files.usage(root).bytes
+    view = mount_layouts(root, %{max_root_bytes: bytes})
+    select(view, "order_offer")
+
+    assert set_layout(view, "shop-partner") =~ "Not saved"
+    assert layout_file(root, "order_offer") == {:error, :enoent}
+
+    select(view, "order_inquiry")
+    set_layout(view, "shop")
+    assert layout_file(root, "order_inquiry") == {:ok, "shop"}
+  end
+
   describe "the layouts list" do
     test "replaces the group of headers and footers: one entry per layout", %{tmp_dir: root} do
       layout_seed(root)

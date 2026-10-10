@@ -255,6 +255,15 @@ defmodule PhoenixKitTemplatesEditor.Integration.PreviewTest do
       assert cached(root, "shop_offer") == []
     end
 
+    test "an oversized file is refused before anything of the template is cached",
+         %{tmp_dir: root} do
+      put(root, "shop_offer", "text.et.txt", String.duplicate("x", Overrides.max_bytes() + 1))
+
+      assert {:error, message} = Preview.preview(config(root), "shop_offer", "et")
+      assert message =~ "larger than"
+      assert cached(root, "shop_offer") == []
+    end
+
     test "a chrome link is refused before the chrome is read", %{tmp_dir: root} do
       put(root, "shop_offer", "text.et.txt", "Body")
       File.ln_s!("/etc/hostname", Path.join([root, "_footer-shop", "html.et.html"]))

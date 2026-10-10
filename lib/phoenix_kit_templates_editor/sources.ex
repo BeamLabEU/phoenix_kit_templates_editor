@@ -9,13 +9,18 @@ defmodule PhoenixKitTemplatesEditor.Sources do
   (`:default`), or nothing (`nil`) — and what the HTML and text bodies are
   built from (`html_from`, `text_from`: `:html`, `:markdown`, `:text`).
 
-  Only the root the editor shows is looked at; the work runs with a deadline.
+  Only the root the editor shows is looked at; the email and the chrome
+  core will read are checked for links and oversized files before lookup.
+  The work runs with a deadline.
   An email the host sends itself does not go through core, so this says
   nothing about it.
   """
 
   alias PhoenixKit.Email.Content
+  alias PhoenixKit.Email.Layout
+  alias PhoenixKit.Templates
   alias PhoenixKitTemplatesEditor.Bounded
+  alias PhoenixKitTemplatesEditor.Preview
 
   @recipient "preview@example.com"
   @parts [:subject, :text, :html, :markdown]
@@ -37,17 +42,48 @@ defmodule PhoenixKitTemplatesEditor.Sources do
   """
   @spec of(Path.t(), String.t(), String.t(), map() | nil) :: {:ok, t()} | {:error, String.t()}
   def of(root, name, locale, entry) do
-    defaults = defaults(entry)
+    defaults = checked_defaults(root, name, locale, entry)
     opts = [locale: locale, paths: [root], layout: layout(entry)]
 
-    case Bounded.run(fn -> resolve(name, defaults, opts) end) do
+    case Bounded.run(fn -> checked_resolve(root, name, defaults, opts) end) do
       {:ok, result} -> result
       {:error, :timeout} -> {:error, "timeout"}
     end
   rescue
     exception -> {:error, Exception.message(exception)}
   catch
+    :throw, {:unsafe_template, message} -> {:error, message}
     kind, reason -> {:error, Exception.format_banner(kind, reason)}
+  end
+
+  defp checked_resolve(root, name, defaults, opts) do
+    with :ok <- Preview.check_templates(root, [name]) do
+      resolve(name, defaults, opts)
+    end
+  end
+
+  # Core evaluates defaults only when no DB row wins, in the recipient's
+  # locale. Check the chrome it will read there too, including a layout
+  # supplied by a defaults callback or the email's layout.txt.
+  defp checked_defaults(root, name, locale, entry) do
+    fn ->
+      values = defaults(entry).()
+      rendered = Templates.render(name, values, %{}, locale: locale, paths: [root])
+      check_chrome!(root, layout(entry), rendered.layout)
+      values
+    end
+  end
+
+  defp check_chrome!(_root, false, _rendered), do: :ok
+
+  defp check_chrome!(root, option, rendered) do
+    group = if is_binary(option), do: option, else: rendered
+    group = if is_binary(group) and Layout.valid_group?(group), do: group
+
+    case Preview.check_templates(root, Preview.chrome_names(group)) do
+      :ok -> :ok
+      {:error, message} -> throw({:unsafe_template, message})
+    end
   end
 
   defp resolve(name, defaults, opts) do

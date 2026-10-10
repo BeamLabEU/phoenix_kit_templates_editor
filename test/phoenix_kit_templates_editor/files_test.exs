@@ -78,6 +78,45 @@ defmodule PhoenixKitTemplatesEditor.FilesTest do
 
       assert {:error, :eloop} = Files.realpath(Path.join(tmp, "x"))
     end
+
+    test "input paths resolve links before parent components", %{tmp_dir: tmp} do
+      File.mkdir_p!(Path.join(tmp, "outside/sub"))
+      File.mkdir_p!(Path.join(tmp, "root"))
+      File.ln_s!(Path.join(tmp, "outside/sub"), Path.join(tmp, "root/link"))
+
+      path = Path.join(tmp, "root/link") <> "/.."
+      assert Files.realpath(path) == {:ok, Path.join(tmp, "outside")}
+      relative = Path.relative_to_cwd(Path.join(tmp, "root/link")) <> "/.."
+      assert Files.realpath(relative) == {:ok, Path.join(tmp, "outside")}
+      refute Files.same_dir?(path, Path.join(tmp, "root"))
+      assert Files.realpath(Path.join(tmp, "missing") <> "/..") == {:error, :enoent}
+    end
+
+    test "a regular file cannot be traversed, in the input or a link target", %{tmp_dir: tmp} do
+      File.write!(Path.join(tmp, "file"), "x")
+
+      for suffix <- ["/..", "/.", "/"] do
+        path = Path.join(tmp, "file") <> suffix
+        link = Path.join(tmp, "link")
+        File.ln_s!(path, link)
+
+        assert Files.realpath(path) == {:error, :enotdir}
+        assert Files.realpath(link) == {:error, :enotdir}
+        File.rm!(link)
+      end
+    end
+
+    test "the link limit also applies when the last target is the filesystem root",
+         %{tmp_dir: tmp} do
+      File.ln_s!("/", Path.join(tmp, "link40"))
+
+      for index <- 0..39 do
+        File.ln_s!("link#{index + 1}", Path.join(tmp, "link#{index}"))
+      end
+
+      assert Files.realpath(Path.join(tmp, "link1")) == {:ok, "/"}
+      assert Files.realpath(Path.join(tmp, "link0")) == {:error, :eloop}
+    end
   end
 
   describe "reload/1" do
@@ -391,6 +430,12 @@ defmodule PhoenixKitTemplatesEditor.FilesTest do
   end
 
   describe "check_template/2" do
+    test "an oversized file is refused before a library lookup can read it", %{tmp_dir: root} do
+      path = put(root, "order_x", "text.txt", String.duplicate("x", Overrides.max_bytes() + 1))
+
+      assert Files.check_template(root, "order_x") == {:error, {:too_large, path}}
+    end
+
     test "a template whose files are all plain: :ok; no such template: :ok", %{tmp_dir: root} do
       put(root, "order_x", "subject.et.txt", "Hi")
       put(root, "order_x", "audience.txt", "partner")

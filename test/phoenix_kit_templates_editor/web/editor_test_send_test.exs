@@ -71,4 +71,29 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTestSendTest do
     view |> element("#editor-test-send") |> render_click()
     assert_received {:test_send, "billing_invoice", "et"}
   end
+
+  test "a module email's own layout is checked before sending", %{tmp_dir: root} do
+    seed(root)
+    put(root, "_footer-billing", "notes.txt", "Private")
+    File.ln_s!("notes.txt", Path.join([root, "_footer-billing", "html.html"]))
+
+    view =
+      mount_editor(root, %{
+        test_send: sender(self()),
+        layout_group: "shop",
+        module_emails: [
+          %{name: "billing_invoice", label: "Invoice", layout: "billing", defaults: %{text: "T"}}
+        ],
+        reserved_names: ["billing_invoice"]
+      })
+
+    view
+    |> element("#editor-module-emails [phx-click=select_module][phx-value-name=billing_invoice]")
+    |> render_click()
+
+    html = view |> element("#editor-test-send") |> render_click()
+    assert html =~ "Not sent"
+    assert html =~ "_footer-billing/html.html"
+    refute_received {:test_send, _, _}
+  end
 end

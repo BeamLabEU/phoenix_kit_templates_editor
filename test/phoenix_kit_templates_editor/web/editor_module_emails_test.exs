@@ -69,6 +69,19 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorModuleEmailsTest do
   end
 
   describe "an email without a file" do
+    test "an override cannot exceed the root's byte limit", %{tmp_dir: root} do
+      seed(root)
+      bytes = PhoenixKitTemplatesEditor.Files.usage(root).bytes
+      view = mount_modules(root, %{max_root_bytes: bytes + 1})
+      open_module(view, "billing_invoice")
+
+      html = view |> element("#editor-module-create-default") |> render_click()
+
+      assert html =~ "Not created"
+      refute File.exists?(Path.join(root, "billing_invoice"))
+      refute_received {:journal, %{action: :created_from_default}}
+    end
+
     test "is shown read only: its built-in text and where each part comes from",
          %{tmp_dir: root} do
       seed(root)

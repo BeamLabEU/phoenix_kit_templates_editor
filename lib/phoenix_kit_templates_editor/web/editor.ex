@@ -712,7 +712,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       message = directory_refusal(socket, socket.assigns.selected) ->
         socket |> notice(:error, not_saved(message)) |> keep_form(params)
 
-      message = limit_refusal(socket, new_templates(socket), written_bytes(changes)) ->
+      message = limit_refusal(socket, new_templates(socket), written_bytes(changes, contents)) ->
         socket |> notice(:error, not_saved(message)) |> keep_form(params)
 
       findings.raw != [] ->
@@ -1259,11 +1259,20 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   defp new_templates(%{assigns: %{root: root, selected: name}}),
     do: if(File.dir?(Path.join(root, name)), do: 0, else: 1)
 
-  defp written_bytes(changes),
-    do: Enum.reduce(changes, 0, fn {_part, change}, sum -> sum + change_bytes(change) end)
+  # Only growth consumes room. Do not count bytes being replaced again,
+  # or credit another part's deletion: saves can succeed only in part.
+  defp written_bytes(changes, contents) do
+    Enum.reduce(changes, 0, fn {part, change}, sum ->
+      sum + change_growth(change, file_content(contents[part]))
+    end)
+  end
 
-  defp change_bytes({:write, value}), do: byte_size(value)
-  defp change_bytes(:delete), do: 0
+  defp change_growth({:write, value}, before) do
+    previous = if is_binary(before), do: byte_size(before), else: 0
+    max(byte_size(value) - previous, 0)
+  end
+
+  defp change_growth(:delete, _before), do: 0
 
   defp template_bytes(%{assigns: %{root: root}}, name), do: Files.template_bytes(root, name)
 
@@ -1494,16 +1503,18 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         notice(socket, :error, gettext("Not created: %{reason}", reason: message))
 
       true ->
+        opts = [max_root_bytes: assigns.max_root_bytes]
+
         result =
           case source do
             :default ->
-              Overriding.from_defaults(root, module_email(assigns, name), assigns.locales)
+              Overriding.from_defaults(root, module_email(assigns, name), assigns.locales, opts)
 
             :db ->
-              Overriding.from_db(root, name)
+              Overriding.from_db(root, name, opts)
 
             :layout ->
-              Overriding.from_layout_default(root, name)
+              Overriding.from_layout_default(root, name, opts)
           end
 
         overridden(socket, name, source, result)
@@ -1531,6 +1542,15 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     |> assign(notice: with_notified({:info, message}, notified))
     |> load_templates()
     |> select(name)
+  end
+
+  defp overridden(socket, _name, _source, {:error, :root_limit}) do
+    reason =
+      gettext("the templates directory may not grow past %{size} KiB here.",
+        size: div(socket.assigns.max_root_bytes, 1024)
+      )
+
+    notice(socket, :error, gettext("Not created: %{reason}", reason: reason))
   end
 
   defp overridden(socket, _name, _source, {:error, reason}),
@@ -1611,11 +1631,24 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         group == template.layout ->
           :unchanged
 
+        message = limit_refusal(socket, 0, layout_growth(socket, name, group)) ->
+          {:error, message}
+
         true ->
           Overrides.write(root, name, :layout, nil, group)
       end
 
     socket |> layout_set(result, name, group) |> load_templates() |> keep_selection() |> preview()
+  end
+
+  defp layout_growth(%{assigns: %{root: root}}, name, group) do
+    before =
+      case Files.safe_read(root, Path.join([root, name, "layout.txt"])) do
+        {:ok, content} -> content
+        {:error, _reason} -> nil
+      end
+
+    change_growth({:write, group}, before)
   end
 
   defp layout_set(socket, :unchanged, _name, _group),
@@ -2269,9 +2302,15 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   defp preview_names(assigns, name) do
     group =
-      case Enum.find(assigns.templates, &(&1.name == name)) do
-        %{layout: layout} when is_binary(layout) -> layout
-        _none -> assigns.layout_group
+      case module_email(assigns, name) do
+        %{layout: layout} when is_binary(layout) ->
+          layout
+
+        _none ->
+          case Enum.find(assigns.templates, &(&1.name == name)) do
+            %{layout: layout} when is_binary(layout) -> layout
+            _none -> assigns.layout_group
+          end
       end
 
     [name | Preview.chrome_names(group)]

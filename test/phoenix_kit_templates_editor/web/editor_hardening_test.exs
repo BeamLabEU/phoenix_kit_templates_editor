@@ -187,6 +187,17 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorHardeningTest do
   end
 
   describe "the root's limits" do
+    test "replacing a part without growing it is allowed at the byte limit", %{tmp_dir: root} do
+      seed(root)
+      bytes = PhoenixKitTemplatesEditor.Files.usage(root).bytes
+      view = mount_editor(root, %{max_root_bytes: bytes})
+      select(view, "order_offer")
+
+      assert save(view, %{subject: "Offer"}) =~ "Saved."
+      assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "Offer"
+      assert PhoenixKitTemplatesEditor.Files.usage(root).bytes < bytes
+    end
+
     test "no new template past max_templates", %{tmp_dir: root} do
       seed(root)
       view = mount_editor(root, %{max_templates: 3})

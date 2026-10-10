@@ -240,10 +240,12 @@ defmodule PhoenixKitTemplatesEditor.Files do
   no such template, or when it is a real directory inside the root (not a
   link, `check_template_dir/2`) holding only regular files and directories
   — a link (even to a file inside the root), a pipe or a device among its
-  files is `{:error, {:unsafe_path, path}}`. Hidden files are not looked
-  at: nothing reads them.
+  files is `{:error, {:unsafe_path, path}}`; a regular file over
+  `Overrides.max_bytes/0` is `{:error, {:too_large, path}}`. Hidden files
+  are not looked at: nothing reads them.
   """
-  @spec check_template(Path.t(), String.t()) :: :ok | {:error, {:unsafe_path, Path.t()}}
+  @spec check_template(Path.t(), String.t()) ::
+          :ok | {:error, {:unsafe_path | :too_large, Path.t()}}
   def check_template(root, name) when is_binary(root) and is_binary(name) do
     dir = Path.join(Path.expand(root), name)
 
@@ -252,10 +254,10 @@ defmodule PhoenixKitTemplatesEditor.Files do
       entries
       |> Enum.reject(&String.starts_with?(&1, "."))
       |> Enum.map(&Path.join(dir, &1))
-      |> Enum.find(&(not plain?(&1)))
+      |> Enum.find_value(&template_file_error/1)
       |> case do
         nil -> :ok
-        path -> {:error, {:unsafe_path, path}}
+        error -> error
       end
     else
       {:error, :enoent} -> :ok
@@ -264,9 +266,18 @@ defmodule PhoenixKitTemplatesEditor.Files do
     end
   end
 
-  defp plain?(path),
-    do:
-      match?({:ok, %File.Stat{type: type}} when type in [:regular, :directory], File.lstat(path))
+  defp template_file_error(path) do
+    case File.lstat(path) do
+      {:ok, %File.Stat{type: :directory}} ->
+        nil
+
+      {:ok, %File.Stat{type: :regular, size: size}} ->
+        if size > Overrides.max_bytes(), do: {:error, {:too_large, path}}
+
+      _unsafe ->
+        {:error, {:unsafe_path, path}}
+    end
+  end
 
   @doc """
   Checks the directory of template `name` under `root` before anything is
@@ -357,12 +368,16 @@ defmodule PhoenixKitTemplatesEditor.Files do
   """
   @spec realpath(Path.t()) :: {:ok, Path.t()} | {:error, atom()}
   def realpath(path) when is_binary(path) do
-    ["/" | parts] = path |> Path.expand() |> Path.split()
+    ["/" | parts] = path |> directory_suffix() |> Path.absname() |> Path.split()
     resolve(parts, "/", 0)
   end
 
-  defp resolve([], resolved, _links), do: {:ok, resolved}
+  # A trailing slash requires a directory, just like a final `/.`.
+  defp directory_suffix(path),
+    do: if(String.ends_with?(path, "/"), do: path <> ".", else: path)
+
   defp resolve(_parts, _resolved, links) when links > @max_links, do: {:error, :eloop}
+  defp resolve([], resolved, _links), do: {:ok, resolved}
   defp resolve(["." | rest], resolved, links), do: resolve(rest, resolved, links)
 
   # `..` goes up from what is already resolved — a real directory — as the
@@ -374,18 +389,25 @@ defmodule PhoenixKitTemplatesEditor.Files do
 
     case :file.read_link_all(candidate) do
       {:ok, target} ->
-        case target |> IO.chardata_to_string() |> Path.split() do
+        case target |> IO.chardata_to_string() |> directory_suffix() |> Path.split() do
           ["/" | target_parts] -> resolve(target_parts ++ rest, "/", links + 1)
           target_parts -> resolve(target_parts ++ rest, resolved, links + 1)
         end
 
       {:error, :einval} ->
-        if File.exists?(candidate),
-          do: resolve(rest, candidate, links),
-          else: {:error, :enoent}
+        resolve_plain(candidate, rest, links)
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  defp resolve_plain(candidate, rest, links) do
+    case File.lstat(candidate) do
+      {:ok, %File.Stat{type: :directory}} -> resolve(rest, candidate, links)
+      {:ok, %File.Stat{}} when rest == [] -> resolve(rest, candidate, links)
+      {:ok, %File.Stat{}} -> {:error, :enotdir}
+      {:error, reason} -> {:error, reason}
     end
   end
 

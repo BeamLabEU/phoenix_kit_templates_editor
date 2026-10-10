@@ -419,7 +419,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
       refute File.exists?(Path.join(root, "order_x"))
     end
 
-    test "a copy refused by the write API leaves nothing and says why", %{tmp_dir: root} do
+    test "a copy with an oversized source leaves nothing and names the file", %{tmp_dir: root} do
       seed(root)
       big = String.duplicate("a", Overrides.max_bytes() + 1)
       put(root, "order_offer", "html.et.html", big)
@@ -427,7 +427,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
 
       html = create(view, "order_copy", "order_offer")
 
-      assert html =~ "Not copied: larger than"
+      assert html =~ "Not copied: order_offer/html.et.html is larger than"
       refute File.exists?(Path.join(root, "order_copy"))
       refute_received {:after_write, _paths}
     end
