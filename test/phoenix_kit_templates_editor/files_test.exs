@@ -60,6 +60,18 @@ defmodule PhoenixKitTemplatesEditor.FilesTest do
       refute Files.same_dir?(Path.join(tmp, "missing"), Path.join(tmp, "missing"))
     end
 
+    # `..` in a link's target goes up from the directory the links before it
+    # lead to, as the kernel resolves it, not from the link's own place.
+    test "`..` after a link in a target is taken from the linked directory", %{tmp_dir: tmp} do
+      File.mkdir_p!(Path.join(tmp, "outside/sub"))
+      File.mkdir_p!(Path.join(tmp, "root"))
+      File.ln_s!(Path.join(tmp, "outside/sub"), Path.join(tmp, "root/a"))
+      File.ln_s!("a/..", Path.join(tmp, "root/b"))
+
+      assert Files.realpath(Path.join(tmp, "root/b")) == {:ok, Path.join(tmp, "outside")}
+      refute Files.same_dir?(Path.join(tmp, "root/b"), Path.join(tmp, "root"))
+    end
+
     test "a loop of links is an error, not a hang", %{tmp_dir: tmp} do
       File.ln_s!(Path.join(tmp, "y"), Path.join(tmp, "x"))
       File.ln_s!(Path.join(tmp, "x"), Path.join(tmp, "y"))
@@ -215,6 +227,18 @@ defmodule PhoenixKitTemplatesEditor.FilesTest do
 
       assert Files.uncommitted(root) == ["priv/templates/order_offer/subject.et.txt"]
       refute File.exists?(log)
+    end
+
+    # `git config --get-regexp` takes a regular expression: an unescaped dot
+    # in `^filter.` also matches a section such as `filtering` or
+    # `filter-repo`, whose keys are no driver's.
+    test "a config section merely starting with `filter` is no driver", %{tmp_dir: tmp} do
+      {repo, root} = repo!(tmp)
+      git!(repo, ["config", "filtering.mode", "on"])
+      git!(repo, ["config", "filter-repo.note", "x"])
+      File.write!(Path.join([root, "order_offer", "subject.et.txt"]), "Changed")
+
+      assert Files.uncommitted(root) == ["priv/templates/order_offer/subject.et.txt"]
     end
 
     test "a filter driver whose name git's -c cannot carry: nothing asked", %{tmp_dir: tmp} do

@@ -120,7 +120,7 @@ defmodule PhoenixKitTemplatesEditor.Files do
   # `-c filter.<name>.<command>=` for every driver the config defines:
   # an empty command is no command.
   defp neutral_filters(git, root) do
-    case run_git(git, root, ~w(config -z --get-regexp ^filter\.)) do
+    case run_git(git, root, ["config", "-z", "--get-regexp", "^filter\\."]) do
       {output, 0} -> output |> filter_names() |> filter_options()
       {_none, 1} -> {:ok, []}
       {_output, status} -> {:error, {:git_exit, status}}
@@ -128,10 +128,11 @@ defmodule PhoenixKitTemplatesEditor.Files do
   end
 
   # `-z`: each entry is `<key>\n<value>\0`; the key `filter.<name>.<var>`.
+  # A key not shaped so is no driver's and is skipped, never matched hard.
   defp filter_names(output) do
     for entry <- String.split(output, <<0>>, trim: true),
         [key | _value] = String.split(entry, "\n", parts: 2),
-        "filter." <> rest = key,
+        "filter." <> rest <- [key],
         {name, _var} = rest |> String.split(".") |> Enum.split(-1),
         uniq: true,
         do: Enum.join(name, ".")
@@ -362,16 +363,21 @@ defmodule PhoenixKitTemplatesEditor.Files do
 
   defp resolve([], resolved, _links), do: {:ok, resolved}
   defp resolve(_parts, _resolved, links) when links > @max_links, do: {:error, :eloop}
+  defp resolve(["." | rest], resolved, links), do: resolve(rest, resolved, links)
+
+  # `..` goes up from what is already resolved — a real directory — as the
+  # kernel does, not from a path that still has links in it.
+  defp resolve([".." | rest], resolved, links), do: resolve(rest, Path.dirname(resolved), links)
 
   defp resolve([part | rest], resolved, links) do
     candidate = Path.join(resolved, part)
 
     case :file.read_link_all(candidate) do
       {:ok, target} ->
-        ["/" | target_parts] =
-          target |> IO.chardata_to_string() |> Path.expand(resolved) |> Path.split()
-
-        resolve(target_parts ++ rest, "/", links + 1)
+        case target |> IO.chardata_to_string() |> Path.split() do
+          ["/" | target_parts] -> resolve(target_parts ++ rest, "/", links + 1)
+          target_parts -> resolve(target_parts ++ rest, resolved, links + 1)
+        end
 
       {:error, :einval} ->
         if File.exists?(candidate),
