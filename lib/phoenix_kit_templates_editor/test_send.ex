@@ -17,8 +17,8 @@ defmodule PhoenixKitTemplatesEditor.TestSend do
       layout; the host's own from the root's files with its
       `sample_variables` and its layout (`layout.txt`, else
       `layout_group`).
-    * Every attempt is logged: who, which email, which language, and how
-      it went.
+    * Every attempt is logged, a refused one too: who, which email, which
+      language, and how it went.
   """
 
   use Gettext, backend: PhoenixKitTemplatesEditor.Gettext
@@ -49,27 +49,31 @@ defmodule PhoenixKitTemplatesEditor.TestSend do
          :ok <- allowed(scope),
          :ok <- throttle(user, opts[:interval] || @interval_ms) do
       result = send_now(config, name, locale, user, entry)
-      log(user, name, locale, result)
+      log(Scope.user(scope), name, locale, result)
 
       case result do
         :ok -> {:ok, user.email}
         {:ok, address} -> {:ok, address}
         {:error, reason} -> {:error, reason}
       end
+    else
+      {:refused, reason, message} ->
+        log(Scope.user(scope), name, locale, {:refused, reason})
+        {:error, message}
     end
   end
 
   defp user(scope) do
     case Scope.user(scope) do
       %{email: email} = user when is_binary(email) -> {:ok, user}
-      _none -> {:error, gettext("the page does not tell who you are.")}
+      _none -> {:refused, "no user", gettext("the page does not tell who you are.")}
     end
   end
 
   defp allowed(scope) do
     case PhoenixKitTemplatesEditor.authorize(scope, :read) do
       :ok -> :ok
-      {:error, _reason} -> {:error, gettext("you may not see these templates.")}
+      {:error, _reason} -> {:refused, "no access", gettext("you may not see these templates.")}
     end
   end
 
@@ -79,14 +83,14 @@ defmodule PhoenixKitTemplatesEditor.TestSend do
         :ok
 
       {:error, {:wait, seconds}} ->
-        {:error,
+        {:refused, "too soon",
          gettext("one test email in %{interval} s: wait %{seconds} s.",
            interval: div(interval, 1000),
            seconds: seconds
          )}
 
       {:error, :unavailable} ->
-        {:error,
+        {:refused, "throttle not running",
          gettext("test emails are not available: the module's processes are not running.")}
     end
   end
@@ -158,10 +162,17 @@ defmodule PhoenixKitTemplatesEditor.TestSend do
         :ok -> "sent"
         {:ok, _address} -> "sent"
         {:error, reason} -> "failed: #{inspect(reason)}"
+        {:refused, reason} -> "refused: #{reason}"
+      end
+
+    to =
+      case user do
+        %{uuid: uuid} when is_binary(uuid) -> "user #{uuid}"
+        _unknown -> "an unknown user"
       end
 
     Logger.info(
-      "[PhoenixKitTemplatesEditor] test email #{inspect(name)} (#{locale}) to user #{user.uuid}: #{outcome}"
+      "[PhoenixKitTemplatesEditor] test email #{inspect(name)} (#{locale}) to #{to}: #{outcome}"
     )
   end
 end

@@ -101,6 +101,27 @@ defmodule PhoenixKitTemplatesEditor.Integration.TestSendTest do
     assert message =~ "may not"
   end
 
+  test "a refused attempt is logged too: no user, no access, too soon", ctx do
+    config = %{ctx.config | test_send: fn _name, _locale, _user -> :ok end}
+    narrow = %{ctx.scope | cached_permissions: MapSet.new(["settings"])}
+
+    Logger.put_module_level(TestSend, :info)
+    on_exit(fn -> Logger.delete_module_level(TestSend) end)
+
+    log =
+      capture_log(fn ->
+        assert {:error, _} = TestSend.deliver(config, nil, "shop_offer", "en", nil)
+        assert {:error, _} = TestSend.deliver(config, narrow, "shop_offer", "en", nil)
+        assert {:ok, _} = TestSend.deliver(config, ctx.scope, "shop_offer", "en", nil)
+        assert {:error, _} = TestSend.deliver(config, ctx.scope, "shop_offer", "en", nil)
+      end)
+
+    assert log =~ ~s|test email "shop_offer" (en) to an unknown user: refused: no user|
+    assert log =~ ~s|test email "shop_offer" (en) to user #{ctx.user.uuid}: refused: no access|
+    assert log =~ ~s|test email "shop_offer" (en) to user #{ctx.user.uuid}: sent|
+    assert log =~ ~s|test email "shop_offer" (en) to user #{ctx.user.uuid}: refused: too soon|
+  end
+
   test "a callback's error is told, and logged", ctx do
     config = %{
       ctx.config
