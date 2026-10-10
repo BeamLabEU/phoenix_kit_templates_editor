@@ -53,8 +53,9 @@
 - Module emails: the emails core and other modules send, read only until
   given a file — from the built-in text by language, or from the Emails
   module's active database template by its export — where `overridable`
-  allows it (by default every one but core's sign-in emails, which carry a
-  warning). A module's own layout group the same way.
+  allows it: none by default, a list by name, or `overridable: :all` as an
+  explicit choice of every one but core's sign-in emails (which carry a
+  warning wherever shown). A module's own layout group the same way.
   `PhoenixKitTemplatesEditor.Overriding`.
 - What is sent: for an email core sends, the source of each part through
   core's resolution, with a red notice when a database template wins over the

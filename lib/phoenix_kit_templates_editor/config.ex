@@ -33,7 +33,7 @@ defmodule PhoenixKitTemplatesEditor.Config do
   | `raw_variables` | `[]` | variables allowed in `{{{x}}}` besides `content`, `header`, `footer` |
   | `email_fallback` | `true` | whether emails get a locale-less *Fallback* tab |
   | `shared_layout_editable` | `false` | whether the shared `_header`/`_footer`/`_layout` (core's system emails) are editable |
-  | `overridable` | `:all` | which emails core and other modules send may get a file here: `:all` — every one but core's sign-in emails (`PhoenixKitTemplatesEditor.Names.auth_emails/0`); a list — exactly those names (a sign-in email only so) |
+  | `overridable` | `[]` | which emails core and other modules send may get a file here: `[]` — none; a list — exactly those names (a sign-in email only so); `:all`, an explicit choice — every one but core's sign-in emails (`PhoenixKitTemplatesEditor.Names.auth_emails/0`) |
   | `catalog` | `false` | whether the templates are offered to core's email preview |
   | `max_templates` | `500` | the most templates the root may hold; a new one past it is refused (`nil` — no limit) |
   | `max_root_bytes` | `52_428_800` (50 MiB) | the most bytes the root's files may take; a save or copy past it is refused (`nil` — no limit) |
@@ -97,7 +97,7 @@ defmodule PhoenixKitTemplatesEditor.Config do
             raw_variables: [],
             email_fallback: true,
             shared_layout_editable: false,
-            overridable: :all,
+            overridable: [],
             catalog: false,
             watch: false,
             max_templates: 500,
@@ -136,7 +136,7 @@ defmodule PhoenixKitTemplatesEditor.Config do
         email_fallback: boolean(env, :email_fallback, true),
         shared_layout_editable: boolean(env, :shared_layout_editable, false),
         catalog: boolean(env, :catalog, false),
-        overridable: overridable(Keyword.get(env, :overridable, :all)),
+        overridable: overridable(Keyword.get(env, :overridable, [])),
         max_templates: limit(env, :max_templates, 500),
         max_root_bytes: limit(env, :max_root_bytes, 52_428_800)
       ] ++

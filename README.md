@@ -132,7 +132,7 @@ config :phoenix_kit_templates_editor, editable: true
 | `raw_variables` | `[]` | variables allowed in `{{{x}}}` besides `content`, `header`, `footer` |
 | `email_fallback` | `true` | whether emails get a locale-less *Fallback* tab |
 | `shared_layout_editable` | `false` | whether the shared `_header`/`_footer`/`_layout` (PhoenixKit's own system emails) may be edited |
-| `overridable` | `:all` | which emails PhoenixKit and its modules send may be given a file here: `:all` — every one but the emails about getting into an account (account confirmation, password reset, email change, magic link sign-in and registration, organization invitation, the new-login and failed-sign-in alerts); a list — exactly those names |
+| `overridable` | `[]` | which emails PhoenixKit and its modules send may be given a file here — none until you say: a list — exactly those names; `:all`, your explicit choice — every one but the emails about getting into an account (account confirmation, password reset, email change, magic link sign-in and registration, organization invitation, the new-login and failed-sign-in alerts), which only a list names |
 | `catalog` | `false` | whether your templates are offered to PhoenixKit's email preview |
 | `watch` | same as `editable` | whether the files are re-read when they change on disk |
 | `max_templates` | `500` | the most templates the root may hold: a new one past it is refused (`nil` — no limit) |

@@ -1,8 +1,9 @@
 defmodule PhoenixKitTemplatesEditor.Integration.SectionModuleEmailsTest do
-  # The tab with core's own catalogue (spec §4.11 П1–П3, §4.10 Б15): core's
-  # emails listed read only, one given a file from its built-in text by a
-  # writer, the sign-in emails kept out by default, "Send to me" through the
-  # host's callback to the user of the page.
+  # The tab with core's own catalogue: core's emails listed read only, none
+  # given a file until the host says `overridable`, one given a file from its
+  # built-in text by a writer with `overridable: :all`, the sign-in emails
+  # kept out of `:all`, "Send to me" through the host's callback to the user
+  # of the page.
   use PhoenixKitTemplatesEditor.DataCase, async: false
 
   import Ecto.Query
@@ -44,7 +45,20 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionModuleEmailsTest do
     |> render_click()
   end
 
+  defp overridable(value),
+    do: Application.put_env(:phoenix_kit_templates_editor, :overridable, value)
+
+  test "by default no email core sends is overridable: listed, read only", %{root: root} do
+    view = mount_section(scope: writer())
+    open_module(view, "welcome")
+
+    assert has_element?(view, "#templates-editor-module-email-not-overridable")
+    refute has_element?(view, "#templates-editor-module-create-default")
+    refute File.exists?(Path.join(root, "welcome"))
+  end
+
   test "core's emails, read only until a writer gives one a file", %{root: root} do
+    overridable(:all)
     view = mount_section(scope: writer())
     list = view |> element("#templates-editor-module-emails") |> render()
     assert list =~ "welcome"
@@ -64,7 +78,8 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionModuleEmailsTest do
     assert metadata == %{"template" => "welcome"}
   end
 
-  test "the sign-in emails are not overridable by default, and warned about", %{root: root} do
+  test "the sign-in emails are not overridable by :all, and warned about", %{root: root} do
+    overridable(:all)
     view = mount_section(scope: writer())
     open_module(view, "reset_password")
 

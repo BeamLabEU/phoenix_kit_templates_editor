@@ -47,7 +47,7 @@ defmodule PhoenixKitTemplatesEditor.ConfigTest do
       assert config.raw_variables == []
       assert config.email_fallback == true
       assert config.shared_layout_editable == false
-      assert config.overridable == :all
+      assert config.overridable == []
       assert config.catalog == false
       assert config.watch == false
     end
