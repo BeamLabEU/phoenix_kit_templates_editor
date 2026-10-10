@@ -316,6 +316,30 @@ defmodule PhoenixKitTemplatesEditor.FilesTest do
     test "no root on disk: nothing", %{tmp_dir: tmp} do
       assert Files.uncommitted(Path.join(tmp, "missing")) == []
     end
+
+    # A root outside a work tree makes git print "fatal: not a git
+    # repository" on every check: what git says on stderr is not the
+    # server's to print. A stand-in git notes where its stderr goes.
+    test "what git prints on stderr goes nowhere, not to the server", %{tmp_dir: tmp} do
+      root = Path.join(tmp, "plain")
+      put(root, "order_offer", "subject.et.txt", "Offer")
+      bin = Path.join(tmp, "bin")
+      File.mkdir_p!(bin)
+      marker = Path.join(tmp, "stderr-of-git")
+
+      File.write!(Path.join(bin, "git"), """
+      #!/bin/sh
+      if [ /dev/fd/2 -ef /dev/null ]; then echo null; else echo other; fi >> '#{marker}'
+      echo "fatal: not a git repository" >&2
+      exit 128
+      """)
+
+      File.chmod!(Path.join(bin, "git"), 0o755)
+      with_env([{"PATH", bin <> ":" <> System.get_env("PATH", "")}])
+
+      assert Files.uncommitted(root) == []
+      assert File.read!(marker) |> String.split("\n", trim: true) |> Enum.uniq() == ["null"]
+    end
   end
 
   describe "safe_read/2" do

@@ -72,7 +72,8 @@ defmodule PhoenixKitTemplatesEditor.Files do
   server may run as another user than the tree's owner), never fetches a
   missing object, and no `GIT_*` variable of the server's environment
   points it elsewhere. Each git command is killed after
-  #{div(@git_timeout, 1000)} s (`timeout`, where installed). `[]` when the
+  #{div(@git_timeout, 1000)} s (`timeout`, where installed), and what it
+  prints on stderr is dropped. `[]` when the
   root is not in a git work tree, git is not installed, or it does not
   answer in time.
   """
@@ -159,14 +160,28 @@ defmodule PhoenixKitTemplatesEditor.Files do
         timeout -> {timeout, ["-s", "KILL", "#{div(@git_timeout, 1000)}", git | args]}
       end
 
+    {command, args} = without_stderr(command, args)
     System.cmd(command, args, cd: root, env: git_env(), stderr_to_stdout: false)
   end
 
+  # What git says on stderr ("fatal: not a git repository" for a root outside
+  # a work tree, on every check) is not the server's to print, and is kept
+  # out of stdout, which is parsed: `sh` sends it to /dev/null, the command
+  # and its arguments passed as positional parameters, never parsed by the
+  # shell.
+  defp without_stderr(command, args) do
+    case System.find_executable("sh") do
+      nil -> {command, args}
+      sh -> {sh, ["-c", ~s(exec "$@" 2>/dev/null), "sh", command | args]}
+    end
+  end
+
+  # No `GIT_*` of the server's, and no start-up file for the shell above.
   defp git_env do
     cleared =
       for {name, _value} <- System.get_env(), String.starts_with?(name, "GIT_"), do: {name, nil}
 
-    cleared ++ [{"GIT_NO_LAZY_FETCH", "1"}]
+    cleared ++ [{"GIT_NO_LAZY_FETCH", "1"}, {"BASH_ENV", nil}, {"ENV", nil}]
   end
 
   # `XY path`, one per entry of `--porcelain=v1 -z`; with `--no-renames` no
