@@ -15,9 +15,10 @@
   through `PhoenixKitTemplatesEditor.Web.ScopeHook` (a live-session hook the
   host adds).
 - `PhoenixKitTemplatesEditor.Files`: cache reload under every path naming the
-  root, `0664`/`2775` after a write (no ownership changes), `git status`
-  without hooks or `GIT_*` variables and with a deadline, `safe_read/2`
-  refusing links, paths out of the root and oversized files.
+  root; no mode or owner changed after a write (they come from a setgid root
+  and the server's umask, see the README); `git status` without hooks, filter
+  drivers or `GIT_*` variables, with a deadline and its stderr dropped;
+  `safe_read/2` refusing links, paths out of the root and oversized files.
 - `PhoenixKitTemplatesEditor.Watcher`: where files are edited or watched, a
   change on disk drops the cache within 2 s.
 - `PhoenixKitTemplatesEditor.Converters` and `PhoenixKitTemplatesEditor.HtmlText`

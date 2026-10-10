@@ -8,6 +8,7 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionTest do
   import Phoenix.LiveViewTest
   import PhoenixKitTemplatesEditor.SectionCase
 
+  alias PhoenixKit.Templates
   alias PhoenixKit.Templates.Overrides
 
   @moduletag :tmp_dir
@@ -148,6 +149,37 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionTest do
     dir = Path.join(root, "shop_new")
     assert Bitwise.band(File.stat!(dir).mode, 0o2000) == 0o2000
     assert File.read!(Path.join(dir, "subject.en.txt")) == "Fresh"
+  end
+
+  # Core reads the root by a path string of its own (a link under `_build`,
+  # say); the library's cache is keyed on it, so a change must drop that
+  # path's entries too — after a save and after a deletion alike.
+  test "a change is read at once through core's own path to the root",
+       %{root: root, tmp_dir: tmp} do
+    core = Path.join(tmp, "core_link")
+    File.ln_s!(root, core)
+    previous = Application.fetch_env(:phoenix_kit, :template_paths)
+    Application.put_env(:phoenix_kit, :template_paths, [core])
+
+    on_exit(fn ->
+      case previous do
+        {:ok, value} -> Application.put_env(:phoenix_kit, :template_paths, value)
+        :error -> Application.delete_env(:phoenix_kit, :template_paths)
+      end
+
+      Overrides.reset_cache([core])
+    end)
+
+    text = fn -> Templates.render("shop_offer", %{}, %{}, locale: "en", paths: [core]).text end
+    assert text.() == "Hello, {{customer_name}}!"
+
+    view = mount_section(scope: writer())
+    select(view, "shop_offer")
+    save(view, %{text: "Saved"})
+    assert text.() == "Saved"
+
+    save(view, %{text: ""})
+    assert text.() in [nil, ""]
   end
 
   describe "changed and not committed" do

@@ -36,8 +36,6 @@ defmodule PhoenixKitTemplatesEditor.FilesTest do
     end)
   end
 
-  defp mode(path), do: Bitwise.band(File.lstat!(path).mode, 0o7777)
-
   describe "realpath/1 and same_dir?/2" do
     test "a link to a directory resolves to the directory", %{tmp_dir: tmp} do
       dir = Path.join(tmp, "real")
@@ -110,64 +108,6 @@ defmodule PhoenixKitTemplatesEditor.FilesTest do
 
       Files.reload(root)
       assert subject(other) == "Old"
-    end
-  end
-
-  describe "after_write/2" do
-    # Modes are the umask's and the root's setgid bit's (README,
-    # installation): changing them afterwards, as the server's user, in a
-    # directory others may write to, would follow a link put there in the
-    # meantime (spec §12 item 5).
-    test "leaves the modes as the write made them, drops the cache", %{tmp_dir: root} do
-      put(root, "order_x", "subject.et.txt", "Old")
-      assert subject(root) == "Old"
-
-      {:ok, paths} = Overrides.write(root, "order_x", :subject, "et", "New")
-      [file] = paths
-      File.chmod!(file, 0o600)
-
-      assert Files.after_write(root, paths) == :ok
-
-      assert mode(file) == 0o600
-      assert subject(root) == "New"
-    end
-
-    test "a written file is readable at once through core's path string", %{tmp_dir: tmp} do
-      root = Path.join(tmp, "templates")
-      File.mkdir_p!(root)
-      core = Path.join(tmp, "build_link")
-      File.ln_s!(root, core)
-      core_paths([core])
-
-      put(root, "order_x", "subject.et.txt", "Old")
-      assert subject(core) == "Old"
-
-      {:ok, paths} = Overrides.write(root, "order_x", :subject, "et", "New")
-      Files.after_write(root, paths)
-
-      assert subject(core) == "New"
-    end
-
-    test "a symbolic link is left alone, not followed", %{tmp_dir: tmp} do
-      root = Path.join(tmp, "templates")
-      File.mkdir_p!(Path.join(root, "order_x"))
-      outside = Path.join(tmp, "outside.txt")
-      File.write!(outside, "secret")
-      File.chmod!(outside, 0o600)
-      link = Path.join([root, "order_x", "text.txt"])
-      File.ln_s!(outside, link)
-
-      assert Files.after_write(root, [link]) == :ok
-      assert mode(outside) == 0o600
-    end
-
-    test "a path already gone: the cache is dropped all the same", %{tmp_dir: root} do
-      path = put(root, "order_x", "subject.et.txt", "Old")
-      assert subject(root) == "Old"
-      File.write!(path, "New")
-
-      assert Files.after_write(root, [Path.join([root, "order_x", "text.et.txt"])]) == :ok
-      assert subject(root) == "New"
     end
   end
 

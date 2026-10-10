@@ -57,7 +57,8 @@ Repo-local aliases:
 - **Every template file is read through `Files.safe_read/2`**, and before a library call reads a template's files (`Overrides.locate/4` follows links and caches what it read; the host's preview and test send read that way) the template directory goes through `Files.check_template/2` — through `Preview.check_templates/2` for an email and its chrome: no symlinks, nothing whose real path leaves the root, nothing over `Overrides.max_bytes/0`. A write first checks the template directory is no link (`Files.check_template_dir/2`). Messages name files relative to the root (`Files.relative/2`).
 - **Work the page waits on runs bounded** (`Bounded.run/2`, 5 s): converters, the default and the host's preview, `git status`.
 - **git runs nothing the repository configures** (`Files.uncommitted/1`): `core.fsmonitor=false`, every filter driver's commands set empty by `-c`, submodules ignored, no lazy fetch, a clean `GIT_*` environment, `timeout -s KILL`. Asking it is a writer's action, once in 5 s.
-- **Modes and owners are never changed after a write** (`Files.after_write/2` only drops the cache): the umask and the root's setgid bit give `0664`/`2775` (README, installation).
+- **Modes and owners are never changed after a write** (no `chmod`/`chown` anywhere, `Files` moduledoc): the server's umask and the root's setgid bit give `0664`/`2775` (README, installation).
+- **The cache is dropped once per change by this module** (the section's `after_change` → `Files.reload/1`, under core's own paths to the root too); the library drops it for the root on every write itself. No `after_write` in the section.
 - **The root's limits** (`max_templates`, `max_root_bytes` in `Config`) are checked before a new template, a copy, an override or a save.
 - **`Config.load/1` never raises.** A bad config is `{:error, messages}`, shown as an alert on the tab; messages name the config key and never an absolute path.
 - **`enabled?/0` must never raise.** It `rescue`s and catches `:exit`, returning `false` from every branch.
@@ -82,7 +83,7 @@ lib/
     ├── catalog.ex                           # the host's emails: list order, entries for core's email preview
     ├── config.ex                            # Config.load/1 — config :phoenix_kit_templates_editor, checked
     ├── converters.ex                        # the editor's buttons: to_text/3, markdown_to_html/2
-    ├── files.ex                             # reload, after_write, uncommitted (git), safe_read, check_template, usage, realpath
+    ├── files.ex                             # reload, uncommitted (git), safe_read, check_template, usage, realpath
     ├── gettext.ex                           # Gettext backend (priv/gettext)
     ├── html_text.ex                         # HTML → plain text (public)
     ├── journal.ex                           # changes in PhoenixKit's activity log, with a short diff

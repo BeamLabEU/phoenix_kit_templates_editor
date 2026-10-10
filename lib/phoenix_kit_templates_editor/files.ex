@@ -1,9 +1,15 @@
 defmodule PhoenixKitTemplatesEditor.Files do
   @moduledoc """
   The template files on disk, around what `PhoenixKit.Templates.Overrides`
-  already does: dropping the renderer's cache, settling what a write
-  created, asking git what is not committed, and reading a file only when it
-  is what it claims to be.
+  already does: dropping the renderer's cache, asking git what is not
+  committed, and reading a file only when it is what it claims to be.
+
+  Nothing here changes the mode or the owner of a file: doing that after a
+  write, as the server's user, in a directory others may write to, would
+  follow a link put there in the meantime. They come from the server's umask
+  and the root's setgid bit instead — `umask 0002` and a setgid root of the
+  tree owner's group make new files `0664` and new directories `2775` of that
+  group (README, installation).
 
   Every message here names a file relative to the root, never by its
   absolute path.
@@ -42,19 +48,6 @@ defmodule PhoenixKitTemplatesEditor.Files do
   rescue
     _ -> []
   end
-
-  @doc """
-  What the editor calls after it wrote `paths` under `root`: `reload/1`.
-
-  Neither the mode nor the owner of what was written is changed: changing
-  them afterwards, as the server's user, in a directory others may write to,
-  would follow a link put there in the meantime (spec §12 item 5). They come
-  from the server's umask and the root's setgid bit instead — `umask 0002`
-  and a setgid root of the tree owner's group make new files `0664` and new
-  directories `2775` of that group (README, installation).
-  """
-  @spec after_write(Path.t(), [Path.t()]) :: :ok
-  def after_write(root, paths) when is_binary(root) and is_list(paths), do: reload(root)
 
   @doc """
   The files under `root` that differ from git's last commit — changed, new

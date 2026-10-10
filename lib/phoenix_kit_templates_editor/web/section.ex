@@ -151,7 +151,10 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
   end
 
   # The editor's callbacks, made once: a new function on every update would
-  # look like a new preview to the editor and render it again.
+  # look like a new preview to the editor and render it again. The library
+  # drops its cache for `root` on every write; `after_change`, which follows
+  # every change, drops it once more under core's own paths to the root
+  # (`Files.reload/1`) — no `after_write`, which would do it again.
   defp callbacks(id, %Config{root: root} = config) do
     blocks = config.block_placeholders
 
@@ -161,7 +164,6 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
         to_text: &Converters.to_text/2,
         markdown_to_html: &Converters.markdown_to_html(&1, block_placeholders: blocks)
       },
-      after_write: &Files.after_write(root, &1),
       after_change: fn _name ->
         Files.reload(root)
         send_update(__MODULE__, id: id, refresh_uncommitted: true)
@@ -386,7 +388,6 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
           preview={@callbacks.preview}
           preview_image_origins={@image_origins}
           convert={@callbacks.convert}
-          after_write={@callbacks.after_write}
           after_change={@callbacks.after_change}
           authorize={@authorize}
           journal={@journal}
