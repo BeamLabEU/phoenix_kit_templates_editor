@@ -48,10 +48,10 @@ defmodule PhoenixKitTemplatesEditor.NamesTest do
 
   describe "in_namespace?/2" do
     test "the group itself and its dash-children, not a longer word" do
-      assert Names.in_namespace?("andi", "andi")
-      assert Names.in_namespace?("andi-supplier", "andi")
-      refute Names.in_namespace?("andix", "andi")
-      refute Names.in_namespace?("and", "andi")
+      assert Names.in_namespace?("shop", "shop")
+      assert Names.in_namespace?("shop-supplier", "shop")
+      refute Names.in_namespace?("shopx", "shop")
+      refute Names.in_namespace?("sho", "shop")
     end
   end
 
@@ -71,12 +71,12 @@ defmodule PhoenixKitTemplatesEditor.NamesTest do
     end
 
     test "a prefix shaped like a layout part is a namespace for that part, not a string prefix" do
-      rules = rules(prefixes: ["shop_", "_header-andi"], layout_groups: [])
+      rules = rules(prefixes: ["shop_", "_header-shop"], layout_groups: [])
 
-      assert Names.check("_header-andi", rules) == :ok
-      assert Names.check("_header-andi-supplier", rules) == :ok
-      assert Names.check("_header-andix", rules) == {:error, :namespace}
-      assert Names.check("_footer-andi", rules) == {:error, :namespace}
+      assert Names.check("_header-shop", rules) == :ok
+      assert Names.check("_header-shop-supplier", rules) == :ok
+      assert Names.check("_header-shopx", rules) == {:error, :namespace}
+      assert Names.check("_footer-shop", rules) == {:error, :namespace}
     end
 
     test "a plain prefix never reaches a layout part" do
@@ -112,14 +112,14 @@ defmodule PhoenixKitTemplatesEditor.NamesTest do
       assert Names.group_allowed?("shop-x", rules())
       refute Names.group_allowed?("shopx", rules())
 
-      only_footer = rules(prefixes: ["_footer-andi"], layout_groups: [])
-      assert Names.group_allowed?("andi-x", only_footer)
+      only_footer = rules(prefixes: ["_footer-store"], layout_groups: [])
+      assert Names.group_allowed?("store-x", only_footer)
       refute Names.group_allowed?("x", only_footer)
       refute Names.group_allowed?("Bad Name", rules())
     end
 
     test "the namespaces, for messages" do
-      assert Names.namespaces(rules(prefixes: ["_header-andi", "shop_"])) == ["shop", "andi"]
+      assert Names.namespaces(rules(prefixes: ["_header-store", "shop_"])) == ["shop", "store"]
     end
   end
 

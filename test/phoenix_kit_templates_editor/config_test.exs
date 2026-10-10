@@ -151,7 +151,7 @@ defmodule PhoenixKitTemplatesEditor.ConfigTest do
 
   describe "name_prefixes" do
     test "a list of template-name prefixes", %{tmp_dir: tmp_dir} do
-      prefixes = ["andi_order_", "_header-andi", "_footer-andi", "_layout-andi"]
+      prefixes = ["shop_order_", "_header-shop", "_footer-shop", "_layout-shop"]
       assert {:ok, %Config{name_prefixes: ^prefixes}} = load(tmp_dir, name_prefixes: prefixes)
     end
 
@@ -205,26 +205,26 @@ defmodule PhoenixKitTemplatesEditor.ConfigTest do
 
   describe "layout_group and layout_groups" do
     test "layout_groups defaults to the layout_group", %{tmp_dir: tmp_dir} do
-      assert {:ok, %Config{layout_group: "andi", layout_groups: ["andi"]}} =
-               load(tmp_dir, layout_group: "andi")
+      assert {:ok, %Config{layout_group: "shop", layout_groups: ["shop"]}} =
+               load(tmp_dir, layout_group: "shop")
     end
 
     test "explicit layout_groups that cover the layout_group", %{tmp_dir: tmp_dir} do
-      assert {:ok, %Config{layout_group: "andi-supplier", layout_groups: ["andi"]}} =
-               load(tmp_dir, layout_group: "andi-supplier", layout_groups: ["andi"])
+      assert {:ok, %Config{layout_group: "shop-supplier", layout_groups: ["shop"]}} =
+               load(tmp_dir, layout_group: "shop-supplier", layout_groups: ["shop"])
     end
 
     test "a layout_group outside the layout_groups is an error", %{tmp_dir: tmp_dir} do
-      # "andix" is not in the "andi" namespace: only "andi" and "andi-…" are.
-      assert errors(tmp_dir, layout_group: "andix", layout_groups: ["andi"]) =~ "layout_group"
+      # "shopx" is not in the "shop" namespace: only "shop" and "shop-…" are.
+      assert errors(tmp_dir, layout_group: "shopx", layout_groups: ["shop"]) =~ "layout_group"
     end
 
     test "an invalid group name is an error", %{tmp_dir: tmp_dir} do
-      for value <- ["Andi", "_andi", "andi_x", "", :andi] do
+      for value <- ["Shop", "_shop", "shop_x", "", :shop] do
         assert errors(tmp_dir, layout_group: value) =~ "layout_group"
       end
 
-      for value <- [["Andi"], [""], "andi"] do
+      for value <- [["Shop"], [""], "shop"] do
         assert errors(tmp_dir, layout_groups: value) =~ "layout_groups"
       end
     end

@@ -11,9 +11,9 @@ defmodule PhoenixKitTemplatesEditor.Names do
     * **a layout part of a group** — `_header-<g>`, `_footer-<g>`,
       `_layout-<g>` (`g` as `PhoenixKit.Email.Layout.valid_group?/1`). Allowed
       when `g` is in the namespace of one of `layout_groups`, or of a name
-      prefix shaped like such a part (`"_header-andi"` allows the header of
-      `andi` and `andi-…`). A namespace is exact: `andi` covers `andi` and
-      `andi-supplier`, not `andix`. A plain prefix (`"_"`) never allows one;
+      prefix shaped like such a part (`"_header-shop"` allows the header of
+      `shop` and `shop-…`). A namespace is exact: `shop` covers `shop` and
+      `shop-supplier`, not `shopx`. A plain prefix (`"_"`) never allows one;
     * **anything else** — allowed when it starts with a plain name prefix.
 
   Before all of that, a name in `reserved` — an email core or another module

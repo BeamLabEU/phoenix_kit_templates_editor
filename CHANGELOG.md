@@ -22,7 +22,7 @@
 - `PhoenixKitTemplatesEditor.Watcher`: where files are edited or watched, a
   change on disk drops the cache within 2 s.
 - `PhoenixKitTemplatesEditor.Converters` and `PhoenixKitTemplatesEditor.HtmlText`
-  (moved from Andi): Markdown/HTML to text and Markdown to HTML with
+  (extracted from a host application): Markdown/HTML to text and Markdown to HTML with
   placeholders kept, size limit, deadline, linear-time patterns.
 - `PhoenixKitTemplatesEditor.Preview`: the default preview in the email's
   layout group; `PhoenixKitTemplatesEditor.Catalog`: the host's emails for
