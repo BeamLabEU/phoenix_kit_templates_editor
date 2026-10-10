@@ -131,5 +131,13 @@ defmodule PhoenixKitTemplatesEditor.NamesTest do
       assert "magic_link" in names
       refute Enum.any?(names, &String.starts_with?(&1, "_"))
     end
+
+    # Fail closed: a catalogue that cannot be read takes no sign-in email
+    # out of the reserved names.
+    test "the sign-in emails stay reserved when core's catalogue fails" do
+      names = Names.reserved_names(fn -> raise "catalogue down" end)
+
+      assert Names.auth_emails() -- names == []
+    end
   end
 end

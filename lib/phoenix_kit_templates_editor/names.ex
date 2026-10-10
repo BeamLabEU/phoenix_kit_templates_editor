@@ -188,12 +188,18 @@ defmodule PhoenixKitTemplatesEditor.Names do
   @doc """
   The names of the emails core and every other registered module send
   (`PhoenixKit.Email.CoreTemplates`, `c:PhoenixKit.Module.email_templates/0`)
-  — never this module's own, which are the host's files. A module that
-  fails to answer is logged and skipped.
+  — never this module's own, which are the host's files. A catalogue that
+  fails to answer is logged and skipped; core's sign-in emails
+  (`auth_emails/0`) are reserved even then.
   """
   @spec reserved_names() :: [String.t()]
-  def reserved_names do
-    core = safely(:core, fn -> CoreTemplates.entries() end)
+  def reserved_names, do: reserved_names(&CoreTemplates.entries/0)
+
+  @doc false
+  # `core_entries` stands in for core's catalogue in the tests.
+  @spec reserved_names((-> [map()])) :: [String.t()]
+  def reserved_names(core_entries) when is_function(core_entries, 0) do
+    core = safely(:core, core_entries)
 
     modules =
       for module <- registered_modules(),
@@ -201,7 +207,9 @@ defmodule PhoenixKitTemplatesEditor.Names do
           entry <- safely(module, fn -> module_templates(module) end),
           do: entry
 
-    for(%{name: name} when is_binary(name) <- core ++ modules, do: name) |> Enum.uniq()
+    Enum.uniq(
+      @auth_emails ++ for(%{name: name} when is_binary(name) <- core ++ modules, do: name)
+    )
   end
 
   defp registered_modules, do: safely(:registry, &ModuleRegistry.all_modules/0)
