@@ -136,7 +136,7 @@ config :phoenix_kit_templates_editor, editable: true
 | `raw_variables` | `[]` | variables allowed in `{{{x}}}` besides `content`, `header`, `footer` |
 | `email_fallback` | `true` | whether emails get a locale-less *Fallback* tab |
 | `shared_layout_editable` | `false` | whether the shared `_header`/`_footer`/`_layout` (PhoenixKit's own system emails) may be edited |
-| `overridable` | `[]` | which emails PhoenixKit and its modules send may be given a file here — none until you say: a list — exactly those names; `:all`, your explicit choice — every one but the emails about getting into an account (account confirmation, password reset, email change, magic link sign-in and registration, organization invitation, the new-login and failed-sign-in alerts), which only a list names |
+| `overridable` | `[]` | which emails PhoenixKit and its modules send may be given a file here — none until you say: a list — exactly those names; `:all`, your explicit choice — every one but the emails about getting into an account (account confirmation, password reset, email change, magic link sign-in and registration, organization invitation, the new-login and failed-sign-in alerts), which only a list names; "every one but" is this package's own list of those emails (`Names.auth_emails/0`), not core's current set, so a sign-in email a newer core adds is overridable under `:all` until the package is updated |
 | `catalog` | `false` | whether your templates are offered to PhoenixKit's email preview |
 | `watch` | same as `editable` | whether the files are re-read when they change on disk |
 | `max_templates` | `500` | the most templates the root may hold: a new one past it is refused (`nil` — no limit) |
@@ -209,7 +209,8 @@ throws or exits is logged and never takes the page down.
   or another module sends — but through *Module emails*, below.
 - **Module emails.** Every email PhoenixKit and its modules send (their
   catalogue, the one *Preview emails* lists), read only — the built-in text in
-  each language — until it has a file here. Where `overridable` allows it, a
+  each language — until it has a file here. Where `overridable` allows it (none
+  by default, see `overridable`), a
   writer creates the file from the built-in text, one per language of
   `locales` (from then on module updates no longer change that email's text),
   or, with the Emails module installed and an active database template of that
