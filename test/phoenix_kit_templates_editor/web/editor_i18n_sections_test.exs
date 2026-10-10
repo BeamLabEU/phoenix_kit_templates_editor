@@ -1,4 +1,4 @@
-defmodule PhoenixKitTemplatesEditor.Web.EditorM5I18nTest do
+defmodule PhoenixKitTemplatesEditor.Web.EditorI18nSectionsTest do
   # The module-emails section, the variables panel and the save checks
   # speak the page's language too.
   use PhoenixKitTemplatesEditor.EditorCase, async: true

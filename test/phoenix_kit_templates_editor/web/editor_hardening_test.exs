@@ -1,5 +1,5 @@
 defmodule PhoenixKitTemplatesEditor.Web.EditorHardeningTest do
-  # Round 1 of the final and security reviews: a host's preview and "Send
+  # Hardening of the editor: a host's preview and "Send
   # to me" never get a template with a link in it and the preview is
   # bounded; a copy refuses a source with a link, a save a template
   # directory that is a link; the preview frame carries its policy inside
