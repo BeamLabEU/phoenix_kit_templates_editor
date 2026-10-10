@@ -886,8 +886,8 @@ msgstr "HTML строится из части %{part}."
 
 #: lib/phoenix_kit_templates_editor/web/editor.ex:2971
 #, elixir-autogen, elixir-format
-msgid "This email may not be overridden here: it is shown read only."
-msgstr "Это письмо здесь переопределять нельзя: оно показано только для чтения."
+msgid "This email may not be overridden here: it is shown read only. The `overridable` key in the config says which emails may be."
+msgstr "Это письмо здесь переопределять нельзя: оно показано только для чтения. Какие письма можно, определяет ключ `overridable` в конфигурации."
 
 #: lib/phoenix_kit_templates_editor/web/editor.ex:3550
 #, elixir-autogen, elixir-format

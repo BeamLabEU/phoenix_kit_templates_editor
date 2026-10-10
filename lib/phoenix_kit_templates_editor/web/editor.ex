@@ -2968,7 +2968,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
               id={"#{@id}-module-email-not-overridable"}
               class="alert alert-info alert-soft text-sm"
             >
-              {gettext("This email may not be overridden here: it is shown read only.")}
+              {gettext(
+                "This email may not be overridden here: it is shown read only. The `overridable` key in the config says which emails may be."
+              )}
             </div>
             <div role="tablist" class="tabs tabs-box w-fit">
               <button

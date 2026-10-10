@@ -886,7 +886,7 @@ msgstr ""
 
 #: lib/phoenix_kit_templates_editor/web/editor.ex:2971
 #, elixir-autogen, elixir-format
-msgid "This email may not be overridden here: it is shown read only."
+msgid "This email may not be overridden here: it is shown read only. The `overridable` key in the config says which emails may be."
 msgstr ""
 
 #: lib/phoenix_kit_templates_editor/web/editor.ex:3550

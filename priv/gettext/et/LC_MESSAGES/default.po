@@ -886,8 +886,8 @@ msgstr "HTML tehakse osast %{part}."
 
 #: lib/phoenix_kit_templates_editor/web/editor.ex:2971
 #, elixir-autogen, elixir-format
-msgid "This email may not be overridden here: it is shown read only."
-msgstr "Seda kirja ei saa siin üle kirjutada: see on ainult vaatamiseks."
+msgid "This email may not be overridden here: it is shown read only. The `overridable` key in the config says which emails may be."
+msgstr "Seda kirja ei saa siin üle kirjutada: see on ainult vaatamiseks. Millised kirjad on lubatud, määrab seadistuse võti `overridable`."
 
 #: lib/phoenix_kit_templates_editor/web/editor.ex:3550
 #, elixir-autogen, elixir-format
