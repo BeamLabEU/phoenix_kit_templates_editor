@@ -3589,11 +3589,6 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     ~H"""
     <div id={@id} class="rounded-box border border-base-300 p-3 text-sm flex flex-col gap-2">
       <span class="font-semibold">{gettext("What is sent")}</span>
-      <div :if={@sources && @sources.db?} id={"#{@id}-db"} role="alert" class="alert alert-error">
-        {gettext(
-          "The Emails module has an active database template of this name: that is what is sent, not these files."
-        )}
-      </div>
       <dl :if={@sources} class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
         <%= for part <- [:subject, :text, :html, :markdown] do %>
           <dt class="opacity-70">{part_title(part)}</dt>

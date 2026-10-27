@@ -32,8 +32,7 @@ defmodule PhoenixKitTemplatesEditor.Sources do
           html: source(),
           markdown: source(),
           html_from: :html | :markdown | :text | nil,
-          text_from: :text | :markdown | nil,
-          db?: boolean()
+          text_from: :text | :markdown | nil
         }
 
   @doc """
@@ -89,7 +88,7 @@ defmodule PhoenixKitTemplatesEditor.Sources do
   defp resolve(name, defaults, opts) do
     {_content, sources} = Content.resolve_with_sources(name, @recipient, %{}, defaults, opts)
     parts = Map.new(@parts ++ [:html_from, :text_from], &{&1, Map.get(sources, &1)})
-    {:ok, Map.put(parts, :db?, Enum.any?(@parts, &(parts[&1] == :db)))}
+    {:ok, parts}
   end
 
   defp defaults(%{defaults: fun}) when is_function(fun, 0), do: fun

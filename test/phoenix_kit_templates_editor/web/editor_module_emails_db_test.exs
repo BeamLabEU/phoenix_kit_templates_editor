@@ -1,8 +1,7 @@
 defmodule PhoenixKitTemplatesEditor.Web.EditorModuleEmailsDbTest do
-  # An email with an active database template of the Emails module: the
-  # red notice that the row, not the file, is sent, and a
-  # file made from the row by that module's export. The provider and the
-  # export are the application environment's, so not async.
+  # An email with an active legacy database template of the Emails module: a
+  # file made from the row by that module's export. Core no longer sends from
+  # the row. The export is the application environment's, so not async.
   use PhoenixKitTemplatesEditor.EditorCase, async: false
 
   alias PhoenixKitTemplatesEditor.Test.FakeProvider
@@ -46,7 +45,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorModuleEmailsDbTest do
     )
   end
 
-  test "no file yet: the row is what is sent, and a file can be made from it",
+  test "a file can be made from the legacy row",
        %{tmp_dir: root} do
     seed(root)
     view = mount_modules(root)
@@ -54,8 +53,6 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorModuleEmailsDbTest do
     view
     |> element("#editor-module-emails [phx-click=select_module][phx-value-name=billing_invoice]")
     |> render_click()
-
-    assert has_element?(view, "#editor-module-email-sources-db")
 
     html = view |> element("#editor-module-create-db") |> render_click()
 
@@ -65,19 +62,6 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorModuleEmailsDbTest do
              "Invoice from the row"
 
     assert File.read!(Path.join([root, "billing_invoice", "subject.et.txt"])) == "Arve reast"
-    assert has_element?(view, "#editor-sources-db")
-  end
-
-  test "with a file: the notice says the file is not what is sent", %{tmp_dir: root} do
-    seed(root)
-    put(root, "billing_invoice", "subject.et.txt", "Arve")
-    view = mount_modules(root)
-
-    view
-    |> element("#editor-module-emails [phx-click=select][phx-value-name=billing_invoice]")
-    |> render_click()
-
-    assert view |> element("#editor-sources-db") |> render() =~ "not these files"
   end
 
   test "read only: no button for the row either", %{tmp_dir: root} do

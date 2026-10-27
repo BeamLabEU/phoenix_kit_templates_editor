@@ -6,7 +6,6 @@ defmodule PhoenixKitTemplatesEditor.SourcesTest do
 
   alias PhoenixKit.Templates.Overrides
   alias PhoenixKitTemplatesEditor.Sources
-  alias PhoenixKitTemplatesEditor.Test.FakeProvider
 
   @moduletag :tmp_dir
 
@@ -33,7 +32,6 @@ defmodule PhoenixKitTemplatesEditor.SourcesTest do
     assert sources.markdown == :default
     assert sources.html == nil
     assert sources.html_from == :markdown
-    refute sources.db?
   end
 
   test "no entry: only the files", %{tmp_dir: root} do
@@ -42,24 +40,6 @@ defmodule PhoenixKitTemplatesEditor.SourcesTest do
     assert {:ok, sources} = Sources.of(root, "billing_invoice", "en", nil)
     assert sources.text == {:file, Path.join([root, "billing_invoice", "text.en.txt"])}
     assert sources.subject == nil
-  end
-
-  test "an active database template wins over every file", %{tmp_dir: root} do
-    put(root, "subject.en.txt", "From the file")
-
-    FakeProvider.put_db_templates(%{
-      "billing_invoice" => %{
-        name: "billing_invoice",
-        subject: %{"en" => "From the database"},
-        text_body: %{"en" => "Body"},
-        html_body: %{"en" => "<p>Body</p>"}
-      }
-    })
-
-    assert {:ok, sources} = Sources.of(root, "billing_invoice", "en", @entry)
-    assert sources.db?
-    assert sources.subject == :db
-    assert sources.html == :db
   end
 
   test "a built-in text that fails is an error, not a crash", %{tmp_dir: root} do

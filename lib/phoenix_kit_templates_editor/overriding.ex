@@ -27,7 +27,6 @@ defmodule PhoenixKitTemplatesEditor.Overriding do
 
   alias PhoenixKit.Email.Branding
   alias PhoenixKit.Email.Layout
-  alias PhoenixKit.Email.Provider
   alias PhoenixKit.Templates.Overrides
   alias PhoenixKit.Utils.RecipientLocale
   alias PhoenixKit.Utils.Routes
@@ -101,12 +100,17 @@ defmodule PhoenixKitTemplatesEditor.Overriding do
   @spec emails_module?() :: boolean()
   def emails_module?, do: Code.ensure_loaded?(export_module())
 
-  @doc "Whether the Emails module has an active database template named `name`."
+  @doc "Whether the Emails module still holds an active legacy database template named `name` (to be turned into files)."
   @spec db_template?(String.t()) :: boolean()
   def db_template?(name), do: emails_module?() and db_template(name) != nil
 
+  # The retired row, read through the Emails module's export (core no longer
+  # serves database templates).
   defp db_template(name) do
-    Provider.current().get_active_template_by_name(name)
+    module = export_module()
+
+    if Code.ensure_loaded?(module) and function_exported?(module, :active_template, 1),
+      do: module.active_template(name)
   rescue
     _ -> nil
   catch
