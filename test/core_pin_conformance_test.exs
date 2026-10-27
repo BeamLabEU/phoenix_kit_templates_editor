@@ -14,8 +14,8 @@ defmodule PhoenixKitTemplatesEditor.CorePinConformanceTest do
   2.57.0 is the floor: the email settings section's `:link` first ships there.
   """
 
-  @must_admit ["2.57.0", "2.57.1", "2.58.0", "2.99.4"]
-  @must_reject ["2.56.9", "2.0.0", "1.7.236", "3.0.0"]
+  @must_admit ["2.57.0", "2.57.1", "2.58.0", "2.99.4", "3.0.0", "3.9.9"]
+  @must_reject ["2.56.9", "2.0.0", "1.7.236", "4.0.0"]
 
   test "the :phoenix_kit requirement admits every core 2.x from 2.57.0 and nothing else" do
     requirement = core_requirement()

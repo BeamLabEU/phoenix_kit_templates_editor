@@ -90,7 +90,7 @@ defmodule PhoenixKitTemplatesEditor.MixProject do
       # section's `:link` (the button beside "Preview emails") first ships
       # there. Compound form so the ceiling stays open through every later
       # 2.x minor (see test/core_pin_conformance_test.exs).
-      pk_dep(:phoenix_kit, ">= 2.57.0 and < 3.0.0"),
+      pk_dep(:phoenix_kit, ">= 2.57.0 and < 4.0.0"),
 
       # mdex_native (pulled in transitively through phoenix_kit's mdex dep)
       # builds from source when MDEX_NATIVE_BUILD=1 is set in the
