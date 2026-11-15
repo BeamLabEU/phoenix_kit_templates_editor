@@ -55,14 +55,17 @@ defmodule PhoenixKitTemplatesEditor.Names do
   # carries a link that signs a user in, registers or confirms an address
   # (`confirmation_url`, `reset_url`, `update_url`, `magic_link_url`,
   # `registration_url`), or warns the owner about a sign-in
+  # or a change to how the account signs in — a passkey added or removed
   # (`security_url`), or invites a person to act for an organization
   # (`invitation_url`). A file that breaks one locks people out, or hides an
-  # intrusion from them. The test checks every email of
+  # intrusion from them. The passkey notices are core 3.6's; on an older
+  # core the names are reserved for nothing. The test checks every email of
   # `PhoenixKit.Email.CoreTemplates` is either here or named as not about
   # access, so a new one is decided on, not let through.
   @auth_emails ~w(register reset_password update_email magic_link magic_link_registration
                   organization_invitation organization_manager_invitation
-                  organization_link_invitation new_login_alert failed_login_alert)
+                  organization_link_invitation new_login_alert failed_login_alert
+                  passkey_added passkey_removed)
 
   @chrome ~r/\A_(header|footer|layout)(?:-([a-z0-9-]+))?\z/
 

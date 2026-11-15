@@ -25,7 +25,8 @@ defmodule PhoenixKitTemplatesEditor.NamesOverrideTest do
       assert Names.auth_emails() ==
                ~w(register reset_password update_email magic_link magic_link_registration
                   organization_invitation organization_manager_invitation
-                  organization_link_invitation new_login_alert failed_login_alert)
+                  organization_link_invitation new_login_alert failed_login_alert
+                  passkey_added passkey_removed)
 
       core = for %{name: name} <- CoreTemplates.entries(), do: name
       assert Names.auth_emails() -- core == []
@@ -61,6 +62,8 @@ defmodule PhoenixKitTemplatesEditor.NamesOverrideTest do
       refute Names.overridable?("organization_invitation", :all)
       refute Names.overridable?("new_login_alert", :all)
       refute Names.overridable?("magic_link", :all)
+      refute Names.overridable?("passkey_added", :all)
+      refute Names.overridable?("passkey_removed", :all)
     end
 
     test "a list is exactly its names, a sign-in email included when named" do
