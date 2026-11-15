@@ -28,12 +28,9 @@ defmodule PhoenixKitTemplatesEditor.Variables do
 
   alias PhoenixKit.Email.Branding
   alias PhoenixKit.Email.Layout
+  alias PhoenixKit.Templates.Substitution
 
   @html_variables ~w(content header footer)
-
-  # `PhoenixKit.Templates.Substitution`'s placeholder: it starts with
-  # literal braces, so a long input cannot make it backtrack.
-  @placeholder ~r/\{\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}\}|\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/
 
   @type kind :: :email | :chrome | :layout
 
@@ -99,12 +96,22 @@ defmodule PhoenixKitTemplatesEditor.Variables do
   """
   @spec placeholders(String.t()) :: %{double: [String.t()], triple: [String.t()]}
   def placeholders(content) when is_binary(content) do
-    matches = Regex.scan(@placeholder, content, capture: :all_but_first)
+    # The placeholders as `Substitution` reads them: the odd elements of
+    # its split, braces and inner spaces as written.
+    {triple, double} =
+      content
+      |> Substitution.split()
+      |> Enum.drop(1)
+      |> Enum.take_every(2)
+      |> Enum.split_with(&String.starts_with?(&1, "{{{"))
 
-    %{
-      double: for([_triple, double] <- matches, double != "", do: double) |> Enum.uniq(),
-      triple: for([triple | _] <- matches, triple != "", do: triple) |> Enum.uniq()
-    }
+    %{double: names(double), triple: names(triple)}
+  end
+
+  defp names(placeholders) do
+    placeholders
+    |> Enum.map(&(&1 |> String.trim_leading("{") |> String.trim_trailing("}") |> String.trim()))
+    |> Enum.uniq()
   end
 
   @doc """

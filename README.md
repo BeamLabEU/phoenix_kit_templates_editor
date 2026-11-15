@@ -56,7 +56,8 @@ compilers: [:phoenix_kit_js_sources, :phoenix_live_view] ++ Mix.compilers()
 ```
 
 Without it the panel still works: a click puts the variable at the end of the
-body instead.
+body instead. The bundle is admin-scoped (core 3.6 and later): public pages do
+not download it; the admin page fetches it with PhoenixKit's admin bundle.
 
 ### Where templates are edited: the directory
 

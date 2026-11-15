@@ -27,13 +27,9 @@ defmodule PhoenixKitTemplatesEditor.Converters do
   alias PhoenixKit.Email.Branding
   alias PhoenixKit.Email.Markdown
   alias PhoenixKit.Templates.Overrides
+  alias PhoenixKit.Templates.Substitution
   alias PhoenixKitTemplatesEditor.Bounded
   alias PhoenixKitTemplatesEditor.HtmlText
-
-  # The placeholder grammar of `PhoenixKit.Templates.Substitution`. Each
-  # alternative starts with literal braces, so a run of spaces is scanned
-  # once per brace pair, never again from each space.
-  @placeholder ~r/\{\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}\}|\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/
 
   @type option :: {:timeout, timeout()} | {:block_placeholders, [String.t()]}
   @type result :: String.t() | {:error, :too_large | :timeout}
@@ -109,15 +105,22 @@ defmodule PhoenixKitTemplatesEditor.Converters do
     |> Regex.replace(html, "\\1")
   end
 
+  # The placeholders are found by `Substitution.split/1` — the grammar the
+  # renderer substitutes by, not a copy of it: its odd elements are the
+  # placeholders as written, and its patterns start with literal braces, so
+  # a run of spaces is scanned once per brace pair, never again from each
+  # space.
+
   # Each placeholder becomes a variable of its own whose value is the token
   # (`{{pk<nonce>v<n>}}`, three braces kept), so the renderer substitutes the
   # token where it would the value — a link's target included.
   defp protect_as_variables(source) do
-    tokens = tokens(source)
+    parts = Substitution.split(source)
+    tokens = tokens(source, parts)
 
     protected =
-      Regex.replace(@placeholder, source, fn whole, _raw, _name ->
-        %{variable: variable, raw?: raw?} = Map.fetch!(tokens.by_placeholder, normalize(whole))
+      replace_placeholders(parts, fn placeholder ->
+        %{variable: variable, raw?: raw?} = Map.fetch!(tokens.by_placeholder, placeholder)
         if raw?, do: "{{{#{variable}}}}", else: "{{#{variable}}}"
       end)
 
@@ -131,23 +134,31 @@ defmodule PhoenixKitTemplatesEditor.Converters do
 
   # HTML is not rendered, only read: each placeholder is its token in place.
   defp protect_in_place(source) do
-    tokens = tokens(source)
+    parts = Substitution.split(source)
+    tokens = tokens(source, parts)
 
-    protected =
-      Regex.replace(@placeholder, source, fn whole, _raw, _name ->
-        Map.fetch!(tokens.by_placeholder, normalize(whole)).token
-      end)
-
-    {protected, tokens}
+    {replace_placeholders(parts, &Map.fetch!(tokens.by_placeholder, &1).token), tokens}
   end
 
-  defp tokens(source) do
+  # The text of `parts` kept, each placeholder (normalized) given to `fun`.
+  defp replace_placeholders(parts, fun) do
+    parts
+    |> Enum.with_index()
+    |> Enum.map(fn
+      {text, index} when rem(index, 2) == 0 -> text
+      {placeholder, _index} -> fun.(normalize(placeholder))
+    end)
+    |> IO.iodata_to_binary()
+  end
+
+  defp tokens(source, parts) do
     nonce = nonce(source)
 
     by_placeholder =
-      @placeholder
-      |> Regex.scan(source, capture: :first)
-      |> Enum.map(fn [whole] -> normalize(whole) end)
+      parts
+      |> Enum.drop(1)
+      |> Enum.take_every(2)
+      |> Enum.map(&normalize/1)
       |> Enum.uniq()
       |> Enum.with_index()
       |> Map.new(fn {placeholder, index} ->
@@ -170,11 +181,11 @@ defmodule PhoenixKitTemplatesEditor.Converters do
   defp restore(converted, tokens),
     do: Regex.replace(tokens.pattern, converted, &Map.get(tokens.by_token, &1, &1))
 
+  # `{{ x }}` as `{{x}}`, `{{{ x }}}` as `{{{x}}}`. A placeholder of two
+  # braces never starts with three: a name follows its braces.
   defp normalize(placeholder) do
-    case Regex.run(@placeholder, placeholder) do
-      [_whole, raw] -> "{{{#{raw}}}}"
-      [_whole, "", name] -> "{{#{name}}}"
-    end
+    name = placeholder |> String.trim_leading("{") |> String.trim_trailing("}") |> String.trim()
+    if String.starts_with?(placeholder, "{{{"), do: "{{{#{name}}}}", else: "{{#{name}}}"
   end
 
   defp nonce(source) do

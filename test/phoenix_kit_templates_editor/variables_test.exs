@@ -52,6 +52,13 @@ defmodule PhoenixKitTemplatesEditor.VariablesTest do
       assert Variables.placeholders("body { margin: 0 } {{1x}} {x}") ==
                %{double: [], triple: []}
     end
+
+    # As the renderer reads them (`Substitution.split/1`): an unmatched
+    # third brace is text beside a placeholder of two.
+    test "an unmatched third brace leaves a placeholder of two" do
+      assert Variables.placeholders("{{{a}} {{b}}} {{{ c }}}") ==
+               %{double: ["a", "b"], triple: ["c"]}
+    end
   end
 
   describe "check/3 on an email" do

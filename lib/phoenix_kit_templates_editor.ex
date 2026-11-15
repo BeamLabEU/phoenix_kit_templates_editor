@@ -109,7 +109,14 @@ defmodule PhoenixKitTemplatesEditor do
       %{
         app: :phoenix_kit_templates_editor,
         file: "static/assets/phoenix_kit_templates_editor.js",
-        global: "PhoenixKitTemplatesEditorHooks"
+        global: "PhoenixKitTemplatesEditorHooks",
+        # Only the admin email settings page mounts it: core 3.6 keeps it out
+        # of every public page's bundle and fetches it with the admin one (an
+        # older core ignores both keys). Safe behind core's stub: the hook
+        # takes no pushed event, and without it the button still works
+        # through the server.
+        scope: :admin,
+        hooks: ["PhoenixKitTemplatesEditorInsertVariable"]
       }
     ]
   end

@@ -99,10 +99,11 @@ defmodule PhoenixKitTemplatesEditor.MixProject do
       {:rustler, ">= 0.0.0", optional: true},
 
       # The template files API (Overrides.write/delete/list/copy_template,
-      # first in 0.2.3; 0.2.4 changed only the library's own editor, which
-      # this module does not use). Core depends on it too; declared here
-      # because this module calls it directly.
-      pk_dep(:phoenix_kit_templates, "~> 0.2.3"),
+      # first in 0.2.3) and Substitution.split/1 (0.2.5), which the
+      # converters and the variables check read placeholders with. Core
+      # depends on it too; declared here because this module calls it
+      # directly.
+      pk_dep(:phoenix_kit_templates, "~> 0.2.5"),
 
       # LiveView is needed for the settings section.
       {:phoenix_live_view, "~> 1.1"},

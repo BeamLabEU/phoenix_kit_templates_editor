@@ -97,6 +97,22 @@ defmodule PhoenixKitTemplatesEditorTest do
       assert bundle =~ "window.#{global}"
       assert bundle =~ "PhoenixKitTemplatesEditorInsertVariable"
     end
+
+    # Core 3.6 keeps an admin-scoped bundle off public pages and stubs each
+    # listed hook; a hook the bundle exports but the entry does not list
+    # could never mount.
+    test "admin-scoped, listing every hook the bundle exports" do
+      assert [%{file: file, scope: :admin, hooks: hooks}] = PhoenixKitTemplatesEditor.js_sources()
+      bundle = File.read!(Path.join(:code.priv_dir(:phoenix_kit_templates_editor), file))
+
+      exported =
+        ~r/window\.PhoenixKitTemplatesEditorHooks\.([A-Za-z0-9_]+)\s*=/
+        |> Regex.scan(bundle, capture: :all_but_first)
+        |> List.flatten()
+        |> Enum.uniq()
+
+      assert Enum.sort(hooks) == Enum.sort(exported)
+    end
   end
 
   describe "optional callbacks" do
