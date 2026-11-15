@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.1 - 2026-11-15
+
+### Fixed
+
+- **Core 3.6's passkey notices are sign-in emails** (`Names.auth_emails/0`):
+  `passkey_added` and `passkey_removed` warn an account's owner of a change
+  to how it signs in, and `overridable: :all` no longer lets a host replace
+  them. On 0.2.0 with core 3.6 they were overridable.
+
+### Changed
+
+- **Core floor raised to 3.5.0** (`>= 3.5.0 and < 4.0.0`), the ecosystem-wide
+  minimum; the fallbacks for older cores are gone.
+- **`phoenix_kit_templates` `~> 0.2.5`**: the converters and the save check read
+  placeholders with `Substitution.split/1`, the grammar the renderer
+  substitutes by, instead of a copy of its regex.
+- **The JS bundle is admin-scoped** (`scope: :admin`, its hook listed): on core
+  3.6 public pages no longer download it. An older core ignores both keys.
+
 ## 0.2.0 - 2026-10-27
 
 ### Changed
