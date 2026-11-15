@@ -24,7 +24,8 @@ defmodule PhoenixKitTemplatesEditor.NamesOverrideTest do
     test "core's emails about getting into an account, by the names core sends them under" do
       assert Names.auth_emails() ==
                ~w(register reset_password update_email magic_link magic_link_registration
-                  organization_invitation new_login_alert failed_login_alert)
+                  organization_invitation organization_manager_invitation
+                  organization_link_invitation new_login_alert failed_login_alert)
 
       core = for %{name: name} <- CoreTemplates.entries(), do: name
       assert Names.auth_emails() -- core == []

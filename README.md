@@ -23,7 +23,7 @@ in `:phoenix_kit, :modules` is needed. Switch it on at **Admin › Modules**
 (*Templates editor*); it is off by default, and a switched-off module shows no
 tab.
 
-Requires `phoenix_kit` 2.57.0 or later.
+Requires `phoenix_kit` 3.5.0 or later (below 4.0).
 
 ### Let the tab know who is acting
 

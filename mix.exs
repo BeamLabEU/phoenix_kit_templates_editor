@@ -86,11 +86,11 @@ defmodule PhoenixKitTemplatesEditor.MixProject do
   defp deps do
     [
       # PhoenixKit provides the Module behaviour, Settings and the email
-      # settings page this module adds a tab to. 2.57.0 is the floor: the
-      # section's `:link` (the button beside "Preview emails") first ships
-      # there. Compound form so the ceiling stays open through every later
-      # 2.x minor (see test/core_pin_conformance_test.exs).
-      pk_dep(:phoenix_kit, ">= 2.57.0 and < 4.0.0"),
+      # settings page this module adds a tab to.
+      # Floor 3.5.0, ceiling open through every core 3.x. Compound form, never
+      # a three-segment `~>`, which would pin a single core minor (see
+      # test/core_pin_conformance_test.exs).
+      pk_dep(:phoenix_kit, ">= 3.5.0 and < 4.0.0"),
 
       # mdex_native (pulled in transitively through phoenix_kit's mdex dep)
       # builds from source when MDEX_NATIVE_BUILD=1 is set in the

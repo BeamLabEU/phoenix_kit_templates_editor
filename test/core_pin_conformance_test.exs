@@ -5,19 +5,21 @@ defmodule PhoenixKitTemplatesEditor.CorePinConformanceTest do
   Guards the `:phoenix_kit` requirement against being re-narrowed to a single
   core MINOR, and against a local path override reaching a commit.
 
-  The trap is the three-segment form: `~> 2.57.0` expands to
-  `>= 2.57.0 and < 2.58.0`, so no later core minor satisfies it. The breakage
+  The trap is the three-segment form: `~> 3.5.0` expands to
+  `>= 3.5.0 and < 3.6.0`, so no later core minor satisfies it. The breakage
   lands on CONSUMERS, never here — a host depending on both this module and a
   newer core minor gets an unsolvable dependency set and `mix deps.get` fails
   outright.
 
-  2.57.0 is the floor: the email settings section's `:link` first ships there.
+  The requirement is `>= 3.5.0 and < 4.0.0`. The floor is core 3.5.0, the
+  minimum every PhoenixKit module requires, and it carries everything this
+  module compiles against. The ceiling is open through every core 3.x.
   """
 
-  @must_admit ["2.57.0", "2.57.1", "2.58.0", "2.99.4", "3.0.0", "3.9.9"]
-  @must_reject ["2.56.9", "2.0.0", "1.7.236", "4.0.0"]
+  @must_admit ["3.5.0", "3.5.1", "3.6.0", "3.9.9"]
+  @must_reject ["1.7.236", "2.0.0", "2.65.0", "2.99.4", "3.0.0", "3.4.0", "3.4.9", "4.0.0"]
 
-  test "the :phoenix_kit requirement admits every core 2.x from 2.57.0 and nothing else" do
+  test "the :phoenix_kit requirement admits every core >= 3.5.0 minor and nothing else" do
     requirement = core_requirement()
 
     assert match?({:ok, _parsed}, Version.parse_requirement(requirement)),
@@ -27,7 +29,8 @@ defmodule PhoenixKitTemplatesEditor.CorePinConformanceTest do
       assert Version.match?(version, requirement),
              "`:phoenix_kit` requirement #{inspect(requirement)} rejects core #{version}. " <>
                "A pin that excludes a core minor breaks `mix deps.get` for every host " <>
-               "running this module alongside that core. Keep `>= 2.57.0 and < 3.0.0`."
+               "running this module alongside that core. Keep the floor patch-precise " <>
+               "and the ceiling open (`>= 3.5.0 and < 4.0.0`), never a three-segment `~>`."
     end
 
     for version <- @must_reject do

@@ -55,12 +55,14 @@ defmodule PhoenixKitTemplatesEditor.Names do
   # carries a link that signs a user in, registers or confirms an address
   # (`confirmation_url`, `reset_url`, `update_url`, `magic_link_url`,
   # `registration_url`), or warns the owner about a sign-in
-  # (`security_url`). A file that breaks one locks people out, or hides an
+  # (`security_url`), or invites a person to act for an organization
+  # (`invitation_url`). A file that breaks one locks people out, or hides an
   # intrusion from them. The test checks every email of
   # `PhoenixKit.Email.CoreTemplates` is either here or named as not about
   # access, so a new one is decided on, not let through.
   @auth_emails ~w(register reset_password update_email magic_link magic_link_registration
-                  organization_invitation new_login_alert failed_login_alert)
+                  organization_invitation organization_manager_invitation
+                  organization_link_invitation new_login_alert failed_login_alert)
 
   @chrome ~r/\A_(header|footer|layout)(?:-([a-z0-9-]+))?\z/
 
