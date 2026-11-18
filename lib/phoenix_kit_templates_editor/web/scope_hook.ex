@@ -1,30 +1,24 @@
 defmodule PhoenixKitTemplatesEditor.Web.ScopeHook do
   @moduledoc """
-  Tells the section who is acting.
+  Keeps the page's current scope where a component of the page, which core
+  mounts with no assigns, can read it (`current_scope/0`).
 
-  Core mounts the section as `<.live_component module={…} id={…} />` with
-  no other assigns, so the component cannot see the page's
-  `:phoenix_kit_current_scope` — yet every change must be checked against
-  the user's permissions at the moment it is made. This `on_mount` hook,
-  added to PhoenixKit's live sessions by the host, keeps the page's current
-  scope where the section (running in the page's process) can read it
-  (`current_scope/0`): after `handle_params` and after every render, so a
-  scope core refreshes (a role taken away) counts from the next event on.
+  **The Email templates page no longer needs it.** It is a LiveView of its
+  own (`PhoenixKitTemplatesEditor.Web.SettingsLive`) and hands its scope to
+  the editor as an assign. The module stays because a host's config names it:
 
-      # config/config.exs of the host
+      # config/config.exs of a host that still lists it
       config :phoenix_kit,
         extra_live_session_on_mount: [PhoenixKitTemplatesEditor.Web.ScopeHook]
 
-  Without it the section has no scope and shows the templates read-only.
-  The hook reads nothing but the scope core put on the socket and changes
-  nothing on it.
+  It does nothing the editor depends on, and the line can be dropped from the
+  host's config.
 
-  Only a connected LiveView's process keeps the scope. A page's first,
-  disconnected render runs in the HTTP connection's process, which serves
-  the connection's next requests too (keep-alive, a proxy's pooled
-  connection) and runs no hook after the render: there the hook removes
-  whatever an earlier request left and keeps nothing, and the section shows
-  the files read only until the page connects, a moment later.
+  The hook reads nothing but the scope core put on the socket and changes
+  nothing on it. Only a connected LiveView's process keeps the scope: a
+  page's first, disconnected render runs in the HTTP connection's process,
+  which serves the connection's next requests too, so there the hook removes
+  whatever an earlier request left and keeps nothing.
   """
 
   import Phoenix.LiveView, only: [attach_hook: 4, connected?: 1]

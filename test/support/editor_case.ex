@@ -96,7 +96,9 @@ defmodule PhoenixKitTemplatesEditor.EditorCase do
   end
 
   def tab(view, locale) do
-    view |> element("#editor [phx-click=locale][phx-value-locale='#{locale}']") |> render_click()
+    view
+    |> element("#editor [phx-click=locale][phx-value-language='#{locale}']")
+    |> render_click()
   end
 
   def save(view, parts) do
@@ -117,11 +119,15 @@ defmodule PhoenixKitTemplatesEditor.EditorCase do
 
   @doc "What a field holds in the page, unescaped."
   def field(view, part) do
-    view
-    |> element("#editor-parts textarea[name='parts[#{part}]']")
-    |> render()
-    |> LazyHTML.from_fragment()
-    |> LazyHTML.text()
-    |> String.replace_prefix("\n", "")
+    node =
+      view
+      |> element("#editor-parts [name='parts[#{part}]']")
+      |> render()
+      |> LazyHTML.from_fragment()
+
+    case LazyHTML.attribute(node, "value") do
+      [value] -> value
+      _textarea -> node |> LazyHTML.text() |> String.replace_prefix("\n", "")
+    end
   end
 end

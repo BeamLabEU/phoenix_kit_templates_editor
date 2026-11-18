@@ -16,7 +16,7 @@ defmodule PhoenixKitTemplatesEditor.MixProject do
 
       # Hex
       description:
-        "Email templates editor for PhoenixKit — a tab on the email settings page " <>
+        "Email templates editor for PhoenixKit — a page in Settings " <>
           "for the host's phoenix_kit_templates files",
       package: package(),
 
@@ -85,8 +85,8 @@ defmodule PhoenixKitTemplatesEditor.MixProject do
 
   defp deps do
     [
-      # PhoenixKit provides the Module behaviour, Settings and the email
-      # settings page this module adds a tab to.
+      # PhoenixKit provides the Module behaviour, Settings and the Settings
+      # menu this module adds a page to.
       # Floor 3.5.0, ceiling open through every core 3.x. Compound form, never
       # a three-segment `~>`, which would pin a single core minor (see
       # test/core_pin_conformance_test.exs).

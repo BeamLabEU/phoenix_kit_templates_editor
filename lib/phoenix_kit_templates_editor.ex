@@ -1,31 +1,33 @@
 defmodule PhoenixKitTemplatesEditor do
   @moduledoc """
   A PhoenixKit module that edits the host's email template files — the
-  `phoenix_kit_templates` overrides core renders its emails from — in a tab
-  of Settings › Emails Transactional (`/admin/settings/email-sending`).
+  `phoenix_kit_templates` overrides core renders its emails from — on a page
+  of its own under Settings, "Email templates"
+  (`/admin/settings/email-templates`, `PhoenixKitTemplatesEditor.Web.SettingsLive`).
 
   The host keeps its templates (files under one root) and a
   `config :phoenix_kit_templates_editor` block (`PhoenixKitTemplatesEditor.Config`);
-  the tool itself lives here, so another project gets the same tab by adding
+  the tool itself lives here, so another project gets the same page by adding
   the dependency and the config.
 
   ## Access
 
-  The tab is a section of core's email settings page, which core gates by the
-  `settings` key. The section adds this module's own key, `templates_editor`,
-  so it can only narrow that: a user sees the tab with `settings` **and**
-  `templates_editor` while the module is enabled (`accessible?/1`). Writing
+  The page is a Settings item (`settings_tabs/0`) that core routes under the
+  `templates_editor` key. That key is not the whole rule, so the page checks
+  `accessible?/1` itself when it mounts and on every render: the module is
+  enabled and the user holds `settings` **and** `templates_editor`. Writing
   needs the sub-permission `templates_editor.write` as well
   (`authorize/2`). Owner holds every key; Admin is granted the module's keys
   by core when the module is first discovered.
 
   The module is off until switched on at Admin › Modules (`enabled?/0`); a
-  disabled module contributes no section, so the tab disappears with it.
+  disabled module contributes no menu item, and the page refuses a visitor.
   """
 
   use PhoenixKit.Module
   use Gettext, backend: PhoenixKitTemplatesEditor.Gettext
 
+  alias PhoenixKit.Dashboard.Tab
   alias PhoenixKit.Settings
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
@@ -39,7 +41,7 @@ defmodule PhoenixKitTemplatesEditor do
   @module_key "templates_editor"
   @enabled_key "templates_editor_enabled"
   @write_key "templates_editor.write"
-  @section_id :templates_editor
+  @page_path "email-templates"
 
   @impl PhoenixKit.Module
   def module_key, do: @module_key
@@ -81,7 +83,7 @@ defmodule PhoenixKitTemplatesEditor do
       # Raw msgids: core translates them through `gettext_backend` at render.
       label: gettext_noop("Templates editor"),
       icon: "hero-document-text",
-      description: "Email template files: view them on the email settings page",
+      description: "Email template files: view them on the Email templates page of Settings",
       gettext_backend: PhoenixKitTemplatesEditor.Gettext,
       sub_permissions: [
         %{
@@ -110,7 +112,7 @@ defmodule PhoenixKitTemplatesEditor do
         app: :phoenix_kit_templates_editor,
         file: "static/assets/phoenix_kit_templates_editor.js",
         global: "PhoenixKitTemplatesEditorHooks",
-        # Only the admin email settings page mounts it: core 3.6 keeps it out
+        # Only the admin templates page mounts it: core 3.6 keeps it out
         # of every public page's bundle and fetches it with the admin one (an
         # older core ignores both keys). Safe behind core's stub: the hook
         # takes no pushed event, and without it the button still works
@@ -131,19 +133,40 @@ defmodule PhoenixKitTemplatesEditor do
   def children, do: [PhoenixKitTemplatesEditor.Watcher, PhoenixKitTemplatesEditor.Throttle]
 
   @impl PhoenixKit.Module
-  def email_settings_sections do
-    title = gettext("Email templates")
-
+  @doc """
+  The "Email templates" item of Settings, opening
+  `PhoenixKitTemplatesEditor.Web.SettingsLive` at `/admin/settings/email-templates`.
+  Core hides the item while the module is switched off, and routes the page
+  for users holding `templates_editor`; the item is shown only where
+  `accessible?/1` holds (`settings` as well), and the page asks it again.
+  """
+  def settings_tabs do
     [
-      %{
-        id: @section_id,
-        title: title,
+      Tab.new!(
+        id: :admin_settings_templates_editor,
+        label: gettext_noop("Email templates"),
+        icon: "hero-document-text",
+        path: @page_path,
+        priority: 918,
+        level: :admin,
+        parent: :admin_settings,
         permission: @module_key,
-        component: PhoenixKitTemplatesEditor.Web.Section,
-        link: %{label: title}
-      }
+        visible: &__MODULE__.accessible?/1,
+        match: :exact,
+        live_view: {PhoenixKitTemplatesEditor.Web.SettingsLive, :index},
+        gettext_backend: PhoenixKitTemplatesEditor.Gettext
+      )
     ]
   end
+
+  @impl PhoenixKit.Module
+  @doc """
+  Nothing: the editor is a page of its own (`settings_tabs/0`). Core turns
+  every section of the email settings page into a tab of it, and has no
+  link-only entry that opens another page, so the module keeps no section
+  there.
+  """
+  def email_settings_sections, do: []
 
   @impl PhoenixKit.Module
   @doc """
@@ -162,7 +185,7 @@ defmodule PhoenixKitTemplatesEditor do
   end
 
   @doc """
-  The address of the tab, through `PhoenixKit.Utils.Routes.path/2` (URL
+  The address of the page, through `PhoenixKit.Utils.Routes.path/2` (URL
   prefix, admin segment and locale applied) — for a host's own "Edit
   templates" links. `opts` go to `Routes.path/2`, e.g. `locale: "ru"`.
 
@@ -170,14 +193,11 @@ defmodule PhoenixKitTemplatesEditor do
   """
   @spec tab_path(keyword()) :: String.t()
   def tab_path(opts \\ []) do
-    Routes.path(
-      "/admin/settings/email-sending?tab=" <> URI.encode_www_form("module_#{@section_id}"),
-      opts
-    )
+    Routes.path("/admin/settings/" <> @page_path, opts)
   end
 
   @doc """
-  Whether `scope` may see the tab: the module is enabled and the user holds
+  Whether `scope` may open the page: the module is enabled and the user holds
   both `settings` (the page's own key) and `templates_editor`.
   """
   @spec accessible?(Scope.t() | nil) :: boolean()

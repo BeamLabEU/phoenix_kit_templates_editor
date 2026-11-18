@@ -41,8 +41,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorI18nTest do
     assert html =~ "Письма"
     assert html =~ "Оформления"
     assert html =~ "унаследован: стандартный из ядра"
-    assert html =~ "Название в списках. В письме не отправляется."
-    assert has_element?(view, "#editor [role=tab][phx-value-locale='']", "Общий")
+    assert has_element?(view, "#editor [phx-click=locale][phx-value-language='']", "По умолчанию")
     assert has_element?(view, "#editor-parts button[value=save]", "Сохранить")
 
     assert save(view, %{subject: "Новая тема"}) =~ "Сохранено."
@@ -55,7 +54,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorI18nTest do
     html = select(view, "order_offer")
 
     assert html =~ "Kirjad"
-    assert has_element?(view, "#editor [role=tab][phx-value-locale='']", "Üldine")
+    assert has_element?(view, "#editor [phx-click=locale][phx-value-language='']", "Vaikimisi")
     assert has_element?(view, "#editor-parts button[value=save]", "Salvesta")
 
     assert save(view, %{subject: "Uus"}) =~

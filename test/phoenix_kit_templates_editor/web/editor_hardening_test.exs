@@ -194,7 +194,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorHardeningTest do
       select(view, "order_offer")
 
       assert save(view, %{subject: "Offer"}) =~ "Saved."
-      assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "Offer"
+      assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "Offer\n"
       assert PhoenixKitTemplatesEditor.Files.usage(root).bytes < bytes
     end
 

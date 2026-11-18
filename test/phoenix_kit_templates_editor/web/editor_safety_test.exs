@@ -158,7 +158,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorSafetyTest do
     select(view, "order_offer")
     html = save(view, %{subject: "Uus"})
 
-    assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "Uus"
+    assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "Uus\n"
     assert html =~ "alert-warning"
     assert html =~ "Saved."
     assert html =~ "order_offer/subject.et.txt: mode not set"

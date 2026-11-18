@@ -57,12 +57,12 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       the emails core and every other module send
       (`PhoenixKitTemplatesEditor.Names.reserved_names/0`), asked on each
       update.
-    * `:locales` — the language tabs, in order; anything but a list of
-      non-empty strings is cleaned the way `:name_prefixes` is. A last tab, *Fallback*, edits
+    * `:locales` — the languages of the switcher, in order; anything but a list of
+      non-empty strings is cleaned the way `:name_prefixes` is. A last entry, *Default*, edits
       the locale-less files (`text.txt`), used for any language without its
       own file.
     * `:preview` — `{module, function}` or a 2-arity function called as
-      `preview(name, locale)` (`locale` is `nil` on the fallback tab, and
+      `preview(name, locale)` (`locale` is `nil` for the Default entry, and
       `name` may be a layout part such as `_header-x`). It returns
       `{subject, html}` or `{subject, html, text}` — each a string or `nil`
       — or `{:error, reason}`. With a text version the preview has two
@@ -172,17 +172,21 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       an exception, throw or exit is logged. Default `nil`: complete is a
       subject and a body part (HTML, Markdown or text) in `base_locale`
       itself — the locale-less fallback does not count — none of them blank.
+    * `:show_reload` — `false` where the host puts the Reload action elsewhere
+      (it sends the editor `reload` itself). Default `true`.
     * `:email_fallback` — `false` for a host that sends an email only in
       its own languages, never from its locale-less files: an email has no
-      Fallback tab then. Locale-less parts an email still has are shown on
-      a Fallback tab marked "not used", read-only, with a button to delete
+      Default entry then. Locale-less parts an email still has are shown on
+      a Default entry, read-only with a note that they are not used, and a button to delete
       them (after a confirmation; `layout.txt` and a host's own files stay).
-      Headers, footers and layouts (a leading `_`) keep their Fallback tab,
+      Headers, footers and layouts (a leading `_`) keep their Default entry,
       which is used. Default `true`.
 
   ## What it does
 
-    * Lists the visible templates, captioned with their `label` part: the
+    * Lists the visible templates, captioned with their `label` part (in the
+      page's language when it has one, else the first of `:locales` that
+      has one, else the key; the open template's heading is the same): the
       emails, then the layouts (`PhoenixKitTemplatesEditor.Layouts`) — the
       default first, each with its header, footer and page layout, its own
       (opened in the editor) or inherited (the shared part, or core's), and
@@ -195,17 +199,17 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       the layouts; it writes `layout.txt` or deletes it for the default
       (`:save` for `authorize`), and the preview is drawn again at once.
     * Edits the `label`, `subject`, `text`, `markdown` and `html` parts per
-      language tab. Saving writes the parts that changed; a part saved empty
+      language. Saving writes the parts that changed; a part saved empty
       has its file deleted, so the message falls back to the next file in
       line — and a template left with no files loses its directory, staying
       open as an unsaved one. Line breaks are stored as `\\n`. A save that
       is partly refused (one part too large, say) names the parts it saved
       and the ones it did not, and what was typed into those stays in the
-      form to be fixed and saved again. Each tab is saved on its own:
-      switching to another tab or template, or a reconnect, drops unsaved
+      form to be fixed and saved again. Each language is saved on its own:
+      switching to another language or template, or a reconnect, drops unsaved
       changes.
     * A part is written only when the user changed it from what the form
-      was given (on opening the template or tab, or after a save): a part
+      was given (on opening the template or language, or after a save): a part
       left alone is never written back over another session's change made
       meanwhile. An edited part whose file is no longer what the form was
       given (a sha256 taken then: changed, created or deleted on disk since)
@@ -261,6 +265,21 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   use Phoenix.LiveComponent
   use Gettext, backend: PhoenixKitTemplatesEditor.Gettext
 
+  # PhoenixKit's components, by name: the editor's own private functions
+  # (`select/2`, `tabs/2`, `preview/…`) must not meet a blanket import.
+  import PhoenixKitWeb.Components.Core.Accordion, only: [accordion: 1]
+  import PhoenixKitWeb.Components.Core.Badge, only: [status_badge: 1]
+  import PhoenixKitWeb.Components.Core.Button, only: [button: 1]
+  import PhoenixKitWeb.Components.Core.Checkbox, only: [checkbox: 1]
+  import PhoenixKitWeb.Components.Core.EmptyState, only: [empty_state: 1]
+  import PhoenixKitWeb.Components.Core.FormSection, only: [form_section: 1]
+  import PhoenixKitWeb.Components.Core.Icon, only: [icon: 1]
+  import PhoenixKitWeb.Components.Core.Input, only: [input: 1]
+  import PhoenixKitWeb.Components.Core.Modal, only: [modal: 1]
+  import PhoenixKitWeb.Components.Core.NavTabs, only: [nav_tabs: 1]
+  import PhoenixKitWeb.Components.Core.Select, only: [select: 1]
+  import PhoenixKitWeb.Components.Core.Textarea, only: [textarea: 1]
+
   require Logger
 
   alias PhoenixKit.Email.Layout
@@ -269,16 +288,21 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   alias PhoenixKit.Utils.RecipientLocale
   alias PhoenixKitTemplatesEditor.Bounded
   alias PhoenixKitTemplatesEditor.Files
+  alias PhoenixKitTemplatesEditor.Languages
   alias PhoenixKitTemplatesEditor.Layouts
   alias PhoenixKitTemplatesEditor.Names
   alias PhoenixKitTemplatesEditor.Overriding
   alias PhoenixKitTemplatesEditor.Preview
   alias PhoenixKitTemplatesEditor.Sources
   alias PhoenixKitTemplatesEditor.Variables
+  alias PhoenixKitWeb.Components.LanguageSwitcher
 
   @parts [:label, :subject, :text, :markdown, :html]
 
-  @part_rows %{label: 1, subject: 2, text: 10, markdown: 6, html: 10}
+  @part_rows %{text: 10, markdown: 6, html: 10}
+
+  # Fields that are one line: a caption and a message header.
+  @single_line_parts [:label, :subject]
 
   @part_extensions %{label: "txt", subject: "txt", text: "txt", markdown: "md", html: "html"}
 
@@ -318,12 +342,16 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
        create_from: nil,
        create_extras: [],
        selected: nil,
+       # What a phone shows: the list (`:list`) or the open template
+       # (`:detail`). From `lg` up both are always shown.
+       pane: :list,
+       show_reload: true,
        draft?: false,
        locale: nil,
        contents: %{},
        baseline: %{},
        # The form's unsaved values, drawn instead of the files' until the
-       # template, tab or files change (`load_contents/1`), and a counter
+       # template, language or files change (`load_contents/1`), and a counter
        # bumped by every conversion: it is rendered on every field, so a
        # conversion's reply redraws them all — the browser then replaces
        # what was retyped in a field it does not have focused.
@@ -387,10 +415,10 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   end
 
   @impl true
-  # The open template or tab clicked again keeps the form (unsaved values
+  # The open template or language clicked again keeps the form (unsaved values
   # included) and only clears what is transient: a notice, a pending delete.
   def handle_event("select", %{"name" => name}, %{assigns: %{selected: name}} = socket),
-    do: {:noreply, clear_transient(socket)}
+    do: {:noreply, socket |> assign(pane: :detail) |> clear_transient()}
 
   def handle_event("select", %{"name" => name}, socket) do
     if visible?(socket, name) do
@@ -400,7 +428,13 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     end
   end
 
-  def handle_event("locale", %{"locale" => locale}, socket) do
+  # The phone's way back to the list: the open template, and what is typed
+  # in it, stay.
+  def handle_event("back", _params, socket), do: {:noreply, assign(socket, pane: :list)}
+
+  # From the language switcher (`phx-value-language`); the files without a
+  # language are its entry with the empty code.
+  def handle_event("locale", %{"language" => locale}, socket) do
     locale = if locale == "", do: nil, else: locale
 
     cond do
@@ -489,7 +523,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     end
   end
 
-  def handle_event("module_locale", %{"locale" => locale}, socket) do
+  def handle_event("module_locale", %{"language" => locale}, socket) do
     if socket.assigns.module_selected && locale in socket.assigns.locales,
       do: {:noreply, socket |> assign(module_locale: locale) |> load_module_view()},
       else: {:noreply, socket}
@@ -659,7 +693,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   defp select(socket, name) do
     socket
-    |> assign(selected: name, module_selected: nil, module_view: nil)
+    |> assign(selected: name, module_selected: nil, module_view: nil, pane: :detail)
     |> no_confirmations()
     |> assign(locale: initial_locale(socket, name))
     |> load_contents()
@@ -668,7 +702,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   end
 
   # A template opens on its HTML preview, or on its text version when it
-  # has no HTML; switching language tabs keeps the preview tab.
+  # has no HTML; switching language keeps the preview tab.
   defp open_preview(socket) do
     tab =
       case socket.assigns.preview_result do
@@ -690,10 +724,12 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       Enum.flat_map(@parts, fn part ->
         with value when is_binary(value) <- params[Atom.to_string(part)],
              value = normalize_newlines(value),
+             given = Map.get(baseline, part, ""),
              # Left as the form was given it: another session's change to
              # this part since then must not be written back over.
-             false <- value == Map.get(baseline, part, ""),
-             {:ok, change} <- change(Map.get(contents, part), value) do
+             false <- unchanged?(part, value, given),
+             value = with_final_newline(part, value, given),
+             {:ok, change} <- change(part, Map.get(contents, part), value) do
           [{part, change}]
         else
           _unchanged -> []
@@ -727,6 +763,28 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         write_changes(socket, changes, params, findings.unknown)
     end
   end
+
+  # A one-line field (`label`, `subject`) is an `<input>`: the browser drops
+  # a line break from what it is given, so the file's own trailing newline
+  # comes back without it — that is no change.
+  defp unchanged?(part, value, baseline) when part in @single_line_parts,
+    do: value == baseline or value == single_line(baseline)
+
+  defp unchanged?(_part, value, baseline), do: value == baseline
+
+  # An `<input>` never sends the line break a file ended with; an edited
+  # one-line file gets it back, so the edit is the only difference.
+  defp with_final_newline(part, value, given)
+       when part in @single_line_parts and value != "" do
+    if String.ends_with?(given, "\n") and not String.ends_with?(value, "\n"),
+      do: value <> "\n",
+      else: value
+  end
+
+  defp with_final_newline(_part, value, _given), do: value
+
+  defp single_line(value),
+    do: value |> String.trim_trailing("\n") |> String.replace(~r/\r?\n/, " ")
 
   defp write_changes(socket, changes, params, unknown) do
     %{root: root, selected: name, locale: locale, preview_result: previous_preview} =
@@ -1144,13 +1202,15 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
      )}
   end
 
-  defp change(%{invalid: true}, _value), do: :none
-  defp change(nil, ""), do: :none
-  defp change(_file, ""), do: {:ok, :delete}
-  defp change(nil, value), do: {:ok, {:write, value}}
+  defp change(_part, %{invalid: true}, _value), do: :none
+  defp change(_part, nil, ""), do: :none
+  defp change(_part, _file, ""), do: {:ok, :delete}
+  defp change(_part, nil, value), do: {:ok, {:write, value}}
 
-  defp change(%{content: content}, value) do
-    if normalize_newlines(content) == value, do: :none, else: {:ok, {:write, value}}
+  defp change(part, %{content: content}, value) do
+    if unchanged?(part, value, normalize_newlines(content)),
+      do: :none,
+      else: {:ok, {:write, value}}
   end
 
   defp apply_change(:delete, root, name, part, locale) do
@@ -1442,6 +1502,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     socket
     |> deselect()
     |> assign(
+      pane: :detail,
       module_selected: name,
       module_locale: socket.assigns.base_language || hd_or_nil(socket.assigns.locales)
     )
@@ -1452,7 +1513,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   defp hd_or_nil(_none), do: nil
 
   # What the read-only view of a module's email shows: its built-in text
-  # in the tab's language, where each part comes from, and what may be done.
+  # in the open language, where each part comes from, and what may be done.
   defp load_module_view(%{assigns: %{module_selected: nil}} = socket),
     do: assign(socket, module_view: nil)
 
@@ -1592,7 +1653,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     do: notice(socket, :error, gettext("Not sent: %{reason}", reason: describe_host(other)))
 
   # The email to send: the open one (an email on disk, not a layout part),
-  # or the module email shown; in the tab's language, else the base one.
+  # or the module email shown; in the open language, else the base one.
   defp test_send_target(%{module_selected: name, module_locale: locale})
        when is_binary(name),
        do: {name, locale}
@@ -1985,7 +2046,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   end
 
   # A parent re-render calls the host's preview again only when something it
-  # depends on changed: the callback or variables, the tab, or the files —
+  # depends on changed: the callback or variables, the language, or the files —
   # another session may have saved them.
   defp refresh_preview(%{assigns: %{selected: nil}} = socket, _previous_files), do: socket
 
@@ -2050,7 +2111,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   end
 
   # What the form is drawn from. `baseline` is what the form was last given
-  # for this template and tab (on select, a tab switch or a save); a parent
+  # for this template and language (on select, a language switch or a save); a parent
   # re-render refreshes `contents` from disk but keeps it, so `save/2` can
   # tell a part the user left alone from one they edited. `form_values`,
   # the fields as a conversion left them, go too: the form is drawn from the
@@ -2072,7 +2133,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   # Where each part of the open email comes from — only for one core
   # sends, in a language (core resolves a recipient's language, never the
-  # fallback tab itself).
+  # Default entry itself).
   defp assign_sources(%{assigns: %{var_context: %{kind: :email, sent_by: :core}}} = socket) do
     %{root: root, selected: name, locale: locale, draft?: draft?} = socket.assigns
 
@@ -2104,7 +2165,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   end
 
   # An email core or a module sends has its catalogue entry's samples,
-  # evaluated in the tab's language as core's preview does; the host's own,
+  # evaluated in the open language as core's preview does; the host's own,
   # the host's sample variables.
   defp email_variables(assigns, name, locale) do
     case module_email(assigns, name) do
@@ -2572,12 +2633,12 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   defp writable?(socket, name), do: editable?(socket.assigns) and visible?(socket, name)
 
-  # The form of the open tab may be saved or converted into — not on an
-  # email's fallback tab nothing reads, which is shown read-only.
+  # The form of the open language may be saved or converted into — not on an
+  # email's Default entry nothing reads, which is shown read-only.
   defp form_writable?(socket),
     do: writable?(socket, socket.assigns.selected) and not unused_fallback?(socket.assigns)
 
-  # Locale-less files of the open email that nothing reads, on its tab.
+  # Locale-less files of the open email that nothing reads, in its Default entry.
   defp fallback_deletable?(socket) do
     %{selected: name} = socket.assigns
 
@@ -2603,7 +2664,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     end
   end
 
-  # The language tabs of template `name`, then Fallback (`nil`) — which an
+  # The languages of template `name`, then Default (`nil`) — which an
   # email has only while the host uses it, or while locale-less files of it
   # are left over, to be seen and deleted.
   defp tabs(assigns, name) do
@@ -2626,14 +2687,14 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         do: file
   end
 
-  # The open tab is an email's fallback nothing reads.
+  # The open language is an email's Default nothing reads.
   defp unused_fallback?(%{selected: nil}), do: false
 
   defp unused_fallback?(assigns),
     do: assigns.locale == nil and not fallback_used?(assigns, assigns.selected)
 
-  # The first tab that has a file, so a locale-less shared part opens on
-  # its fallback tab rather than on an empty first language — but never an
+  # The first language that has a file, so a locale-less shared part opens on
+  # its Default entry rather than on an empty first language — but never an
   # unused fallback.
   defp initial_locale(socket, name) do
     files = files_of(socket, name)
@@ -2645,7 +2706,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   defp caption(socket, name, files) do
     labels = for %{part: :label} = file <- files, into: %{}, do: {file.locale, file.path}
 
-    Enum.find_value(socket.assigns.locales ++ [nil], name, fn tab ->
+    # The page's language first, when the template has a label in it; then
+    # the module's languages in their order, then the label without one.
+    Enum.find_value(caption_order(socket.assigns.locales), name, fn tab ->
       with path when is_binary(path) <- labels[tab],
            {:ok, label} <- Files.safe_read(socket.assigns.root, path),
            true <- String.valid?(label),
@@ -2655,6 +2718,16 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         _no_label -> nil
       end
     end)
+  end
+
+  defp caption_order(locales) do
+    page_language =
+      PhoenixKitTemplatesEditor.Gettext
+      |> Gettext.get_locale()
+      |> String.split(["-", "_"])
+      |> hd()
+
+    Enum.uniq([page_language | locales] ++ [nil])
   end
 
   defp normalize_newlines(value), do: String.replace(value, "\r\n", "\n")
@@ -2694,6 +2767,29 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   ## Rendering
 
+  # The open template's heading: its label, else its key.
+  defp selected_caption(%{selected: nil}), do: nil
+
+  defp selected_caption(%{selected: name, templates: templates}) do
+    case Enum.find(templates, &(&1.name == name)) do
+      %{caption: caption} when is_binary(caption) and caption != "" -> caption
+      _none -> name
+    end
+  end
+
+  defp own_paths(%{selected: selected, root: root} = assigns)
+       when selected != nil and is_binary(root) do
+    Map.new(@parts, fn part -> {part, part_path(root, selected, part, assigns.locale)} end)
+  end
+
+  defp own_paths(_assigns), do: %{}
+
+  defp form_shown?(assigns),
+    do: assigns.selected != nil and editable?(assigns) and not unused_fallback?(assigns)
+
+  defp detail?(assigns),
+    do: assigns.pane == :detail and (assigns.selected != nil or assigns.module_view != nil)
+
   @impl true
   def render(assigns) do
     assigns =
@@ -2707,18 +2803,12 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         module_layouts: module_layouts(assigns),
         auth_warning: (assigns.selected || assigns.module_selected) in Names.auth_emails(),
         can_test_send: assigns.test_send != nil and test_send_target(assigns) != nil,
-        own_paths:
-          if(assigns.selected && is_binary(assigns.root),
-            do:
-              Map.new(@parts, fn part ->
-                {part, part_path(assigns.root, assigns.selected, part, assigns.locale)}
-              end),
-            else: %{}
-          ),
+        own_paths: own_paths(assigns),
         shared: Enum.filter(assigns.templates, &shared_part?(&1.name)),
         layout_sources:
           for(%{group: group} <- assigns.layouts, own_any?(assigns, group), do: group),
         email: selected_email(assigns),
+        selected_caption: selected_caption(assigns),
         layout_emails:
           Map.new(assigns.layouts, &{&1.group, describe_layout_emails(assigns, &1.emails)}),
         tabs: tabs(assigns, assigns.selected),
@@ -2726,15 +2816,21 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         fallback_unused: unused_fallback?(assigns),
         parts: @parts,
         can_edit: editable?(assigns),
-        form_shown:
-          assigns.selected != nil and editable?(assigns) and not unused_fallback?(assigns),
+        form_shown: form_shown?(assigns),
         variable_rows: panel_rows(assigns),
         can_fill_text: converter(assigns, :to_text) != nil,
-        can_render_markdown: converter(assigns, :markdown_to_html) != nil
+        can_render_markdown: converter(assigns, :markdown_to_html) != nil,
+        detail?: detail?(assigns)
+      )
+
+    assigns =
+      assign(assigns,
+        language_items: Languages.items(assigns.tabs, gettext("Default")),
+        module_language_items: Languages.languages(assigns.locales)
       )
 
     ~H"""
-    <div id={@id} class="flex flex-col gap-4">
+    <div id={@id} class="flex min-w-0 flex-col gap-4">
       <div :if={!is_binary(@root)} role="alert" class="alert alert-error">
         {gettext("No template directory is configured.")}
       </div>
@@ -2742,22 +2838,34 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         {elem(@notice, 1)}
       </div>
 
-      <div class="grid gap-6 lg:grid-cols-4">
-        <aside class="flex flex-col gap-4 lg:col-span-1">
-          <button
-            :if={@can_edit}
+      <%!-- A phone shows one pane at a time: the list, or the open template
+           (`pane`); from `lg` up both stand side by side. Grid children carry
+           `min-w-0` so a long key can never push into the other pane. --%>
+      <div id={"#{@id}-panes"} class="grid min-w-0 gap-6 lg:grid-cols-4">
+        <aside
+          id={"#{@id}-list"}
+          class={[
+            "min-w-0 flex-col gap-4 lg:col-span-1",
+            if(@detail?, do: "hidden lg:flex", else: "flex")
+          ]}
+        >
+          <.button
+            :if={@can_edit and @show_reload}
             id={"#{@id}-reload"}
             type="button"
+            variant="ghost"
+            size="sm"
+            class="self-start"
             phx-click="reload"
             phx-target={@myself}
-            class="btn btn-sm btn-ghost self-start"
             title={
               gettext("Read the templates again from disk: after a change by hand or a git pull.")
             }
           >
+            <.icon name="hero-arrow-path" class="size-4" />
             {gettext("Reload")}
-          </button>
-          <p :if={@templates == []} class="text-sm opacity-70">{gettext("No templates yet.")}</p>
+          </.button>
+          <.empty_state :if={@templates == []} title={gettext("No templates yet.")} class="py-4" />
 
           <.template_group
             :if={@messages != []}
@@ -2768,7 +2876,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             base_language={@base_language}
             myself={@myself}
           />
-          <div :if={@layouts != []} id={"#{@id}-layouts"} class="flex flex-col gap-2">
+          <div :if={@layouts != []} id={"#{@id}-layouts"} class="flex min-w-0 flex-col gap-2">
             <span class="text-sm font-semibold">{gettext("Layouts")}</span>
             <.layout_entry
               :for={layout <- @layouts}
@@ -2781,98 +2889,108 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
               myself={@myself}
             />
 
-            <div
-              :if={@confirm_layout_delete}
+            <.modal
+              show={@confirm_layout_delete != nil}
               id={"#{@id}-layouts-delete"}
-              role="alert"
-              class="alert alert-warning flex-col items-start text-sm"
+              on_close="cancel_delete_layout"
             >
-              <span>
+              <:title>
+                <.icon name="hero-exclamation-triangle" class="size-5 text-warning" />
+                {gettext("Delete")}
+              </:title>
+              <p class="text-sm">
                 {gettext(
                   "Delete the layout “%{name}”: its own header, footer and page layout, in every language?",
                   name: @confirm_layout_delete
                 )}
-              </span>
-              <div class="flex gap-2">
-                <button
-                  id={"#{@id}-layouts-delete-confirm"}
-                  type="button"
-                  phx-click="confirm_delete_layout"
-                  phx-target={@myself}
-                  class="btn btn-sm btn-error"
-                >
-                  {gettext("Delete")}
-                </button>
-                <button
+              </p>
+              <:actions>
+                <.button
                   id={"#{@id}-layouts-delete-cancel"}
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   phx-click="cancel_delete_layout"
                   phx-target={@myself}
-                  class="btn btn-sm btn-ghost"
                 >
                   {gettext("Cancel")}
-                </button>
-              </div>
-            </div>
+                </.button>
+                <.button
+                  id={"#{@id}-layouts-delete-confirm"}
+                  type="button"
+                  variant="error"
+                  size="sm"
+                  phx-click="confirm_delete_layout"
+                  phx-target={@myself}
+                >
+                  {gettext("Delete")}
+                </.button>
+              </:actions>
+            </.modal>
 
-            <form
+            <.form_section
               :if={@can_edit && @layout_sources != []}
-              id={"#{@id}-layouts-create"}
-              phx-submit="create_layout"
-              phx-target={@myself}
-              class="flex flex-col gap-2"
+              title={gettext("New layout")}
+              body_class="gap-2 p-4"
             >
-              <span class="text-sm font-semibold">{gettext("New layout")}</span>
-              <input
-                type="text"
-                name="layout_create[name]"
-                aria-label={gettext("Layout name")}
-                class="input input-sm w-full font-mono"
-                placeholder={List.first(Names.namespaces(@rules), gettext("name"))}
-                autocomplete="off"
-              />
-              <select
-                name="layout_create[copy_from]"
-                aria-label={gettext("Start from")}
-                class="select select-sm w-full"
+              <form
+                id={"#{@id}-layouts-create"}
+                phx-submit="create_layout"
+                phx-target={@myself}
+                class="flex flex-col gap-2"
               >
-                <option :for={group <- @layout_sources} value={group}>
-                  {gettext("Copy of layout %{name}", name: group)}
-                </option>
-              </select>
-              <button type="submit" class="btn btn-sm">{gettext("Create layout")}</button>
-            </form>
+                <.input
+                  type="text"
+                  name="layout_create[name]"
+                  value=""
+                  aria-label={gettext("Layout name")}
+                  class="input-sm font-mono"
+                  placeholder={List.first(Names.namespaces(@rules), gettext("name"))}
+                  autocomplete="off"
+                />
+                <.select
+                  name="layout_create[copy_from]"
+                  aria-label={gettext("Start from")}
+                  class="select-sm"
+                  options={
+                    for group <- @layout_sources,
+                        do: {gettext("Copy of layout %{name}", name: group), group}
+                  }
+                  value={nil}
+                />
+                <.button type="submit" variant="outline" size="sm">
+                  {gettext("Create layout")}
+                </.button>
+              </form>
+            </.form_section>
           </div>
 
           <div
             :if={@module_list != [] or @module_layouts != []}
             id={"#{@id}-module-emails"}
-            class="flex flex-col gap-2"
+            class="flex min-w-0 flex-col gap-2"
           >
             <span class="text-sm font-semibold">{gettext("Module emails")}</span>
-            <p class="text-xs opacity-70">
-              {gettext(
-                "Sent by PhoenixKit and its modules in their built-in text, until an email has a file here."
-              )}
-            </p>
-            <ul :if={@module_list != []} class="menu menu-sm w-full p-0">
-              <li :for={item <- @module_list}>
+            <ul :if={@module_list != []} class={list_class()}>
+              <li :for={item <- @module_list} class="min-w-0">
                 <button
                   type="button"
                   phx-click={if(item.template?, do: "select", else: "select_module")}
                   phx-value-name={item.name}
                   phx-target={@myself}
                   class={[
-                    "flex flex-col items-start gap-0",
+                    list_button_class(),
                     item.name in [@selected, @module_selected] && "menu-active"
                   ]}
                 >
-                  <span>{item.label}</span>
-                  <span class="flex items-center gap-1 font-mono text-xs opacity-60">
-                    {item.name}
-                    <span class="badge badge-ghost badge-xs">
-                      {if(item.file?, do: gettext("file"), else: gettext("built-in text"))}
-                    </span>
+                  <span class="w-full break-words">{item.label}</span>
+                  <span class="w-full break-all font-mono text-xs opacity-60">{item.name}</span>
+                  <span>
+                    <.status_badge
+                      status={if(item.file?, do: "file", else: "built_in")}
+                      label={if(item.file?, do: gettext("file"), else: gettext("built-in text"))}
+                      size={:xs}
+                    />
                   </span>
                 </button>
               </li>
@@ -2880,26 +2998,31 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             <div
               :for={layout <- @module_layouts}
               id={"#{@id}-module-layout-#{layout.group}"}
-              class="rounded-box border border-base-300 p-2 flex flex-col gap-1"
+              class="flex min-w-0 flex-col gap-1 rounded-box border border-base-300 p-2"
             >
-              <span class="font-mono text-sm font-semibold">{layout.group}</span>
-              <div :for={part <- layout.parts} class="flex items-center gap-2 text-sm">
+              <span class="break-all font-mono text-sm font-semibold">{layout.group}</span>
+              <div
+                :for={part <- layout.parts}
+                class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
+              >
                 <span class="opacity-70">{kind_title(part.kind)}</span>
                 <span :if={part.file?} class="text-xs opacity-60">{gettext("has its own file")}</span>
                 <span :if={!part.file?} class="text-xs opacity-60">
                   {part_source(part.inherited)}
                 </span>
-                <button
+                <.button
                   :if={!part.file? && @can_edit && part.overridable?}
                   id={"#{@id}-module-layout-#{layout.group}-#{part.kind}-create"}
                   type="button"
+                  variant="outline"
+                  size="xs"
+                  class="ml-auto"
                   phx-click="override_layout"
                   phx-value-name={part.name}
                   phx-target={@myself}
-                  class="btn btn-xs ml-auto"
                 >
                   {gettext("Create file")}
-                </button>
+                </.button>
               </div>
             </div>
           </div>
@@ -2913,62 +3036,81 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             myself={@myself}
           />
 
-          <form
-            :if={@can_edit}
-            id={"#{@id}-create"}
-            phx-submit="create"
-            phx-change="create_change"
-            phx-target={@myself}
-            class="flex flex-col gap-2"
-          >
-            <span class="text-sm font-semibold">{gettext("New template")}</span>
-            <input
-              type="text"
-              name="create[name]"
-              aria-label={gettext("Template name")}
-              class="input input-sm w-full font-mono"
-              placeholder={List.first(@name_prefixes, gettext("name"))}
-              autocomplete="off"
-              value={@create_name}
-            />
-            <select
-              name="create[copy_from]"
-              aria-label={gettext("Start from")}
-              class="select select-sm w-full"
+          <.form_section :if={@can_edit} title={gettext("New template")} body_class="gap-2 p-4">
+            <form
+              id={"#{@id}-create"}
+              phx-submit="create"
+              phx-change="create_change"
+              phx-target={@myself}
+              class="flex flex-col gap-2"
             >
-              <option value="" selected={@create_from in [nil, ""]}>{gettext("Empty")}</option>
-              <option
-                :for={template <- @templates}
-                value={template.name}
-                selected={template.name == @create_from}
+              <.input
+                type="text"
+                name="create[name]"
+                aria-label={gettext("Template name")}
+                class="input-sm font-mono"
+                placeholder={List.first(@name_prefixes, gettext("name"))}
+                autocomplete="off"
+                value={@create_name}
+              />
+              <.select
+                name="create[copy_from]"
+                aria-label={gettext("Start from")}
+                class="select-sm"
+                options={
+                  [{gettext("Empty"), ""}] ++
+                    for(
+                      template <- @templates,
+                      do: {gettext("Copy of %{name}", name: template.name), template.name}
+                    )
+                }
+                value={@create_from || ""}
+              />
+              <fieldset
+                :if={@create_extras != []}
+                id={"#{@id}-create-extras"}
+                class="fieldset min-w-0 text-sm"
               >
-                {gettext("Copy of %{name}", name: template.name)}
-              </option>
-            </select>
-            <fieldset
-              :if={@create_extras != []}
-              id={"#{@id}-create-extras"}
-              class="fieldset text-sm"
-            >
-              <legend class="fieldset-legend">{gettext("Also copy the host’s own files:")}</legend>
-              <input type="hidden" name="create[keep_for]" value={@create_from} />
-              <input type="hidden" name="create[keep][]" value="" />
-              <label :for={file <- @create_extras} class="label font-mono text-xs">
-                <input
-                  type="checkbox"
+                <legend class="fieldset-legend">{gettext("Also copy the host’s own files:")}</legend>
+                <input type="hidden" name="create[keep_for]" value={@create_from} />
+                <input type="hidden" name="create[keep][]" value="" />
+                <.checkbox
+                  :for={file <- @create_extras}
                   name="create[keep][]"
                   value={file}
+                  unchecked_value={nil}
                   checked
-                  class="checkbox checkbox-xs"
-                />
-                {file}
-              </label>
-            </fieldset>
-            <button type="submit" class="btn btn-sm">{gettext("Create")}</button>
-          </form>
+                  class="checkbox-xs"
+                  wrapper_class="font-mono text-xs break-all"
+                >
+                  {file}
+                </.checkbox>
+              </fieldset>
+              <.button type="submit" variant="outline" size="sm">{gettext("Create")}</.button>
+            </form>
+          </.form_section>
         </aside>
 
-        <section class="flex flex-col gap-4 lg:col-span-3">
+        <section
+          id={"#{@id}-detail"}
+          class={[
+            "min-w-0 flex-col gap-4 lg:col-span-3",
+            if(@detail?, do: "flex", else: "hidden lg:flex")
+          ]}
+        >
+          <.button
+            id={"#{@id}-back"}
+            type="button"
+            variant="ghost"
+            size="sm"
+            class="self-start lg:hidden"
+            phx-click="back"
+            phx-target={@myself}
+          >
+            <.icon name="hero-arrow-left" class="size-4" />
+            {gettext("Back to the list")}
+          </.button>
+
           <p :if={is_nil(@selected) && is_nil(@module_view)} class="text-sm opacity-70">
             {gettext("Select a template.")}
           </p>
@@ -2984,20 +3126,25 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             )}
           </div>
 
-          <div :if={@module_view} id={"#{@id}-module-email"} class="flex flex-col gap-3">
-            <div class="flex flex-wrap items-center gap-2">
-              <h3 class="text-lg font-semibold">{@module_view.entry[:label] || @module_selected}</h3>
-              <span class="font-mono text-sm opacity-60">{@module_selected}</span>
-              <button
+          <div :if={@module_view} id={"#{@id}-module-email"} class="flex min-w-0 flex-col gap-3">
+            <div class="flex min-w-0 flex-col gap-x-2 gap-y-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <div class="min-w-0 sm:flex-1">
+                <h3 class="break-words text-lg font-semibold">
+                  {@module_view.entry[:label] || @module_selected}
+                </h3>
+                <span class="break-all font-mono text-sm opacity-60">{@module_selected}</span>
+              </div>
+              <.button
                 :if={@can_test_send}
                 id={"#{@id}-test-send"}
                 type="button"
+                variant="outline"
+                size="sm"
                 phx-click="test_send"
                 phx-target={@myself}
-                class="btn btn-sm ml-auto"
               >
                 {gettext("Send to me")}
-              </button>
+              </.button>
             </div>
             <p :if={is_binary(@module_view.entry[:description])} class="text-sm opacity-70">
               {@module_view.entry[:description]}
@@ -3011,35 +3158,34 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
                 "This email may not be overridden here: it is shown read only. The `overridable` key in the config says which emails may be."
               )}
             </div>
-            <div role="tablist" class="tabs tabs-box w-fit">
-              <button
-                :for={tab <- @locales}
-                type="button"
-                role="tab"
-                phx-click="module_locale"
-                phx-value-locale={tab}
-                phx-target={@myself}
-                aria-selected={to_string(tab == @module_locale)}
-                class={["tab", tab == @module_locale && "tab-active"]}
-              >
-                {tab}
-              </button>
-            </div>
+            <LanguageSwitcher.language_switcher
+              id={"#{@id}-module-languages"}
+              languages={@module_language_items}
+              current_language={@module_locale}
+              on_click="module_locale"
+              phx_target={@myself}
+              variant={:tabs}
+              display={:full}
+              show_flags
+            />
             <.sources_box
               :if={@module_view.sources}
               id={"#{@id}-module-email-sources"}
               result={@module_view.sources}
               root={@root}
             />
-            <div class="flex flex-col gap-2">
+            <div class="flex min-w-0 flex-col gap-2">
               <span class="text-sm font-semibold">{gettext("Built-in text")}</span>
               <%= case @module_view.defaults do %>
                 <% {:ok, parts} -> %>
-                  <dl class="flex flex-col gap-2">
-                    <div :for={part <- Enum.filter([:subject, :markdown, :text, :html], &parts[&1])}>
+                  <dl class="flex min-w-0 flex-col gap-2">
+                    <div
+                      :for={part <- Enum.filter([:subject, :markdown, :text, :html], &parts[&1])}
+                      class="min-w-0"
+                    >
                       <dt class="text-sm opacity-70">{part_title(part)}</dt>
                       <dd>
-                        <pre class="whitespace-pre-wrap rounded-box bg-base-200 p-3 text-sm">{parts[part]}</pre>
+                        <pre class={pre_class()}>{parts[part]}</pre>
                       </dd>
                     </div>
                   </dl>
@@ -3058,28 +3204,30 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
                   "A file made here is this email's text from then on: translations a module update brings no longer reach this email."
                 )}
               </p>
-              <div class="flex flex-wrap gap-2">
-                <button
+              <div class="flex flex-wrap gap-x-2 gap-y-2">
+                <.button
                   id={"#{@id}-module-create-default"}
                   type="button"
+                  variant="outline"
+                  size="sm"
                   phx-click="override_default"
                   phx-value-name={@module_selected}
                   phx-target={@myself}
-                  class="btn btn-sm"
                 >
                   {gettext("Create file from the built-in text")}
-                </button>
-                <button
+                </.button>
+                <.button
                   :if={@module_view.db?}
                   id={"#{@id}-module-create-db"}
                   type="button"
+                  variant="outline"
+                  size="sm"
                   phx-click="override_db"
                   phx-value-name={@module_selected}
                   phx-target={@myself}
-                  class="btn btn-sm"
                 >
                   {gettext("Create file from the database template")}
-                </button>
+                </.button>
               </div>
             </div>
             <.variables_panel
@@ -3089,29 +3237,56 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             />
           </div>
 
-          <div :if={@selected} class="flex flex-wrap items-center gap-2">
-            <h3 class="font-mono text-lg font-semibold">{@selected}</h3>
-            <span :if={@draft?} class="badge badge-warning badge-sm">{gettext("not saved yet")}</span>
-            <button
-              :if={@can_test_send}
-              id={"#{@id}-test-send"}
-              type="button"
-              phx-click="test_send"
-              phx-target={@myself}
-              class="btn btn-sm"
-            >
-              {gettext("Send to me")}
-            </button>
-            <button
-              :if={@can_edit}
-              id={"#{@id}-delete"}
-              type="button"
-              phx-click="delete"
-              phx-target={@myself}
-              class="btn btn-sm btn-outline btn-error ml-auto"
-            >
-              {gettext("Delete")}
-            </button>
+          <div
+            :if={@selected}
+            id={"#{@id}-header"}
+            class="flex min-w-0 flex-col gap-x-2 gap-y-2 sm:flex-row sm:flex-wrap sm:items-center"
+          >
+            <div class="min-w-0 sm:flex-1">
+              <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                <h3 id={"#{@id}-title"} class="min-w-0 break-words text-lg font-semibold">
+                  {@selected_caption}
+                </h3>
+                <.status_badge
+                  :if={@draft?}
+                  status="draft"
+                  label={gettext("not saved yet")}
+                  size={:sm}
+                />
+              </div>
+              <span
+                :if={@selected_caption != @selected}
+                id={"#{@id}-key"}
+                class="block break-all font-mono text-xs opacity-60"
+              >
+                {@selected}
+              </span>
+            </div>
+            <div class="flex flex-wrap gap-x-2 gap-y-2">
+              <.button
+                :if={@can_test_send}
+                id={"#{@id}-test-send"}
+                type="button"
+                variant="outline"
+                size="sm"
+                phx-click="test_send"
+                phx-target={@myself}
+              >
+                {gettext("Send to me")}
+              </.button>
+              <.button
+                :if={@can_edit}
+                id={"#{@id}-delete"}
+                type="button"
+                variant="outline"
+                size="sm"
+                class="btn-error"
+                phx-click="delete"
+                phx-target={@myself}
+              >
+                {gettext("Delete")}
+              </.button>
+            </div>
           </div>
 
           <form
@@ -3119,27 +3294,21 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             id={"#{@id}-email-layout"}
             phx-change="set_layout"
             phx-target={@myself}
-            class="flex items-center gap-2"
+            class="flex flex-wrap items-center gap-x-2 gap-y-1"
           >
             <label for={"#{@id}-email-layout-group"} class="text-sm font-semibold">
               {gettext("Layout")}
             </label>
-            <select
+            <.select
               id={"#{@id}-email-layout-group"}
               name="email_layout[group]"
-              class="select select-sm w-auto"
-            >
-              <option value="" selected={is_nil(@email.layout)}>
-                {default_layout_label(@layout_group)}
-              </option>
-              <option
-                :for={group <- layout_options(@layouts, @email.layout)}
-                value={group}
-                selected={group == @email.layout}
-              >
-                {group}
-              </option>
-            </select>
+              class="select-sm"
+              options={
+                [{default_layout_label(@layout_group), ""}] ++
+                  for(group <- layout_options(@layouts, @email.layout), do: {group, group})
+              }
+              value={@email.layout || ""}
+            />
           </form>
           <p :if={@email && !@can_edit} id={"#{@id}-email-layout-current"} class="text-sm">
             <span class="font-semibold">{gettext("Layout")}:</span>
@@ -3164,48 +3333,49 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             root={@root}
           />
 
-          <div :if={@confirm_delete?} role="alert" class="alert alert-warning">
-            <span>{gettext("Delete “%{name}” and all its files?", name: @selected)}</span>
-            <div class="flex gap-2">
-              <button
-                id={"#{@id}-delete-confirm"}
-                type="button"
-                phx-click="confirm_delete"
-                phx-target={@myself}
-                class="btn btn-sm btn-error"
-              >
-                {gettext("Delete")}
-              </button>
-              <button
+          <.modal show={@confirm_delete?} id={"#{@id}-delete-modal"} on_close="cancel_delete">
+            <:title>
+              <.icon name="hero-exclamation-triangle" class="size-5 text-warning" />
+              {gettext("Delete")}
+            </:title>
+            <p class="break-words text-sm">
+              {gettext("Delete “%{name}” and all its files?", name: @selected)}
+            </p>
+            <:actions>
+              <.button
                 id={"#{@id}-delete-cancel"}
                 type="button"
+                variant="ghost"
+                size="sm"
                 phx-click="cancel_delete"
                 phx-target={@myself}
-                class="btn btn-sm btn-ghost"
               >
                 {gettext("Cancel")}
-              </button>
-            </div>
-          </div>
+              </.button>
+              <.button
+                id={"#{@id}-delete-confirm"}
+                type="button"
+                variant="error"
+                size="sm"
+                phx-click="confirm_delete"
+                phx-target={@myself}
+              >
+                {gettext("Delete")}
+              </.button>
+            </:actions>
+          </.modal>
 
-          <div :if={@selected} role="tablist" class="tabs tabs-box w-fit">
-            <button
-              :for={tab <- @tabs}
-              type="button"
-              role="tab"
-              phx-click="locale"
-              phx-value-locale={tab || ""}
-              phx-target={@myself}
-              aria-selected={to_string(tab == @locale)}
-              class={["tab", tab == @locale && "tab-active"]}
-              title={if(is_nil(tab), do: gettext("Used for any language without its own file"))}
-            >
-              {tab || gettext("Fallback")}
-              <span :if={is_nil(tab) && !@fallback_used} class="badge badge-ghost badge-xs ml-1">
-                {gettext("not used")}
-              </span>
-            </button>
-          </div>
+          <LanguageSwitcher.language_switcher
+            :if={@selected}
+            id={"#{@id}-languages"}
+            languages={@language_items}
+            current_language={@locale || ""}
+            on_click="locale"
+            phx_target={@myself}
+            variant={:tabs}
+            display={:full}
+            show_flags
+          />
 
           <div
             :if={@fallback_unused}
@@ -3218,47 +3388,55 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
                 "These files without a language are not used: an email is sent only in its own languages."
               )}
             </span>
-            <button
+            <.button
               :if={@can_edit && !@confirm_fallback_delete?}
               id={"#{@id}-fallback-delete"}
               type="button"
+              variant="outline"
+              size="sm"
+              class="btn-error"
               phx-click="delete_fallback"
               phx-target={@myself}
-              class="btn btn-sm btn-outline btn-error"
             >
               {gettext("Delete")}
-            </button>
+            </.button>
           </div>
 
-          <div
-            :if={@fallback_unused && @confirm_fallback_delete?}
-            role="alert"
-            class="alert alert-warning"
+          <.modal
+            show={@fallback_unused && @confirm_fallback_delete?}
+            id={"#{@id}-fallback-delete-modal"}
+            on_close="cancel_delete_fallback"
           >
-            <span>
+            <:title>
+              <.icon name="hero-exclamation-triangle" class="size-5 text-warning" />
+              {gettext("Delete")}
+            </:title>
+            <p class="break-words text-sm">
               {gettext("Delete the files without a language of “%{name}”?", name: @selected)}
-            </span>
-            <div class="flex gap-2">
-              <button
-                id={"#{@id}-fallback-delete-confirm"}
-                type="button"
-                phx-click="confirm_delete_fallback"
-                phx-target={@myself}
-                class="btn btn-sm btn-error"
-              >
-                {gettext("Delete")}
-              </button>
-              <button
+            </p>
+            <:actions>
+              <.button
                 id={"#{@id}-fallback-delete-cancel"}
                 type="button"
+                variant="ghost"
+                size="sm"
                 phx-click="cancel_delete_fallback"
                 phx-target={@myself}
-                class="btn btn-sm btn-ghost"
               >
                 {gettext("Cancel")}
-              </button>
-            </div>
-          </div>
+              </.button>
+              <.button
+                id={"#{@id}-fallback-delete-confirm"}
+                type="button"
+                variant="error"
+                size="sm"
+                phx-click="confirm_delete_fallback"
+                phx-target={@myself}
+              >
+                {gettext("Delete")}
+              </.button>
+            </:actions>
+          </.modal>
 
           <div
             :if={@conflict}
@@ -3271,125 +3449,136 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
                 "Not saved: the file changed on disk since you opened it — edited by hand, by a git pull or by another user. Your changes are still in the form; reload to work on what is on disk now."
               )}
             </span>
-            <div :for={{part, content} <- @conflict} class="w-full">
+            <div :for={{part, content} <- @conflict} class="w-full min-w-0">
               <span class="font-semibold">{gettext("%{part} on disk now:", part: part_title(part))}</span>
-              <pre
-                :if={is_binary(content)}
-                class="whitespace-pre-wrap rounded-box bg-base-200 p-2 text-xs"
-              >{content}</pre>
+              <pre :if={is_binary(content)} class={pre_class("p-2 text-xs")}>{content}</pre>
               <span :if={is_nil(content)} class="opacity-70">{gettext("no file")}</span>
               <span :if={content == :unreadable} class="opacity-70">
                 {gettext("cannot be read here")}
               </span>
             </div>
-            <button
+            <.button
               id={"#{@id}-conflict-reload"}
               type="button"
+              variant="outline"
+              size="sm"
               phx-click="reload"
               phx-target={@myself}
-              class="btn btn-sm"
             >
               {gettext("Reload")}
-            </button>
+            </.button>
           </div>
 
-          <div
-            :if={@confirm_variables}
+          <.modal
+            show={@confirm_variables != nil}
             id={"#{@id}-confirm-variables"}
-            role="alert"
-            class="alert alert-warning flex-col items-start text-sm"
+            on_close="cancel_save"
           >
-            <span>{confirm_variables_message(@var_context, @confirm_variables.names)}</span>
-            <div class="flex gap-2">
-              <button
-                id={"#{@id}-confirm-variables-save"}
-                type="button"
-                phx-click="confirm_save"
-                phx-target={@myself}
-                class="btn btn-sm btn-warning"
-              >
-                {gettext("Save anyway")}
-              </button>
-              <button
+            <:title>
+              <.icon name="hero-exclamation-triangle" class="size-5 text-warning" />
+              {gettext("Save anyway")}
+            </:title>
+            <p :if={@confirm_variables} class="break-words text-sm">
+              {confirm_variables_message(@var_context, @confirm_variables.names)}
+            </p>
+            <:actions>
+              <.button
                 id={"#{@id}-confirm-variables-cancel"}
                 type="button"
+                variant="ghost"
+                size="sm"
                 phx-click="cancel_save"
                 phx-target={@myself}
-                class="btn btn-sm btn-ghost"
               >
                 {gettext("Cancel")}
-              </button>
-            </div>
-          </div>
+              </.button>
+              <.button
+                id={"#{@id}-confirm-variables-save"}
+                type="button"
+                variant="warning"
+                size="sm"
+                phx-click="confirm_save"
+                phx-target={@myself}
+              >
+                {gettext("Save anyway")}
+              </.button>
+            </:actions>
+          </.modal>
 
           <div
             :if={@selected}
             id={"#{@id}-form"}
             phx-hook={if(@form_shown, do: "PhoenixKitTemplatesEditorInsertVariable")}
-            class="flex flex-col gap-4"
+            class="flex min-w-0 flex-col gap-4"
           >
-            <form
-              :if={@form_shown}
-              id={"#{@id}-parts"}
-              phx-submit="save"
-              phx-target={@myself}
-              class="flex flex-col gap-3"
-            >
-              <.part_field
-                :for={part <- @parts}
-                id={"#{@id}-part-#{part}"}
-                part={part}
-                file={@contents[part]}
-                value={@form_values[part]}
-                rev={@form_rev}
-              />
-              <p class="text-xs opacity-70">
-                {gettext(
-                  "Each language is saved on its own: switching tabs or templates drops unsaved changes. A part saved empty has its file deleted."
-                )}
-              </p>
-              <%!-- Save comes first: the form's default button. --%>
-              <div class="flex flex-wrap gap-2">
-                <button type="submit" name="action" value="save" class="btn btn-primary btn-sm">
-                  {gettext("Save")}
-                </button>
-                <button
-                  :if={@can_fill_text}
-                  id={"#{@id}-to-text"}
-                  type="submit"
-                  name="action"
-                  value="to_text"
-                  class="btn btn-sm"
-                  title={
-                    gettext(
-                      "Put the Markdown, or else the HTML, as plain text in Text. Not saved until you Save."
-                    )
-                  }
-                >
-                  {gettext("Fill text from content")}
-                </button>
-                <button
-                  :if={@can_render_markdown}
-                  id={"#{@id}-md-to-html"}
-                  type="submit"
-                  name="action"
-                  value="md_to_html"
-                  class="btn btn-sm"
-                  title={gettext("Put the Markdown, rendered, in HTML. Not saved until you Save.")}
-                >
-                  {gettext("Markdown → HTML")}
-                </button>
-              </div>
-            </form>
+            <.form_section :if={@form_shown} body_class="p-4">
+              <form
+                id={"#{@id}-parts"}
+                phx-submit="save"
+                phx-target={@myself}
+                class="flex min-w-0 flex-col gap-3"
+              >
+                <.part_field
+                  :for={part <- @parts}
+                  id={"#{@id}-part-#{part}"}
+                  part={part}
+                  file={@contents[part]}
+                  value={@form_values[part]}
+                  rev={@form_rev}
+                />
+                <p class="text-xs opacity-70">
+                  {gettext("Switching language or template drops unsaved changes.")}
+                </p>
+                <%!-- Save comes first: the form's default button. The rows are
+                     `gap-x-2 gap-y-2`, not `gap-2`: core's stylesheet stretches a
+                     button in a `.flex.gap-2` row to the full width on a phone. --%>
+                <div class="flex flex-wrap gap-x-2 gap-y-2">
+                  <.button type="submit" name="action" value="save" size="sm">
+                    {gettext("Save")}
+                  </.button>
+                  <.button
+                    :if={@can_fill_text}
+                    id={"#{@id}-to-text"}
+                    type="submit"
+                    name="action"
+                    value="to_text"
+                    variant="outline"
+                    size="sm"
+                    title={
+                      gettext(
+                        "Put the Markdown, or else the HTML, as plain text in Text. Not saved until you Save."
+                      )
+                    }
+                  >
+                    {gettext("Fill text from content")}
+                  </.button>
+                  <.button
+                    :if={@can_render_markdown}
+                    id={"#{@id}-md-to-html"}
+                    type="submit"
+                    name="action"
+                    value="md_to_html"
+                    variant="outline"
+                    size="sm"
+                    title={gettext("Put the Markdown, rendered, in HTML. Not saved until you Save.")}
+                  >
+                    {gettext("Markdown → HTML")}
+                  </.button>
+                </div>
+              </form>
+            </.form_section>
 
-            <dl :if={@selected && (!@can_edit || @fallback_unused)} class="flex flex-col gap-3">
-              <div :for={part <- @parts}>
+            <dl
+              :if={@selected && (!@can_edit || @fallback_unused)}
+              class="flex min-w-0 flex-col gap-3"
+            >
+              <div :for={part <- @parts} class="min-w-0">
                 <dt class="text-sm font-semibold">{part_title(part)}</dt>
                 <dd :if={@contents[part] && @contents[part][:invalid]} class="text-sm text-error">
                   {unreadable_message(@contents[part])}
                 </dd>
                 <dd :if={@contents[part] && !@contents[part][:invalid]}>
-                  <pre class="whitespace-pre-wrap rounded-box bg-base-200 p-3 text-sm">{@contents[part].content}</pre>
+                  <pre class={pre_class()}>{@contents[part].content}</pre>
                 </dd>
                 <dd :if={!@contents[part]} class="text-sm opacity-60">{gettext("No file.")}</dd>
               </div>
@@ -3414,21 +3603,33 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             />
           </div>
 
-          <div :if={@selected && @preview_result} id={"#{@id}-preview"} class="flex flex-col gap-2">
-            <span class="text-sm font-semibold">{gettext("Preview")}</span>
-            <.preview_pane
-              id={@id}
-              result={@preview_result}
-              tab={@preview_tab}
-              csp={preview_csp(@preview_image_origins)}
-              myself={@myself}
-            />
-          </div>
+          <.accordion :if={@selected && @preview_result} id={"#{@id}-preview"} open>
+            <:title>{gettext("Preview")}</:title>
+            <:content>
+              <.preview_pane
+                id={@id}
+                result={@preview_result}
+                tab={@preview_tab}
+                csp={preview_csp(@preview_image_origins)}
+                myself={@myself}
+              />
+            </:content>
+          </.accordion>
         </section>
       </div>
     </div>
     """
   end
+
+  # The lists: `flex-nowrap` and `min-w-0` keep daisyUI's menu (which wraps and
+  # never shrinks its items) inside the column, whatever the key's length.
+  defp list_class, do: "menu menu-sm w-full min-w-0 flex-nowrap p-0"
+
+  defp list_button_class,
+    do: "flex w-full min-w-0 flex-col items-start gap-0.5 text-left"
+
+  defp pre_class(extra \\ "p-3 text-sm"),
+    do: "whitespace-pre-wrap break-words rounded-box bg-base-200 #{extra}"
 
   attr(:id, :string, required: true)
   attr(:title, :string, required: true)
@@ -3439,30 +3640,35 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   defp template_group(assigns) do
     ~H"""
-    <div id={@id}>
+    <div id={@id} class="min-w-0">
       <span class="text-sm font-semibold">{@title}</span>
-      <ul class="menu menu-sm w-full p-0">
-        <li :for={template <- @templates}>
+      <ul class={list_class()}>
+        <li :for={template <- @templates} class="min-w-0">
           <button
             type="button"
             phx-click="select"
             phx-value-name={template.name}
             phx-target={@myself}
-            class={["flex flex-col items-start gap-0", template.name == @selected && "menu-active"]}
+            class={[list_button_class(), template.name == @selected && "menu-active"]}
           >
-            <span>{template.caption}</span>
-            <span :if={template.caption != template.name} class="font-mono text-xs opacity-60">
+            <span class="w-full break-words">{template.caption}</span>
+            <span
+              :if={template.caption != template.name}
+              class="w-full break-all font-mono text-xs opacity-60"
+            >
               {template.name}
             </span>
             <span
               :if={template.incomplete?}
               id={"#{@id}-incomplete-#{template.name}"}
-              class="flex items-baseline gap-1 text-xs text-warning"
+              class="flex w-full items-baseline gap-1 text-xs text-warning"
             >
-              <span class="badge badge-warning badge-xs" aria-hidden="true">!</span>
-              {gettext("Not offered for sending: no subject or body in %{locale}.",
-                locale: @base_language
-              )}
+              <.status_badge status="draft" label="!" size={:xs} class="shrink-0" />
+              <span class="min-w-0 break-words">
+                {gettext("Not offered for sending: no subject or body in %{locale}.",
+                  locale: @base_language
+                )}
+              </span>
             </span>
           </button>
         </li>
@@ -3485,45 +3691,47 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     assigns = assign(assigns, shown: MapSet.new(assigns.templates, & &1.name))
 
     ~H"""
-    <div id={@id} class="rounded-box border border-base-300 p-2 flex flex-col gap-1">
-      <div class="flex items-center gap-2">
-        <span class="font-mono text-sm font-semibold">{@layout.group}</span>
-        <span :if={@layout.default?} class="badge badge-ghost badge-xs">{gettext("default")}</span>
-        <button
+    <div id={@id} class="flex min-w-0 flex-col gap-1 rounded-box border border-base-300 p-2">
+      <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <span class="min-w-0 break-all font-mono text-sm font-semibold">{@layout.group}</span>
+        <.status_badge :if={@layout.default?} status="default" label={gettext("default")} size={:xs} />
+        <.button
           :if={@can_delete}
           id={"#{@id}_delete"}
           type="button"
+          variant="ghost"
+          size="xs"
+          class="ml-auto text-error"
           phx-click="delete_layout"
           phx-value-group={@layout.group}
           phx-target={@myself}
-          class="btn btn-xs btn-ghost text-error ml-auto"
         >
           {gettext("Delete")}
-        </button>
+        </.button>
       </div>
-      <ul class="menu menu-sm w-full p-0">
-        <li :for={part <- @layout.parts} id={"#{@id}_#{part.kind}"}>
+      <ul class={list_class()}>
+        <li :for={part <- @layout.parts} id={"#{@id}_#{part.kind}"} class="min-w-0">
           <button
             :if={part.source == :own and MapSet.member?(@shown, part.name)}
             type="button"
             phx-click="select"
             phx-value-name={part.name}
             phx-target={@myself}
-            class={["flex flex-col items-start gap-0", part.name == @selected && "menu-active"]}
+            class={[list_button_class(), part.name == @selected && "menu-active"]}
           >
-            <span>{kind_title(part.kind)}</span>
-            <span class="font-mono text-xs opacity-60">{part.name}</span>
+            <span class="w-full break-words">{kind_title(part.kind)}</span>
+            <span class="w-full break-all font-mono text-xs opacity-60">{part.name}</span>
           </button>
           <span
             :if={part.source != :own or not MapSet.member?(@shown, part.name)}
-            class="flex flex-col items-start gap-0 pointer-events-none"
+            class="pointer-events-none flex w-full min-w-0 flex-col items-start gap-0"
           >
             <span class="opacity-70">{kind_title(part.kind)}</span>
-            <span class="text-xs opacity-60">{part_source(part.source)}</span>
+            <span class="break-words text-xs opacity-60">{part_source(part.source)}</span>
           </span>
         </li>
       </ul>
-      <p id={"#{@id}_emails"} class="text-xs opacity-70">{@emails}</p>
+      <p id={"#{@id}_emails"} class="break-words text-xs opacity-70">{@emails}</p>
     </div>
     """
   end
@@ -3533,41 +3741,52 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   attr(:form, :string, default: nil)
 
   # The variables of a part: a button each that puts it into the form
-  # (`form`), or, read only, just the names.
+  # (`form`), or, read only, just the names. Collapsible, closed at first.
   defp variables_panel(assigns) do
     ~H"""
-    <div id={@id} class="flex flex-col gap-1 text-sm">
-      <span class="font-semibold">{gettext("Variables")}</span>
-      <p :if={@form} class="text-xs opacity-70">
-        {gettext("Click a variable to put it where the cursor is in the field you were typing in.")}
-      </p>
-      <ul class="flex flex-col gap-1">
-        <li :for={row <- @rows} id={"#{@id}-#{row.name}"} class="flex flex-wrap items-baseline gap-2">
-          <button
-            :if={@form}
-            type="submit"
-            form={@form}
-            name="action"
-            value={"insert:#{row.name}"}
-            data-variable={placeholder(row)}
-            class="btn btn-xs font-mono"
+    <.accordion id={@id}>
+      <:title>{gettext("Variables")}</:title>
+      <:content>
+        <ul class="flex min-w-0 flex-col gap-2 text-sm">
+          <li
+            :for={row <- @rows}
+            id={"#{@id}-#{row.name}"}
+            class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1"
           >
-            {placeholder(row)}
-          </button>
-          <code :if={!@form} class="font-mono">{placeholder(row)}</code>
-          <span :if={row.sample not in [nil, ""]} class="font-mono text-xs opacity-60">
-            {row.sample}
-          </span>
-          <span :if={row.description} class="text-xs">{row.description}</span>
-          <span :if={row.scope == :markdown} class="badge badge-ghost badge-xs">
-            {gettext("Markdown only")}
-          </span>
-          <span :if={row.scope == :html} class="badge badge-ghost badge-xs">
-            {gettext("rendered HTML, three braces")}
-          </span>
-        </li>
-      </ul>
-    </div>
+            <.button
+              :if={@form}
+              type="submit"
+              variant="outline"
+              size="xs"
+              class="font-mono"
+              form={@form}
+              name="action"
+              value={"insert:#{row.name}"}
+              data-variable={placeholder(row)}
+            >
+              {placeholder(row)}
+            </.button>
+            <code :if={!@form} class="break-all font-mono">{placeholder(row)}</code>
+            <span :if={row.sample not in [nil, ""]} class="break-all font-mono text-xs opacity-60">
+              {row.sample}
+            </span>
+            <span :if={row.description} class="break-words text-xs">{row.description}</span>
+            <.status_badge
+              :if={row.scope == :markdown}
+              status="markdown"
+              label={gettext("Markdown only")}
+              size={:xs}
+            />
+            <.status_badge
+              :if={row.scope == :html}
+              status="html"
+              label={gettext("rendered HTML, three braces")}
+              size={:xs}
+            />
+          </li>
+        </ul>
+      </:content>
+    </.accordion>
     """
   end
 
@@ -3587,12 +3806,12 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     assigns = assign(assigns, sources: sources, error: error)
 
     ~H"""
-    <div id={@id} class="rounded-box border border-base-300 p-3 text-sm flex flex-col gap-2">
+    <div id={@id} class="flex min-w-0 flex-col gap-2 rounded-box border border-base-300 p-3 text-sm">
       <span class="font-semibold">{gettext("What is sent")}</span>
-      <dl :if={@sources} class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+      <dl :if={@sources} class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
         <%= for part <- [:subject, :text, :html, :markdown] do %>
           <dt class="opacity-70">{part_title(part)}</dt>
-          <dd>{source_label(@sources[part], @own[part], @root)}</dd>
+          <dd class="break-words">{source_label(@sources[part], @own[part], @root)}</dd>
         <% end %>
       </dl>
       <p :if={@sources && @sources.html == nil && @sources.html_from} class="text-xs opacity-70">
@@ -3613,7 +3832,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   defp part_field(%{file: %{invalid: true}} = assigns) do
     ~H"""
-    <div class="flex flex-col gap-1">
+    <div class="flex min-w-0 flex-col gap-1">
       <span class="text-sm font-semibold">{part_title(@part)}</span>
       <div id={"#{@id}-invalid"} role="alert" class="alert alert-error text-sm">
         {unreadable_message(@file)}
@@ -3626,25 +3845,36 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     assigns =
       assign(assigns,
         value: assigns.value || if(assigns.file, do: assigns.file.content, else: ""),
-        rows: Map.fetch!(@part_rows, assigns.part)
+        rows: Map.get(@part_rows, assigns.part),
+        single_line?: assigns.part in @single_line_parts
       )
 
     ~H"""
-    <div class="flex flex-col gap-1">
-      <label for={@id} class="flex items-baseline gap-2 text-sm">
+    <div class="flex min-w-0 flex-col gap-1">
+      <label for={@id} class="flex flex-wrap items-baseline gap-x-2 text-sm">
         <span class="font-semibold">{part_title(@part)}</span>
-        <span class="opacity-60">{part_hint(@part)}</span>
         <span :if={@file} class="ml-auto text-xs opacity-60">
           {gettext("changed %{time}", time: Calendar.strftime(@file.mtime, "%Y-%m-%d %H:%M UTC"))}
         </span>
       </label>
-      <textarea
+      <.input
+        :if={@single_line?}
+        id={@id}
+        type="text"
+        name={"parts[#{@part}]"}
+        value={single_line(@value)}
+        data-form-rev={@rev}
+        class="font-mono text-sm"
+      />
+      <.textarea
+        :if={!@single_line?}
         id={@id}
         name={"parts[#{@part}]"}
+        value={@value}
         rows={@rows}
         data-form-rev={@rev}
-        class="textarea w-full font-mono text-sm"
-      >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
+        class="font-mono text-sm"
+      />
     </div>
     """
   end
@@ -3665,46 +3895,41 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       )
 
     ~H"""
-    <p id={"#{@id}-preview-subject"} class="text-sm">
-      <span class="opacity-60">{gettext("Subject:")}</span> {@subject}
-    </p>
-    <div :if={@text != :none} role="tablist" class="tabs tabs-border w-fit">
-      <button
-        :for={{tab, title} <- [html: part_title(:html), text: part_title(:text)]}
-        id={"#{@id}-preview-tab-#{tab}"}
-        type="button"
-        role="tab"
-        phx-click="preview_tab"
-        phx-value-tab={tab}
-        phx-target={@myself}
-        aria-selected={to_string(tab == @tab)}
-        class={["tab", tab == @tab && "tab-active"]}
-      >
-        {title}
-      </button>
+    <div class="flex min-w-0 flex-col gap-2">
+      <p id={"#{@id}-preview-subject"} class="break-words text-sm">
+        <span class="opacity-60">{gettext("Subject:")}</span> {@subject}
+      </p>
+      <.nav_tabs
+        :if={@text != :none}
+        id={"#{@id}-preview-tabs"}
+        active_tab={to_string(@tab)}
+        on_change="preview_tab"
+        target={@myself}
+        variant={:border}
+        tabs={[
+          %{id: "html", label: part_title(:html)},
+          %{id: "text", label: part_title(:text)}
+        ]}
+      />
+      <%!-- bg-white, not a theme colour: an email is drawn on white whatever the admin theme. --%>
+      <%!-- Nothing in an edited template runs (no allow-scripts), leaks the
+           admin page's address, or loads anything from outside but images
+           from the origins the host names (`csp` on the frame, which only
+           Chromium honours, and the same policy as a meta tag at the top of
+           the document, which every browser does). --%>
+      <iframe
+        :if={@show_html? && @html}
+        sandbox=""
+        referrerpolicy="no-referrer"
+        csp={@csp}
+        srcdoc={with_policy(@html, @csp)}
+        title={gettext("Preview")}
+        class="h-[32rem] w-full rounded-box border border-base-300 bg-white"
+      ></iframe>
+      <p :if={@show_html? && !@html} class="text-sm opacity-70">{gettext("No HTML.")}</p>
+      <pre :if={!@show_html? && @text} id={"#{@id}-preview-text"} class={pre_class()}>{@text}</pre>
+      <p :if={!@show_html? && !@text} class="text-sm opacity-70">{gettext("No text.")}</p>
     </div>
-    <%!-- bg-white, not a theme colour: an email is drawn on white whatever the admin theme. --%>
-    <%!-- Nothing in an edited template runs (no allow-scripts), leaks the
-         admin page's address, or loads anything from outside but images
-         from the origins the host names (`csp` on the frame, which only
-         Chromium honours, and the same policy as a meta tag at the top of
-         the document, which every browser does). --%>
-    <iframe
-      :if={@show_html? && @html}
-      sandbox=""
-      referrerpolicy="no-referrer"
-      csp={@csp}
-      srcdoc={with_policy(@html, @csp)}
-      title={gettext("Preview")}
-      class="h-[32rem] w-full rounded-box border border-base-300 bg-white"
-    ></iframe>
-    <p :if={@show_html? && !@html} class="text-sm opacity-70">{gettext("No HTML.")}</p>
-    <pre
-      :if={!@show_html? && @text}
-      id={"#{@id}-preview-text"}
-      class="whitespace-pre-wrap rounded-box bg-base-200 p-3 text-sm"
-    >{@text}</pre>
-    <p :if={!@show_html? && !@text} class="text-sm opacity-70">{gettext("No text.")}</p>
     """
   end
 
@@ -3865,12 +4090,6 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       names: Enum.map_join(names, ", ", &"{{#{&1}}}")
     )
   end
-
-  defp part_hint(:label), do: gettext("The caption in lists. Never sent.")
-  defp part_hint(:subject), do: gettext("One line.")
-  defp part_hint(:text), do: gettext("The plain-text body.")
-  defp part_hint(:markdown), do: gettext("Optional, an alternative to HTML.")
-  defp part_hint(:html), do: gettext("Optional.")
 
   # The preview frame's policy: no script, no frame, no connection, no font
   # or stylesheet from outside; inline styles (every email has them) and

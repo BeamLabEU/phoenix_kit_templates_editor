@@ -155,7 +155,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorAccessTest do
 
       assert save(view, %{subject: "Uus"}) =~ "Saved."
       assert_received {:authorize, :save}
-      assert subject_et(root) == "Uus"
+      assert subject_et(root) == "Uus\n"
 
       convert(view, "to_text", %{markdown: "**Tere**"})
       assert_received {:authorize, :convert}
@@ -178,7 +178,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorAccessTest do
       select(view, "order_offer")
 
       assert save(view, %{subject: "Uus"}) =~ "Saved."
-      assert subject_et(root) == "Uus"
+      assert subject_et(root) == "Uus\n"
     end
   end
 

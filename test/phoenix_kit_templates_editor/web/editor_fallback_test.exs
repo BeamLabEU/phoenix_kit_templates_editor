@@ -3,10 +3,11 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorFallbackTest do
   # languages: an email's locale-less files are never used.
   use PhoenixKitTemplatesEditor.EditorCase, async: true
 
-  defp fallback_tab?(view), do: has_element?(view, "#editor [role=tab][phx-value-locale='']")
+  defp fallback_tab?(view),
+    do: has_element?(view, "#editor [phx-click=locale][phx-value-language='']")
 
   defp selected_tab?(view, label),
-    do: has_element?(view, "#editor [role=tab][aria-selected=true]", label)
+    do: has_element?(view, "#editor [phx-click=locale][aria-pressed=true]", label)
 
   defp seed_fallback(root) do
     seed(root)
@@ -40,13 +41,13 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorFallbackTest do
       select(view, "order_offer")
 
       refute fallback_tab?(view)
-      assert has_element?(view, "#editor [role=tab][phx-value-locale='en']")
+      assert has_element?(view, "#editor [phx-click=locale][phx-value-language='en']")
 
       # A forged switch to the fallback is no tab: the save goes to et.
-      render_click(with_target(view, "#editor"), "locale", %{"locale" => ""})
+      render_click(with_target(view, "#editor"), "locale", %{"language" => ""})
       save(view, %{subject: "Uus"})
 
-      assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "Uus"
+      assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "Uus\n"
       refute File.exists?(Path.join([root, "order_offer", "subject.txt"]))
     end
 
@@ -56,7 +57,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorFallbackTest do
       select(view, "_header-shop")
 
       assert fallback_tab?(view)
-      assert selected_tab?(view, "Fallback")
+      assert selected_tab?(view, "Default")
       assert has_element?(view, "#editor-parts")
       refute has_element?(view, "#editor-fallback-unused")
     end
@@ -67,7 +68,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorFallbackTest do
       create(view, "order_new")
 
       refute fallback_tab?(view)
-      assert selected_tab?(view, "et")
+      assert selected_tab?(view, "Eesti")
     end
 
     test "locale-less files left over are shown read-only, marked as not used",
@@ -77,9 +78,8 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorFallbackTest do
       select(view, "order_offer")
 
       # Opens on its first language, not on the files nobody reads.
-      assert selected_tab?(view, "et")
+      assert selected_tab?(view, "Eesti")
       assert fallback_tab?(view)
-      assert view |> element("#editor [role=tab][phx-value-locale='']") |> render() =~ "not used"
 
       tab(view, "")
 
@@ -131,7 +131,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorFallbackTest do
 
       assert_received {:after_change, "order_offer"}
       refute fallback_tab?(view)
-      assert selected_tab?(view, "et")
+      assert selected_tab?(view, "Eesti")
       assert has_element?(view, "#editor-parts")
     end
 

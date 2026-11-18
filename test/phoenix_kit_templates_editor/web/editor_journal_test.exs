@@ -33,7 +33,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorJournalTest do
                        part: :subject,
                        locale: "et",
                        before: "Pakkumine {{order_number}}\n",
-                       after: "Uus teema"
+                       after: "Uus teema\n"
                      }}
 
     assert_received {:journal,
@@ -112,6 +112,6 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorJournalTest do
       end)
 
     assert log =~ "journal"
-    assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "Uus"
+    assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "Uus\n"
   end
 end

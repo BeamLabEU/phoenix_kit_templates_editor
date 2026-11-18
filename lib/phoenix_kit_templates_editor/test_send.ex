@@ -5,7 +5,7 @@ defmodule PhoenixKitTemplatesEditor.TestSend do
   editor shows it. Works where the templates are read only too: it writes
   nothing.
 
-    * The user must see the tab (`PhoenixKitTemplatesEditor.authorize(scope, :read)`).
+    * The user must see the page (`PhoenixKitTemplatesEditor.authorize(scope, :read)`).
     * Not more often than once in 30 s per user (`PhoenixKitTemplatesEditor.Throttle`).
     * The host's own email is sent by its `test_send` callback when it
       has one — `test_send(name, locale, user)`, returning `{:ok, address}`

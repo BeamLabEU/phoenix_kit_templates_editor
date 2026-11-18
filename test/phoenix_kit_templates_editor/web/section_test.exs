@@ -1,10 +1,10 @@
 defmodule PhoenixKitTemplatesEditor.Web.SectionTest do
-  # The tab core mounts with nothing but its id: it reads the host's config,
-  # says what is wrong with a broken one, introduces the files, shows the
-  # project's own notes (README beside the templates) and mounts the editor
-  # with everything the config says. Writing needs the module enabled and a
-  # permission — a database — so here the editor is always read-only (see
-  # test/integration/section_*_test.exs for the rest).
+  # What the page mounts: the section reads the host's config, says what is
+  # wrong with a broken one, says why the files are read only, and mounts the
+  # editor with everything the config says. It no longer carries an
+  # introduction, hints or the project's own notes. Writing needs the module
+  # enabled and a permission — a database — so here the editor is always
+  # read-only (see test/integration/section_*_test.exs for the rest).
   #
   # Not async: the section reads `config :phoenix_kit_templates_editor`.
   use ExUnit.Case, async: false
@@ -53,7 +53,6 @@ defmodule PhoenixKitTemplatesEditor.Web.SectionTest do
       base_config(root)
       view = mount_section()
 
-      assert has_element?(view, "#templates-editor-intro", "Read only on this server")
       assert has_element?(view, "#templates-editor button[phx-value-name=shop_offer]")
       assert has_element?(view, "#templates-editor button[phx-value-name=_header-shop]")
       refute has_element?(view, "#templates-editor button[phx-value-name=other_mail]")
@@ -62,12 +61,11 @@ defmodule PhoenixKitTemplatesEditor.Web.SectionTest do
       refute has_element?(view, "#templates-editor-uncommitted-check")
     end
 
-    test "editable, but no scope tells the section who is acting: read only, and said",
+    test "editable, but nobody who may write is acting: read only, and said",
          %{tmp_dir: root} do
       base_config(root, editable: true)
       view = mount_section()
 
-      assert has_element?(view, "#templates-editor-intro", "A change saved here changes the file")
       assert has_element?(view, "#templates-editor-no-write")
       refute has_element?(view, "#templates-editor-create")
     end
@@ -79,9 +77,9 @@ defmodule PhoenixKitTemplatesEditor.Web.SectionTest do
 
       view |> element("#templates-editor button[phx-value-name=shop_offer]") |> render_click()
 
-      assert has_element?(view, "#templates-editor [role=tab][phx-value-locale=en]")
-      assert has_element?(view, "#templates-editor [role=tab][phx-value-locale=ru]")
-      refute has_element?(view, "#templates-editor [role=tab][phx-value-locale='']")
+      assert has_element?(view, "#templates-editor [phx-click=locale][phx-value-language=en]")
+      assert has_element?(view, "#templates-editor [phx-click=locale][phx-value-language=ru]")
+      refute has_element?(view, "#templates-editor [phx-click=locale][phx-value-language='']")
     end
   end
 
@@ -122,44 +120,24 @@ defmodule PhoenixKitTemplatesEditor.Web.SectionTest do
   end
 
   describe "the project's notes" do
-    test "README.<page language>.md beside the templates, as sanitized Markdown",
-         %{tmp_dir: root} do
+    test "are not on the page: no block, and nothing of them in it", %{tmp_dir: root} do
       base_config(root)
-      File.write!(Path.join(root, "README.ru.md"), "# Заметки\n\n<script>alert(1)</script>Текст")
-      File.write!(Path.join(root, "README.md"), "# Notes")
+      File.write!(Path.join(root, "README.ru.md"), "# Заметки\n\nSECRET-NOTE")
+      File.write!(Path.join(root, "README.md"), "# Notes\n\nSECRET-NOTE")
 
       view = mount_section(locale: "ru")
 
-      html = view |> element("#templates-editor-readme") |> render()
-      assert html =~ "Заметки"
-      refute html =~ "<script"
-    end
-
-    test "else README.<base_locale>.md, else README.md", %{tmp_dir: root} do
-      base_config(root, base_locale: "et")
-      File.write!(Path.join(root, "README.et.md"), "# Märkmed")
-      File.write!(Path.join(root, "README.md"), "# Notes")
-
-      assert mount_section(locale: "ru") |> element("#templates-editor-readme") |> render() =~
-               "Märkmed"
-
-      File.rm!(Path.join(root, "README.et.md"))
-
-      assert mount_section(locale: "ru") |> element("#templates-editor-readme") |> render() =~
-               "Notes"
-    end
-
-    test "none: no notes; a linked README is not read", %{tmp_dir: root} do
-      base_config(root)
-      refute has_element?(mount_section(), "#templates-editor-readme")
-
-      File.write!(Path.join(root, "secret.txt"), "SECRET")
-      File.ln_s!("secret.txt", Path.join(root, "README.md"))
-
-      view = mount_section()
       refute has_element?(view, "#templates-editor-readme")
-      refute render(view) =~ "SECRET"
+      refute render(view) =~ "SECRET-NOTE"
     end
+  end
+
+  test "no introduction and no hints on the page", %{tmp_dir: root} do
+    base_config(root, editable: true)
+    view = mount_section()
+
+    refute has_element?(view, "#templates-editor-intro")
+    refute has_element?(view, "#templates-editor-hints")
   end
 
   test "catalog: true with a root core does not read: said on the tab", %{tmp_dir: root} do
@@ -180,10 +158,10 @@ defmodule PhoenixKitTemplatesEditor.Web.SectionTest do
     refute render(view) =~ root
   end
 
-  test "Estonian: the intro in the page's language", %{tmp_dir: root} do
-    base_config(root)
+  test "Estonian: the read-only notice in the page's language", %{tmp_dir: root} do
+    base_config(root, editable: true)
     view = mount_section(locale: "et")
 
-    assert has_element?(view, "#templates-editor-intro", "Selles serveris ainult vaatamiseks")
+    assert has_element?(view, "#templates-editor-no-write", "Mallide redaktor on välja lülitatud")
   end
 end
