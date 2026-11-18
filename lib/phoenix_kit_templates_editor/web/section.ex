@@ -302,6 +302,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
           email_fallback={@config.email_fallback}
           sample_variables={@sample_variables}
           raw_variables={@config.raw_variables}
+          block_placeholders={@config.block_placeholders}
           describe_variables={@config.describe_variables}
           preview={@callbacks.preview}
           preview_image_origins={@image_origins}

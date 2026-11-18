@@ -105,6 +105,12 @@ defmodule PhoenixKitTemplatesEditor.MixProject do
       # directly.
       pk_dep(:phoenix_kit_templates, "~> 0.2.5"),
 
+      # The editor of a letter's body (Web.Letter). 0.11 is the first with
+      # `notify:` (an editor inside a LiveComponent sends its messages to that
+      # component); core admits 0.4 through 0.12, so the two meet at 0.11 and
+      # 0.12. A host loads Leaf's browser half itself (README, installation).
+      {:leaf, "~> 0.11.0 or ~> 0.12.0"},
+
       # LiveView is needed for the settings section.
       {:phoenix_live_view, "~> 1.1"},
 

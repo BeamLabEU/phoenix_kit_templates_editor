@@ -64,7 +64,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorVariablesTest do
       assert log =~ "describe_variables"
     end
 
-    test "the insert buttons belong to the form and the hook; read only has none",
+    test "a letter's buttons put the variable into Leaf; a header's belong to the form and the hook; read only has none",
          %{tmp_dir: root} do
       seed(root)
       view = mount_editor(root)
@@ -72,7 +72,17 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorVariablesTest do
 
       assert has_element?(
                view,
-               "#editor-variables button[form=editor-parts][name=action][value='insert:order_number']"
+               "#editor-variables button[phx-click=insert_variable][phx-value-name=order_number]"
+             )
+
+      refute has_element?(view, "#editor-variables button[form=editor-parts]")
+      refute has_element?(view, "#editor-form[phx-hook]")
+
+      select(view, "_header-shop")
+
+      assert has_element?(
+               view,
+               "#editor-variables button[form=editor-parts][name=action][value='insert:site_name']"
              )
 
       assert has_element?(view, "#editor-form[phx-hook=PhoenixKitTemplatesEditorInsertVariable]")
@@ -85,44 +95,80 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorVariablesTest do
   end
 
   describe "inserting without JS" do
-    test "goes at the end of the body, into the form only", %{tmp_dir: root} do
+    test "goes at the end of a header's body, into the form only", %{tmp_dir: root} do
       seed(root)
       view = mount_editor(root)
-      select(view, "order_offer")
-
-      insert(view, "order_number", %{text: "Tere!", subject: "Uus teema"})
-
-      assert field(view, :text) == "Tere!{{order_number}}"
-      assert field(view, :subject) == "Uus teema"
-      assert {:ok, "Tere!\n\n{{documents_list}}\n"} = file(root, "order_offer", "text.et.txt")
-    end
-
-    test "Markdown is the body when it holds anything; a header's body is its HTML",
-         %{tmp_dir: root} do
-      seed(root)
-      view = mount_editor(root)
-      select(view, "order_offer")
-      insert(view, "order_number", %{markdown: "**Tere**", text: "Tere"})
-      assert field(view, :markdown) == "**Tere**{{order_number}}"
-      assert field(view, :text) == "Tere"
-
       select(view, "_header-shop")
       tab(view, "")
-      insert(view, "site_name", %{html: "<p>Shop</p>\n"})
+
+      insert(view, "site_name", %{html: "<p>Shop</p>\n", label: "Uus silt"})
+
       assert field(view, :html) == "<p>Shop</p>\n{{site_name}}"
+      assert field(view, :label) == "Uus silt"
+      assert {:ok, "<p>Shop</p>\n"} = file(root, "_header-shop", "html.html")
     end
 
     test "a name that is not in the panel inserts nothing", %{tmp_dir: root} do
+      seed(root)
+      view = mount_editor(root)
+      select(view, "_header-shop")
+      tab(view, "")
+
+      view
+      |> with_target("#editor")
+      |> render_submit("save", %{"action" => "insert:order_number", "parts" => %{"html" => "x"}})
+
+      assert {:ok, "<p>Shop</p>\n"} = file(root, "_header-shop", "html.html")
+      refute field(view, :html) =~ "order_number"
+    end
+
+    test "a letter has no such button: the event is ignored", %{tmp_dir: root} do
       seed(root)
       view = mount_editor(root)
       select(view, "order_offer")
 
       view
       |> with_target("#editor")
-      |> render_submit("save", %{"action" => "insert:site_url", "parts" => %{"text" => "x"}})
+      |> render_submit("save", %{
+        "action" => "insert:order_number",
+        "parts" => %{"subject" => "Muudetud"}
+      })
+
+      assert {:ok, "Pakkumine {{order_number}}\n"} = file(root, "order_offer", "subject.et.txt")
+    end
+  end
+
+  describe "the click on a letter's variable" do
+    test "is sent to the open Leaf at its caret, and writes nothing", %{tmp_dir: root} do
+      seed(root)
+      view = mount_editor(root)
+      select(view, "order_offer")
+
+      view |> element("#editor-variables button[phx-value-name=order_number]") |> render_click()
 
       assert {:ok, "Tere!\n\n{{documents_list}}\n"} = file(root, "order_offer", "text.et.txt")
-      refute field(view, :text) =~ "site_url"
+      refute_received {:after_write, _paths}
+    end
+
+    test "a name that is not in the panel, or without a document, does nothing", %{tmp_dir: root} do
+      seed(root)
+      view = mount_editor(root)
+      target = with_target(view, "#editor")
+
+      assert render_click(target, "insert_variable", %{"name" => "order_number"})
+      select(view, "order_offer")
+      assert render_click(target, "insert_variable", %{"name" => "site_url"})
+      assert render_click(target, "insert_variable", %{})
+      assert Process.alive?(view.pid)
+    end
+
+    test "read only, it is refused", %{tmp_dir: root} do
+      seed(root)
+      view = mount_editor(root, %{editable: false})
+      select(view, "order_offer")
+
+      render_click(with_target(view, "#editor"), "insert_variable", %{"name" => "order_number"})
+      assert Process.alive?(view.pid)
     end
   end
 
@@ -132,17 +178,18 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorVariablesTest do
       view = mount_editor(root)
       select(view, "order_offer")
 
-      html = save(view, %{text: "Vaata {{site_url}}"})
+      edit_body(view, "Vaata {{site_url}}")
+      html = save(view, %{})
 
       assert html =~ "{{site_url}}"
       assert has_element?(view, "#editor-confirm-variables")
       assert {:ok, "Tere!\n\n{{documents_list}}\n"} = file(root, "order_offer", "text.et.txt")
-      assert field(view, :text) == "Vaata {{site_url}}"
       refute_received {:after_write, _paths}
 
       view |> element("#editor-confirm-variables-save") |> render_click()
 
-      assert {:ok, "Vaata {{site_url}}"} = file(root, "order_offer", "text.et.txt")
+      assert {:ok, "Vaata {{site_url}}\n"} = file(root, "order_offer", "text.et.txt")
+      assert {:ok, "Vaata {{site_url}}"} = file(root, "order_offer", "markdown.et.md")
       refute has_element?(view, "#editor-confirm-variables")
     end
 
@@ -150,13 +197,18 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorVariablesTest do
       seed(root)
       view = mount_editor(root)
       select(view, "order_offer")
-      save(view, %{text: "Vaata {{site_url}}"})
+      edit_body(view, "Vaata {{site_url}}")
+      save(view, %{})
 
       view |> element("#editor-confirm-variables-cancel") |> render_click()
 
       refute has_element?(view, "#editor-confirm-variables")
       assert {:ok, "Tere!\n\n{{documents_list}}\n"} = file(root, "order_offer", "text.et.txt")
-      assert field(view, :text) == "Vaata {{site_url}}"
+      assert {:error, :enoent} = file(root, "order_offer", "markdown.et.md")
+
+      # What was typed is still to be saved.
+      save(view, %{})
+      assert has_element?(view, "#editor-confirm-variables")
     end
 
     test "the confirmation asks the host's authorize again", %{tmp_dir: root} do
@@ -172,7 +224,8 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorVariablesTest do
 
       view = mount_editor(root, %{authorize: authorize})
       select(view, "order_offer")
-      save(view, %{text: "Vaata {{site_url}}"})
+      edit_body(view, "Vaata {{site_url}}")
+      save(view, %{})
 
       :counters.put(allowed, 1, 0)
       html = view |> element("#editor-confirm-variables-save") |> render_click()
@@ -198,9 +251,11 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorVariablesTest do
       view = mount_editor(root)
       select(view, "order_offer")
 
-      html = save(view, %{text: "Tere {{nope}}"})
+      edit_body(view, "Tere {{nope}}")
+      html = save(view, %{})
 
-      assert {:ok, "Tere {{nope}}"} = file(root, "order_offer", "text.et.txt")
+      assert {:ok, "Tere {{nope}}\n"} = file(root, "order_offer", "text.et.txt")
+      assert {:ok, "Tere {{nope}}"} = file(root, "order_offer", "markdown.et.md")
       assert html =~ "Saved. But: {{nope}} is not a variable of this template"
     end
 
@@ -209,13 +264,15 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorVariablesTest do
       view = mount_editor(root, %{raw_variables: ["documents_list"]})
       select(view, "order_offer")
 
-      html = save(view, %{html: "<div>{{{order_number}}}</div>"})
+      edit_body(view, "{{{order_number}}}")
+      html = save(view, %{})
       assert html =~ "{{{order_number}}}"
       refute has_element?(view, "#editor-confirm-variables")
-      assert {:error, :enoent} = file(root, "order_offer", "html.et.html")
+      assert {:error, :enoent} = file(root, "order_offer", "markdown.et.md")
 
-      save(view, %{html: "<div>{{{documents_list}}}</div>"})
-      assert {:ok, "<div>{{{documents_list}}}</div>"} = file(root, "order_offer", "html.et.html")
+      edit_body(view, "{{{documents_list}}}")
+      save(view, %{})
+      assert {:ok, "{{{documents_list}}}"} = file(root, "order_offer", "markdown.et.md")
     end
 
     test "with no variable allowed three braces, the refusal says none is", %{tmp_dir: root} do
@@ -223,13 +280,14 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorVariablesTest do
       view = mount_editor(root)
       select(view, "order_offer")
 
-      html = save(view, %{html: "<div>{{{order_number}}}</div>"})
+      edit_body(view, "{{{order_number}}}")
+      html = save(view, %{})
 
       assert html =~
                "Write them with two braces: no variable is written with three here."
 
       refute html =~ "only for"
-      assert {:error, :enoent} = file(root, "order_offer", "html.et.html")
+      assert {:error, :enoent} = file(root, "order_offer", "markdown.et.md")
     end
 
     test "a page layout places content, header and footer with three braces", %{tmp_dir: root} do

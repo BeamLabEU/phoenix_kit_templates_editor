@@ -49,6 +49,69 @@ Without it the panel still works: a click puts the variable at the end of the
 body instead. The bundle is admin-scoped (core 3.6 and later): public pages do
 not download it; the admin page fetches it with PhoenixKit's admin bundle.
 
+### The letter's body: Leaf
+
+A letter's body (a template without a leading `_`) is one
+[Leaf](https://hex.pm/packages/leaf) editor — visual or Markdown mode, never
+hybrid or HTML. The Markdown file is the body; on *Save* the editor writes it
+and the text file derived from it (so the text version of a letter is never
+typed). A letter that has only a text file opens in Leaf with the text turned
+into Markdown, and nothing is written until *Save*. A letter that also has an
+HTML file keeps that file in a code field with a note. Headers, footers and
+layouts keep their code fields. *Text version* in the template's actions shows
+the derived text, read only.
+
+The module depends on `leaf` (`~> 0.11.0 or ~> 0.12.0`). Leaf is a LiveComponent
+with a JavaScript hook: the host's `app.js` has to load it
+(`import "../../deps/leaf/priv/static/assets/leaf.js"` — it registers
+`window.LeafHooks` — and spread `...(window.LeafHooks || {})` into the
+LiveSocket's `hooks`, as in Leaf's own README; the JS and the Hex package must
+be the same version), else the body stays on its loading text. Leaf's own buttons are in English.
+
+**What the first save changes in how a letter is built.** Core makes an
+email's HTML from the first of these that exists: the `html` file, the
+Markdown file, the text file (each line of it a line of the letter). A letter
+that has only a text file is therefore sent from its text; once its body is
+saved here it has a Markdown file, and its HTML is made from that. The two
+paths differ in what core does, not in what this module writes:
+
+- the value of a variable that has line breaks (an address, a signature) is
+  put in after the Markdown is rendered and is escaped, with no `<br>` — in
+  the text path every line of a value was a `<br>`, in the Markdown path they
+  run together;
+- Markdown makes lists, headings and tables of what the text path showed as
+  typed, and sets quotes and dashes in typographic form;
+- a paragraph of one link becomes a button, a paragraph of only empty
+  variables disappears.
+
+The substitution is core's (`PhoenixKit.Email.Markdown`), so this module does
+not change it; the preview shows what core sends. The letter's own line
+breaks are kept: Leaf's lines are written with an explicit break (a trailing
+`\`), except beside a placeholder of a block variable
+(`block_placeholders`, say `documents_list`): there the block is put in place
+of the placeholder together with the line break next to it, so no break is
+written after a line that ends with such a placeholder or before a line that
+starts with one, and the text version still keeps every line. Leaf's toolbar is its compact one; it keeps
+strike-through, inline code and emoji, which the preset cannot drop, and the
+phone toolbar's «Heading».
+
+**Known limits of the body.** Several blank lines in a row are one in Leaf (it
+writes an empty paragraph as nothing) and in core's text version; so a letter
+with blank room left on purpose keeps its text file as it is until its body is
+edited, and loses the room then.
+
+Opening a letter in Markdown mode (the mode the writer chose last is kept),
+switching to visual and leaving the field can rewrite the body into Leaf's own
+normal form (`*x*` for `_x_`, its list marks, its spacing) although nothing was
+typed: Leaf then reports the body as changed, and the next *Save* writes it and
+the text made from it.
+
+A picture pasted from the clipboard (a screenshot) is put into the body as an
+inline `data:` image, which an email does not carry: it is dropped from the
+letter. Leaf's `deny: [:images]` would not stop that paste, and it would strip
+the images (`![Logo]({{logo_url}})`) a letter already has the first time Leaf
+opens it, so it is not set.
+
 ### Where templates are edited: the directory
 
 The module never changes a file's owner. Where `editable: true`, make the
@@ -254,9 +317,15 @@ throws or exits is logged and never takes the page down.
   A header, footer or layout is shown around the first email using that layout
   (else the first email, else a Lorem ipsum). The
   preview frame runs no scripts and loads no images but from your site's origin.
-- **Converters.** *Fill text from content* and *Markdown → HTML* keep
-  `{{placeholders}}` as typed (link targets too); a variable in
-  `block_placeholders` alone in a paragraph comes out of the `<p>`.
+- **Converters.** For a header, footer or layout, *Fill text from content* and
+  *Markdown → HTML* keep `{{placeholders}}` as typed (link targets too); a
+  variable in `block_placeholders` alone in a paragraph comes out of the `<p>`.
+  A letter has no such buttons: its text is derived on *Save* with the same
+  `to_text` (the host's, else the module's own), and Leaf's Markdown is put
+  right first: a placeholder Leaf percent-encoded in a link target
+  (`%7B%7Bname%7D%7D`) is written back as `{{name}}`, a `\_` Leaf put inside
+  `{{…}}` loses its backslash, and Leaf's bare line breaks become explicit
+  ones (a trailing `\`), so the email shows them.
 - **Files changed on disk.** Where the files are edited (or `watch: true`), the
   module looks at them every 2 s and drops PhoenixKit's cached templates when
   they change — a hand edit or a `git pull` shows in the next email. It then

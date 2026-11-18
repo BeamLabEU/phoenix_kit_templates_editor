@@ -50,7 +50,8 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorIncompleteTest do
       assert flagged?(view, "order_new")
 
       select(view, "order_new")
-      save(view, %{text: "Tere"})
+      edit_body(view, "Tere")
+      save(view, %{})
 
       refute flagged?(view, "order_new")
     end

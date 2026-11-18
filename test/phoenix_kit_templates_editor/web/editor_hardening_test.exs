@@ -218,7 +218,8 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorHardeningTest do
       view = mount_editor(root, %{max_root_bytes: 200})
       select(view, "order_offer")
 
-      html = save(view, %{text: String.duplicate("a", 300)})
+      edit_body(view, String.duplicate("a", 300))
+      html = save(view, %{})
 
       assert html =~ "Not saved"
       assert html =~ "KiB"

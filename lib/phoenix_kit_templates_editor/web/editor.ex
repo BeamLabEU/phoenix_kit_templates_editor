@@ -286,7 +286,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   alias PhoenixKit.Templates
   alias PhoenixKit.Templates.Overrides
   alias PhoenixKit.Utils.RecipientLocale
+  alias PhoenixKitTemplatesEditor.Body
   alias PhoenixKitTemplatesEditor.Bounded
+  alias PhoenixKitTemplatesEditor.Converters
   alias PhoenixKitTemplatesEditor.Files
   alias PhoenixKitTemplatesEditor.Languages
   alias PhoenixKitTemplatesEditor.Layouts
@@ -295,6 +297,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   alias PhoenixKitTemplatesEditor.Preview
   alias PhoenixKitTemplatesEditor.Sources
   alias PhoenixKitTemplatesEditor.Variables
+  alias PhoenixKitTemplatesEditor.Web.Letter
   alias PhoenixKitWeb.Components.LanguageSwitcher
 
   @parts [:label, :subject, :text, :markdown, :html]
@@ -398,11 +401,25 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
        # Each part's file as the form was given it (sha256, or `:none`), and
        # the parts a save found changed on disk since.
        hashes: %{},
-       conflict: nil
+       conflict: nil,
+       # A letter's body in Leaf (`Web.Letter`): the open document, nil for
+       # anything but a letter; the mode the writer chose; a switch of
+       # language or template waiting for "discard"; the text version's dialog.
+       body: nil,
+       body_mode: :visual,
+       body_rev: 0,
+       confirm_switch: nil,
+       form_dirty?: false,
+       block_placeholders: [],
+       text_version?: false
      )}
   end
 
   @impl true
+  # A message of the Leaf editor (`notify:`). It only tells what the editor
+  # holds; nothing is written until the Save event.
+  def update(%{leaf: message}, socket), do: {:ok, Letter.receive(socket, message)}
+
   def update(assigns, socket) do
     previous_files = files_of(socket, socket.assigns.selected)
     socket = socket |> assign(assigns) |> sanitize_options() |> assign_layout_values()
@@ -414,7 +431,96 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     {:ok, refresh_preview(socket, previous_files)}
   end
 
+  # What changes the open document, with something unsaved in a letter (its
+  # body in Leaf, its label or subject in the form): asked first, in a dialog,
+  # before it is thrown away. Reload is one of them: it reads the files again.
+  @document_events ~w(select_module create create_layout override_default override_db override_layout reload)
+
+  defguardp unsaved?(assigns)
+            when (is_map(assigns.body) and assigns.body.dirty? == true) or
+                   assigns.form_dirty? == true
+
   @impl true
+  def handle_event(
+        "select",
+        %{"name" => name},
+        %{assigns: %{selected: selected} = assigns} = socket
+      )
+      when name != selected and unsaved?(assigns),
+      do: {:noreply, assign(socket, confirm_switch: {"select", %{"name" => name}})}
+
+  def handle_event(
+        "locale",
+        %{"language" => language},
+        %{assigns: %{locale: locale} = assigns} = socket
+      )
+      when language != locale and not (language == "" and is_nil(locale)) and unsaved?(assigns),
+      do: {:noreply, assign(socket, confirm_switch: {"locale", %{"language" => language}})}
+
+  def handle_event(event, params, %{assigns: assigns} = socket)
+      when event in @document_events and unsaved?(assigns),
+      do: {:noreply, assign(socket, confirm_switch: {event, params})}
+
+  # What Save would write is what the form shows: after «Discard» the open
+  # document is drawn from its files again whenever the event that follows
+  # did not open another one (a refused «create», a template gone meanwhile).
+  def handle_event(
+        "confirm_switch",
+        _params,
+        %{assigns: %{confirm_switch: {event, params}}} = socket
+      ) do
+    %{selected: selected, locale: locale, body_rev: rev} = socket.assigns
+    socket = socket |> assign(confirm_switch: nil, form_dirty?: false) |> discard_body()
+
+    {:noreply, socket} = handle_event(event, params, socket)
+    {:noreply, redraw_unless_moved(socket, {selected, locale, rev})}
+  end
+
+  def handle_event("confirm_switch", _params, socket), do: {:noreply, socket}
+
+  def handle_event("cancel_switch", _params, socket),
+    do: {:noreply, assign(socket, confirm_switch: nil)}
+
+  # A variable of the panel into the letter's body, at the caret of Leaf.
+  def handle_event("insert_variable", %{"name" => name}, socket) when is_binary(name) do
+    row = Enum.find(panel_rows(socket.assigns), &(&1.name == name))
+
+    if row && socket.assigns.body && form_writable?(socket) do
+      send_update(Leaf,
+        id: socket.assigns.body.doc,
+        action: :insert_markdown,
+        text: placeholder(row)
+      )
+    end
+
+    {:noreply, socket}
+  end
+
+  # What the writer typed in a letter's label or subject, only to know whether
+  # leaving it asks first; nothing is written.
+  def handle_event("form_changed", %{"parts" => parts}, socket) when is_map(parts) do
+    baseline = socket.assigns.baseline
+
+    dirty? =
+      Letter.letter?(socket.assigns) and
+        Enum.any?(~w(label subject)a, fn part ->
+          value = parts[Atom.to_string(part)]
+
+          is_binary(value) and String.valid?(value) and
+            not unchanged?(part, normalize_newlines(value), Map.get(baseline, part, ""))
+        end)
+
+    {:noreply, assign(socket, form_dirty?: dirty?)}
+  end
+
+  def handle_event("form_changed", _params, socket), do: {:noreply, socket}
+
+  def handle_event("text_version", _params, socket),
+    do: {:noreply, assign(socket, text_version?: text_version(socket.assigns) != nil)}
+
+  def handle_event("close_text_version", _params, socket),
+    do: {:noreply, assign(socket, text_version?: false)}
+
   # The open template or language clicked again keeps the form (unsaved values
   # included) and only clears what is transient: a notice, a pending delete.
   def handle_event("select", %{"name" => name}, %{assigns: %{selected: name}} = socket),
@@ -460,9 +566,10 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
     {:noreply,
      permitted(socket, :convert, fn socket ->
-       if form_writable?(socket) and converter(socket.assigns, conversion) != nil,
-         do: convert(socket, conversion, parts),
-         else: socket
+       if form_writable?(socket) and not Letter.letter?(socket.assigns) and
+            converter(socket.assigns, conversion) != nil,
+          do: convert(socket, conversion, parts),
+          else: socket
      end)}
   end
 
@@ -470,7 +577,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   # variable goes at the end of the body, in the form only.
   def handle_event("save", %{"action" => "insert:" <> variable, "parts" => parts}, socket)
       when is_map(parts) do
-    if form_writable?(socket),
+    if form_writable?(socket) and not Letter.letter?(socket.assigns),
       do: {:noreply, insert_variable(socket, variable, parts)},
       else: {:noreply, socket}
   end
@@ -717,7 +824,94 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   # file still as the form was given it, a subject one line, three braces
   # only for HTML variables, no variable of the other kind of template
   # unless confirmed.
-  defp save(socket, params, opts \\ []) do
+  defp save(socket, form_params, opts \\ []) do
+    case letter_params(socket, form_params) do
+      {:ok, params} ->
+        save_params(socket, form_params, params, opts)
+
+      {:error, message} ->
+        socket |> notice(:error, not_saved(message)) |> keep_form(form_params)
+    end
+  end
+
+  # A letter has no text, Markdown or HTML field of its own to post: whatever
+  # arrives under those names is not read. Its body is what Leaf holds —
+  # when the writer changed it — as Markdown, and the text derived from that;
+  # a hand-written HTML file keeps its field.
+  defp letter_params(socket, params) do
+    if Letter.letter?(socket.assigns) do
+      keys = ["label", "subject"] ++ if(socket.assigns.contents[:html], do: ["html"], else: [])
+      letter_body(socket, Map.take(params, keys))
+    else
+      {:ok, params}
+    end
+  end
+
+  defp letter_body(%{assigns: %{body: %{dirty?: true, markdown: markdown}}} = socket, params) do
+    if byte_size(markdown) > Overrides.max_bytes() do
+      {:error,
+       gettext("Body: %{reason}",
+         reason: gettext("larger than %{size} KiB", size: div(Overrides.max_bytes(), 1024))
+       )}
+    else
+      body_changes(socket, markdown, params)
+    end
+  end
+
+  defp letter_body(_socket, params), do: {:ok, params}
+
+  # The Markdown that is stored leaves the line next to a block placeholder
+  # as Leaf has it (the send puts the block there); the text is made from the
+  # same body with every line break marked, so it keeps the line.
+  defp body_changes(socket, markdown, params) do
+    baseline = socket.assigns.baseline
+
+    stored =
+      markdown
+      |> Body.from_editor(socket.assigns.block_placeholders)
+      |> normalize_newlines()
+      |> keep_final_newline(baseline[:markdown])
+
+    source = markdown |> Body.from_editor() |> normalize_newlines()
+
+    with {:ok, text} <- derive_text(socket, source) do
+      {:ok,
+       params
+       |> Map.put("markdown", stored)
+       |> Map.put("text", keep_final_newline(text, baseline[:text]))}
+    end
+  end
+
+  # The file's own final newline stays: an edit changes the text, not that.
+  defp keep_final_newline("", _given), do: ""
+
+  defp keep_final_newline(value, given) when is_binary(given) do
+    if String.ends_with?(given, "\n") and not String.ends_with?(value, "\n"),
+      do: value <> "\n",
+      else: value
+  end
+
+  defp keep_final_newline(value, _none), do: value
+
+  # The text version of a body, by the host's converter, else this module's.
+  defp derive_text(_socket, markdown) when markdown in ["", "\n"], do: {:ok, ""}
+
+  defp derive_text(socket, markdown) do
+    callback = converter(socket.assigns, :to_text) || (&Converters.to_text/2)
+    args = [:markdown, markdown]
+
+    case safely({"to_text", callback, args}, fn ->
+           callback |> call(args) |> conversion_result()
+         end) do
+      {:ok, text} ->
+        {:ok, normalize_newlines(text)}
+
+      {:error, reason} ->
+        {:error, gettext("the text version could not be made: %{reason}", reason: reason)}
+    end
+  end
+
+  defp save_params(socket, form_params, params, opts) do
     %{contents: contents, baseline: baseline} = socket.assigns
 
     changes =
@@ -756,7 +950,10 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
       findings.forbidden != [] and opts[:confirmed] != true ->
         socket
-        |> assign(confirm_variables: %{parts: params, names: findings.forbidden}, notice: nil)
+        |> assign(
+          confirm_variables: %{parts: form_params, names: findings.forbidden},
+          notice: nil
+        )
         |> keep_form(params)
 
       true ->
@@ -787,11 +984,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     do: value |> String.trim_trailing("\n") |> String.replace(~r/\r?\n/, " ")
 
   defp write_changes(socket, changes, params, unknown) do
-    %{root: root, selected: name, locale: locale, preview_result: previous_preview} =
-      socket.assigns
+    %{selected: name, locale: locale, preview_result: previous_preview} = socket.assigns
 
-    results =
-      for {part, change} <- changes, do: {part, apply_change(change, root, name, part, locale)}
+    results = write_in_order(socket, changes)
 
     paths = for {_part, {:ok, paths}} <- results, path <- paths, do: path
     saved = for {part, {:ok, _paths}} <- results, do: part
@@ -816,6 +1011,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     |> load_templates()
     |> redraft()
     |> load_contents()
+    |> retain_body(errors, params)
     |> assign(form_values: refused_values(errors, params))
     |> preview()
     |> open_first_preview(previous_preview)
@@ -825,6 +1021,42 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   # selected template's.
   defp open_first_preview(socket, :unsaved), do: open_preview(socket)
   defp open_first_preview(socket, _previous), do: socket
+
+  # A body part a save refused is still typed into the form: Leaf is opened with
+  # it again, and it stays unsaved.
+  defp retain_body(socket, errors, params) do
+    refused? = Enum.any?(errors, fn {part, _reason} -> part in [:markdown, :text] end)
+
+    if refused? and socket.assigns.body != nil and is_binary(params["markdown"]),
+      do: Letter.open(socket, Body.to_editor(params["markdown"])),
+      else: socket
+  end
+
+  defp redraw_unless_moved(
+         %{assigns: %{selected: selected, locale: locale, body_rev: rev}} = socket,
+         {selected, locale, rev}
+       )
+       when is_binary(selected),
+       do: socket |> load_contents() |> preview()
+
+  defp redraw_unless_moved(socket, _before), do: socket
+
+  defp discard_body(%{assigns: %{body: %{} = body}} = socket),
+    do: assign(socket, body: %{body | dirty?: false, markdown: nil, retained: nil})
+
+  defp discard_body(socket), do: socket
+
+  # The text a recipient's mail program shows: the host's preview of it, else
+  # the text file.
+  defp text_version(assigns) do
+    case assigns.preview_result do
+      {:ok, _subject, _html, text} when is_binary(text) and text != "" -> text
+      _other -> file_text(assigns.contents[:text])
+    end
+  end
+
+  defp file_text(%{content: content}) when content != "", do: content
+  defp file_text(_none), do: nil
 
   defp saved_event({:write, value}, name, part, locale, file) do
     %{
@@ -1211,6 +1443,29 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     if unchanged?(part, value, normalize_newlines(content)),
       do: :none,
       else: {:ok, {:write, value}}
+  end
+
+  # A letter's Markdown is its canon and its text is made from it: the
+  # canon is written first, and when it is refused the text made from it is
+  # not written beside the old one.
+  defp write_in_order(socket, changes) do
+    %{root: root, selected: name, locale: locale} = socket.assigns
+    write = fn {part, change} -> {part, apply_change(change, root, name, part, locale)} end
+
+    case {Letter.letter?(socket.assigns), Enum.split_with(changes, &match?({:markdown, _}, &1))} do
+      {true, {[markdown], rest}} ->
+        {_part, result} = written = write.(markdown)
+
+        rest =
+          if match?({:error, _reason}, result),
+            do: Enum.reject(rest, &match?({:text, _change}, &1)),
+            else: rest
+
+        [written | Enum.map(rest, write)]
+
+      _not_both ->
+        Enum.map(changes, write)
+    end
   end
 
   defp apply_change(:delete, root, name, part, locale) do
@@ -2089,7 +2344,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         confirm_delete?: false,
         confirm_fallback_delete?: false,
         confirm_layout_delete: nil,
-        confirm_variables: nil
+        confirm_variables: nil,
+        confirm_switch: nil,
+        text_version?: false
       )
 
   defp deselect(socket) do
@@ -2099,6 +2356,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       contents: %{},
       baseline: %{},
       form_values: %{},
+      form_dirty?: false,
       preview_result: nil,
       missing: [],
       confirm_delete?: false,
@@ -2106,7 +2364,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       confirm_variables: nil,
       var_context: nil,
       hashes: %{},
-      conflict: nil
+      conflict: nil,
+      body: nil,
+      text_version?: false
     )
   end
 
@@ -2123,12 +2383,18 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     |> assign(
       baseline: baseline(socket.assigns.contents),
       form_values: %{},
+      form_dirty?: false,
+      # Every field is drawn again: what was typed in one the server's value
+      # did not change would otherwise stay on the screen of a form the server
+      # holds as clean.
+      form_rev: socket.assigns.form_rev + 1,
       hashes: fingerprints(socket.assigns),
       conflict: nil,
       confirm_variables: nil
     )
     |> assign_var_context()
     |> assign_sources()
+    |> Letter.open()
   end
 
   # Where each part of the open email comes from — only for one core
@@ -2579,6 +2845,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     assign(socket,
       name_prefixes: prefixes,
       raw_variables: non_empty_strings(socket.assigns.raw_variables),
+      block_placeholders: non_empty_strings(socket.assigns.block_placeholders),
       module_emails: module_emails(socket.assigns.module_emails),
       locales: locales,
       sample_variables: if(is_map(variables), do: variables, else: %{}),
@@ -2818,8 +3085,11 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         can_edit: editable?(assigns),
         form_shown: form_shown?(assigns),
         variable_rows: panel_rows(assigns),
-        can_fill_text: converter(assigns, :to_text) != nil,
-        can_render_markdown: converter(assigns, :markdown_to_html) != nil,
+        letter?: Letter.letter?(assigns),
+        can_fill_text: converter(assigns, :to_text) != nil and not Letter.letter?(assigns),
+        can_render_markdown:
+          converter(assigns, :markdown_to_html) != nil and not Letter.letter?(assigns),
+        text_version: if(Letter.letter?(assigns), do: text_version(assigns)),
         detail?: detail?(assigns)
       )
 
@@ -3264,6 +3534,18 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             </div>
             <div class="flex flex-wrap gap-x-2 gap-y-2">
               <.button
+                :if={@text_version}
+                id={"#{@id}-text-version"}
+                type="button"
+                variant="ghost"
+                size="sm"
+                phx-click="text_version"
+                phx-target={@myself}
+              >
+                <.icon name="hero-document-text" class="size-4" />
+                {gettext("Text version")}
+              </.button>
+              <.button
                 :if={@can_test_send}
                 id={"#{@id}-test-send"}
                 type="button"
@@ -3361,6 +3643,67 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
                 phx-target={@myself}
               >
                 {gettext("Delete")}
+              </.button>
+            </:actions>
+          </.modal>
+
+          <.modal
+            :if={@text_version}
+            show={@text_version?}
+            id={"#{@id}-text-version-modal"}
+            on_close="close_text_version"
+          >
+            <:title>{gettext("Text version")}</:title>
+            <p class="mb-2 text-xs opacity-70">
+              {gettext("Made from the body when you save; it is not edited by hand.")}
+            </p>
+            <pre id={"#{@id}-text-version-text"} class={pre_class()}>{@text_version}</pre>
+            <:actions>
+              <.button
+                id={"#{@id}-text-version-close"}
+                type="button"
+                variant="ghost"
+                size="sm"
+                phx-click="close_text_version"
+                phx-target={@myself}
+              >
+                {gettext("Close")}
+              </.button>
+            </:actions>
+          </.modal>
+
+          <.modal
+            show={@confirm_switch != nil}
+            id={"#{@id}-confirm-switch"}
+            on_close="cancel_switch"
+          >
+            <:title>
+              <.icon name="hero-exclamation-triangle" class="size-5 text-warning" />
+              {gettext("Unsaved changes")}
+            </:title>
+            <p class="break-words text-sm">
+              {gettext("There are changes that are not saved. Leave without saving them?")}
+            </p>
+            <:actions>
+              <.button
+                id={"#{@id}-confirm-switch-cancel"}
+                type="button"
+                variant="ghost"
+                size="sm"
+                phx-click="cancel_switch"
+                phx-target={@myself}
+              >
+                {gettext("Stay")}
+              </.button>
+              <.button
+                id={"#{@id}-confirm-switch-discard"}
+                type="button"
+                variant="warning"
+                size="sm"
+                phx-click="confirm_switch"
+                phx-target={@myself}
+              >
+                {gettext("Discard the changes")}
               </.button>
             </:actions>
           </.modal>
@@ -3508,25 +3851,60 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
           <div
             :if={@selected}
             id={"#{@id}-form"}
-            phx-hook={if(@form_shown, do: "PhoenixKitTemplatesEditorInsertVariable")}
+            phx-hook={if(@form_shown and not @letter?, do: "PhoenixKitTemplatesEditorInsertVariable")}
             class="flex min-w-0 flex-col gap-4"
           >
             <.form_section :if={@form_shown} body_class="p-4">
               <form
                 id={"#{@id}-parts"}
                 phx-submit="save"
+                phx-change={if(@letter?, do: "form_changed")}
                 phx-target={@myself}
                 class="flex min-w-0 flex-col gap-3"
               >
+                <%!-- A letter: label and subject, then its body in Leaf (the text
+                     version is made from it on a save), and the HTML only where a
+                     hand-written file already exists. Anything else keeps a field
+                     per part. --%>
                 <.part_field
-                  :for={part <- @parts}
+                  :for={part <- field_parts(@letter?)}
                   id={"#{@id}-part-#{part}"}
                   part={part}
                   file={@contents[part]}
                   value={@form_values[part]}
                   rev={@form_rev}
                 />
-                <p class="text-xs opacity-70">
+                <%= if @letter? do %>
+                  <.part_field
+                    :for={part <- Letter.unreadable(@contents)}
+                    id={"#{@id}-part-#{part}"}
+                    part={part}
+                    file={@contents[part]}
+                    rev={@form_rev}
+                  />
+                  <Letter.body_field
+                    :if={@body}
+                    id={"#{@id}-body"}
+                    body={@body}
+                    mode={@body_mode}
+                    notify={{__MODULE__, @id}}
+                  />
+                  <div :if={@contents[:html]} class="flex min-w-0 flex-col gap-1">
+                    <p id={"#{@id}-html-note"} class="text-xs opacity-70">
+                      {gettext(
+                        "This letter’s HTML is written by hand: Leaf does not edit it, and it is what the recipient sees."
+                      )}
+                    </p>
+                    <.part_field
+                      id={"#{@id}-part-html"}
+                      part={:html}
+                      file={@contents[:html]}
+                      value={@form_values[:html]}
+                      rev={@form_rev}
+                    />
+                  </div>
+                <% end %>
+                <p :if={not @letter?} class="text-xs opacity-70">
                   {gettext("Switching language or template drops unsaved changes.")}
                 </p>
                 <%!-- Save comes first: the form's default button. The rows are
@@ -3599,7 +3977,8 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
               :if={@variable_rows != []}
               id={"#{@id}-variables"}
               rows={@variable_rows}
-              form={if(@form_shown, do: "#{@id}-parts")}
+              form={if(@form_shown and not @letter?, do: "#{@id}-parts")}
+              leaf={if(@form_shown and @letter? and @body != nil, do: @myself)}
             />
           </div>
 
@@ -3610,6 +3989,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
                 id={@id}
                 result={@preview_result}
                 tab={@preview_tab}
+                single={@letter?}
                 csp={preview_csp(@preview_image_origins)}
                 myself={@myself}
               />
@@ -3739,6 +4119,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   attr(:id, :string, required: true)
   attr(:rows, :list, required: true)
   attr(:form, :string, default: nil)
+  attr(:leaf, :any, default: nil)
 
   # The variables of a part: a button each that puts it into the form
   # (`form`), or, read only, just the names. Collapsible, closed at first.
@@ -3766,7 +4147,22 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             >
               {placeholder(row)}
             </.button>
-            <code :if={!@form} class="break-all font-mono">{placeholder(row)}</code>
+            <%!-- A letter's variable goes into Leaf at its caret. The button does not
+                 take the focus (mousedown), or the caret would be gone by the click. --%>
+            <.button
+              :if={@leaf}
+              type="button"
+              variant="outline"
+              size="xs"
+              class="font-mono"
+              phx-click="insert_variable"
+              phx-value-name={row.name}
+              phx-target={@leaf}
+              onmousedown="event.preventDefault()"
+            >
+              {placeholder(row)}
+            </.button>
+            <code :if={!@form and !@leaf} class="break-all font-mono">{placeholder(row)}</code>
             <span :if={row.sample not in [nil, ""]} class="break-all font-mono text-xs opacity-60">
               {row.sample}
             </span>
@@ -3882,6 +4278,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   attr(:id, :string, required: true)
   attr(:result, :any, required: true)
   attr(:tab, :atom, default: :html)
+  attr(:single, :boolean, default: false)
   attr(:csp, :string, required: true)
   attr(:myself, :any, required: true)
 
@@ -3891,7 +4288,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         subject: subject,
         html: html,
         text: text,
-        show_html?: text == :none or assigns.tab == :html
+        show_html?: assigns.single or text == :none or assigns.tab == :html
       )
 
     ~H"""
@@ -3900,7 +4297,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         <span class="opacity-60">{gettext("Subject:")}</span> {@subject}
       </p>
       <.nav_tabs
-        :if={@text != :none}
+        :if={@text != :none and not @single}
         id={"#{@id}-preview-tabs"}
         active_tab={to_string(@tab)}
         on_change="preview_tab"
@@ -3926,7 +4323,10 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         title={gettext("Preview")}
         class="h-[32rem] w-full rounded-box border border-base-300 bg-white"
       ></iframe>
-      <p :if={@show_html? && !@html} class="text-sm opacity-70">{gettext("No HTML.")}</p>
+      <p :if={@show_html? && !@html && !(@single && is_binary(@text))} class="text-sm opacity-70">
+        {gettext("No HTML.")}
+      </p>
+      <pre :if={@show_html? && !@html && @single && is_binary(@text)} class={pre_class()}>{@text}</pre>
       <pre :if={!@show_html? && @text} id={"#{@id}-preview-text"} class={pre_class()}>{@text}</pre>
       <p :if={!@show_html? && !@text} class="text-sm opacity-70">{gettext("No text.")}</p>
     </div>
@@ -3960,6 +4360,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   defp unreadable_message(_invalid),
     do: gettext("This file is not valid UTF-8 text; fix it on disk to edit it here.")
+
+  defp field_parts(true), do: [:label, :subject]
+  defp field_parts(false), do: @parts
 
   defp part_title(:label), do: gettext("Label")
   defp part_title(:subject), do: gettext("Subject")

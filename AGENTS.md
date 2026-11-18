@@ -55,6 +55,8 @@ Repo-local aliases:
 - **Every change on disk is journalled.** A new write path in the editor calls `journal/2` with an event `PhoenixKitTemplatesEditor.Journal` lists; the section logs it to `PhoenixKit.Activity` with the scope of the moment.
 - **A save is checked before it writes** (`Web.Editor.save/3`): the part's file still as fingerprinted at open (else a conflict, nothing written), the subject (one line, at most 998 bytes), raw braces (`{{{x}}}` only for the HTML variables), variables of the other kind (`Variables.check/3`, confirmed by "Save anyway").
 - **Every template file is read through `Files.safe_read/2`**, and before a library call reads a template's files (`Overrides.locate/4` follows links and caches what it read; the host's preview and test send read that way) the template directory goes through `Files.check_template/2` — through `Preview.check_templates/2` for an email and its chrome: no symlinks, nothing whose real path leaves the root, nothing over `Overrides.max_bytes/0`. A write first checks the template directory is no link (`Files.check_template_dir/2`). Messages name files relative to the root (`Files.relative/2`).
+- **A letter's body is one Leaf editor, the Markdown file is the body.** A save of a dirty body writes `markdown` and the `text` derived from it (the host's `to_text`, else `Converters.to_text/2`); a letter has no text/Markdown/HTML fields or conversion buttons, its HTML file (if any) keeps a code field. Leaf's messages (`{:leaf_changed, …}` through `notify:`) only tell the editor what Leaf holds — they never write; only the Save event does, after every check. Every template/language switch mounts a Leaf of a new id (`Letter.open/2`), a message of another id is dropped, and a switch with an unsaved body asks first (`confirm_switch`), so one language's text is never saved into another. Leaf's Markdown goes through `Body.from_editor/1` and back through `Body.to_editor/1`: `Body` holds the placeholder repair and the line-break rule (Leaf writes `<br>` as a bare newline, core's renderer wants an explicit break).
+- **The first save of a letter's body changes which core path builds its HTML** (text file → Markdown file; see README «What the first save changes»). Core's substitution of multi-line variable values is not ours to change. `Body.from_editor/2` takes the host's `block_placeholders`: no `\\` break after a line that ends with such a placeholder or before one that starts with it, and the text is derived from `from_editor/1` (every break marked), so the text keeps the line. Everything in `Body` is linear in the line's length (no two quantifiers over the same blanks) and the size is checked (`Overrides.max_bytes/0`) before it runs. A switch, a reload or a create with an unsaved body, label or subject asks first (`confirm_switch`); «Discard» draws the open document from its files again unless the event that follows opened another.
 - **Work the page waits on runs bounded** (`Bounded.run/2`, 5 s): converters, the default and the host's preview, `git status`.
 - **git runs nothing the repository configures** (`Files.uncommitted/1`): `core.fsmonitor=false`, every filter driver's commands set empty by `-c`, submodules ignored, no lazy fetch, a clean `GIT_*` environment, `timeout -s KILL`. Asking it is a writer's action, once in 5 s.
 - **Modes and owners are never changed after a write** (no `chmod`/`chown` anywhere, `Files` moduledoc): the server's umask and the root's setgid bit give `0664`/`2775` (README, installation).
@@ -79,6 +81,7 @@ Repo-local aliases:
 lib/
 ├── phoenix_kit_templates_editor.ex         # PhoenixKit.Module: callbacks, settings_tabs/0, tab_path/1, accessible?/1, authorize/2
 └── phoenix_kit_templates_editor/
+    ├── body.ex                              # a letter's body: Leaf's Markdown ⇄ the file's (placeholders, line breaks), text → Markdown
     ├── bounded.ex                           # run work in a task with a deadline (internal)
     ├── catalog.ex                           # the host's emails: list order, entries for core's email preview
     ├── config.ex                            # Config.load/1 — config :phoenix_kit_templates_editor, checked
@@ -98,6 +101,7 @@ lib/
     ├── variables.ex                         # a part's variables by template kind; the save check
     ├── watcher.ex                           # child: re-reads the files every 2 s where edited/watched
     └── web/
+        ├── letter.ex                        # Web.Letter — a letter's body: one Leaf per document, what its messages may do, the field
         ├── editor.ex                        # Web.Editor — the editor LiveComponent (from phoenix_kit_templates 0.2.4)
         ├── scope_hook.ex                    # on_mount hook; kept for host configs, the page does not use it
         ├── section.ex                       # the page's LiveComponent: config check, notices, mounts the editor

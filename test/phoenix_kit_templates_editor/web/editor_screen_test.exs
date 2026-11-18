@@ -269,7 +269,8 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorScreenTest do
       view = mount_editor(root)
       select(view, "order_offer")
 
-      save(view, %{text: "Hello {{site_name}}"})
+      edit_body(view, "Hello {{site_name}}")
+      save(view, %{})
 
       assert has_element?(view, "dialog#editor-confirm-variables #editor-confirm-variables-save")
 
@@ -375,7 +376,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorScreenTest do
   end
 
   describe "one-line fields" do
-    test "the label and the subject are single-line inputs, the body parts textareas",
+    test "the label and the subject are single-line inputs; a letter's body is Leaf, a header's parts textareas",
          %{tmp_dir: root} do
       seed(root)
       view = mount_editor(root)
@@ -385,6 +386,13 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorScreenTest do
         assert has_element?(view, "#editor-parts input[type=text][name='parts[#{part}]']")
         refute has_element?(view, "#editor-parts textarea[name='parts[#{part}]']")
       end
+
+      for part <- ~w(text markdown html) do
+        refute has_element?(view, "#editor-parts [name='parts[#{part}]']")
+      end
+
+      select(view, "_header-shop")
+      tab(view, "")
 
       for part <- ~w(text markdown html) do
         assert has_element?(view, "#editor-parts textarea[name='parts[#{part}]']")
@@ -397,7 +405,8 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorScreenTest do
       view = mount_editor(root)
       select(view, "order_offer")
 
-      assert save(view, %{text: "New body"}) =~ "Saved."
+      edit_body(view, "New body")
+      assert save(view, %{}) =~ "Saved."
 
       assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) ==
                "Pakkumine {{order_number}}\n"
@@ -447,7 +456,8 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorScreenTest do
 
       assert field(view, :subject) == "First line second line"
 
-      assert save(view, %{text: "New body"}) =~ "Saved."
+      edit_body(view, "New body")
+      assert save(view, %{}) =~ "Saved."
 
       assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) ==
                "First line\nsecond line\n"

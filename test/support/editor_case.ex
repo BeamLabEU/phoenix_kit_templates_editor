@@ -49,6 +49,17 @@ defmodule PhoenixKitTemplatesEditor.EditorCase do
   end
 
   @doc """
+  A footer with the parts of `order_offer`: the conversion buttons, and a
+  form with a field per part, belong to the headers, footers and layouts —
+  a letter's body is one Leaf editor.
+  """
+  def seed_chrome(root) do
+    put(root, "_footer-shop", "label.et.txt", "Pakkumiskiri\n")
+    put(root, "_footer-shop", "subject.et.txt", "Pakkumine {{order_number}}\n")
+    put(root, "_footer-shop", "text.et.txt", "Tere!\n\n{{documents_list}}\n")
+  end
+
+  @doc """
   Mounts the editor on `root` with `opts` over the defaults. `opts` may hold
   `:locale`, the page's language, which is not an editor attribute.
 
@@ -115,6 +126,50 @@ defmodule PhoenixKitTemplatesEditor.EditorCase do
     |> form("#editor-parts", parts: parts)
     |> put_submitter("#editor-parts button[name=action][value=#{action}]")
     |> render_submit()
+  end
+
+  @doc "The id of the Leaf editor the page holds for the open letter."
+  def leaf_id(view) do
+    view
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query("#editor-body [phx-hook='Leaf']")
+    |> Enum.at(0)
+    |> LazyHTML.attribute("id")
+    |> List.first()
+  end
+
+  @doc "What the open Leaf was given to start from (its Markdown)."
+  def leaf_content(view) do
+    view
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query("#editor-body [phx-hook='Leaf']")
+    |> Enum.at(0)
+    |> LazyHTML.attribute("data-initial-markdown")
+    |> List.first()
+  end
+
+  @doc """
+  What Leaf tells the editor when the writer has typed `markdown` (`opts`:
+  `:dirty`, `:doc` — the Leaf it comes from, default the open one).
+  """
+  def edit_body(view, markdown, opts \\ []) do
+    message =
+      {:leaf_changed,
+       %{
+         editor_id: opts[:doc] || leaf_id(view),
+         markdown: markdown,
+         html: "",
+         dirty: Keyword.get(opts, :dirty, true)
+       }}
+
+    Phoenix.LiveView.send_update(view.pid, PhoenixKitTemplatesEditor.Web.Editor,
+      id: "editor",
+      leaf: message
+    )
+
+    render(view)
   end
 
   @doc "What a field holds in the page, unescaped."

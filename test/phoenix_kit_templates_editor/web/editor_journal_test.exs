@@ -24,7 +24,8 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorJournalTest do
     view = mount_journalled(root)
     select(view, "order_offer")
 
-    save(view, %{subject: "Uus teema", text: ""})
+    edit_body(view, "")
+    save(view, %{subject: "Uus teema"})
 
     assert_received {:journal,
                      %{
@@ -50,7 +51,8 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorJournalTest do
     select(view, "order_offer")
 
     save(view, %{})
-    save(view, %{text: "{{site_url}}"})
+    edit_body(view, "{{site_url}}")
+    save(view, %{})
 
     refute_received {:journal, _event}
   end

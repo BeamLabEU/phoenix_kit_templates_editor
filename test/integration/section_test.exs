@@ -38,6 +38,26 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionTest do
   defp select(view, name),
     do: view |> element("#templates-editor button[phx-value-name=#{name}]") |> render_click()
 
+  # What Leaf tells the editor when the writer has typed `markdown`.
+  defp edit_body(view, markdown) do
+    [doc] =
+      view
+      |> render()
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.query("#templates-editor-body [phx-hook='Leaf']")
+      |> Enum.flat_map(&LazyHTML.attribute(&1, "id"))
+
+    message =
+      {:leaf_changed, %{editor_id: doc, markdown: markdown, html: "", dirty: true}}
+
+    Phoenix.LiveView.send_update(view.pid, PhoenixKitTemplatesEditor.Web.Editor,
+      id: "templates-editor",
+      leaf: message
+    )
+
+    render(view)
+  end
+
   defp save(view, parts),
     do: view |> form("#templates-editor-parts", parts: parts) |> render_submit()
 
@@ -186,10 +206,12 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionTest do
 
     view = mount_section(scope: writer())
     select(view, "shop_offer")
-    save(view, %{text: "Saved"})
+    edit_body(view, "Saved")
+    save(view, %{})
     assert text.() == "Saved"
 
-    save(view, %{text: ""})
+    edit_body(view, "")
+    save(view, %{})
     assert text.() in [nil, ""]
   end
 

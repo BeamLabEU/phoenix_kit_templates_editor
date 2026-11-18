@@ -41,6 +41,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorAccessTest do
     for action <- ["to_text", "md_to_html"] do
       test "#{action} converts nothing and says so", %{tmp_dir: root} do
         seed(root)
+        seed_chrome(root)
         test_pid = self()
 
         converter = fn _source ->
@@ -57,7 +58,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorAccessTest do
             }
           })
 
-        select(view, "order_offer")
+        select(view, "_footer-shop")
 
         html = convert(view, unquote(action), %{markdown: "**Tere**"})
 
@@ -157,6 +158,9 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorAccessTest do
       assert_received {:authorize, :save}
       assert subject_et(root) == "Uus\n"
 
+      seed_chrome(root)
+      send(view.pid, {:put, %{sample_variables: %{"order_number" => "37"}}})
+      select(view, "_footer-shop")
       convert(view, "to_text", %{markdown: "**Tere**"})
       assert_received {:authorize, :convert}
       assert field(view, :text) == "Tere"

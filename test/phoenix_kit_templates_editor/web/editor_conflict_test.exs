@@ -42,7 +42,8 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorConflictTest do
     elsewhere(view, root, "markdown.et.md", "**Kelleltki**")
     elsewhere(view, root, "text.et.txt", nil)
 
-    html = save(view, %{markdown: "**Minu**", text: "Minu tekst"})
+    edit_body(view, "**Minu**")
+    html = save(view, %{})
 
     assert html =~ "changed on disk"
     assert File.read!(path(root, "markdown.et.md")) == "**Kelleltki**"
@@ -56,8 +57,9 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorConflictTest do
     select(view, "order_offer")
     elsewhere(view, root, "subject.et.txt", "Teine sessioon\n")
 
-    assert save(view, %{text: "Uus tekst"}) =~ "Saved."
-    assert File.read!(path(root, "text.et.txt")) == "Uus tekst"
+    edit_body(view, "Uus tekst")
+    assert save(view, %{}) =~ "Saved."
+    assert File.read!(path(root, "text.et.txt")) == "Uus tekst\n"
   end
 
   test "after a save the next save of the same part goes through", %{tmp_dir: root} do
