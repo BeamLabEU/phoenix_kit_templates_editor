@@ -929,7 +929,7 @@ msgstr "Teil pole juurdepääsu kirjade mallidele."
 msgid "Actions"
 msgstr "Toimingud"
 
-#: lib/phoenix_kit_templates_editor/web/letter.ex:171
+#: lib/phoenix_kit_templates_editor/web/letter.ex:166
 #, elixir-autogen, elixir-format
 msgid "Body"
 msgstr "Sisu"
@@ -970,7 +970,7 @@ msgstr "Selle kirja HTML on käsitsi kirjutatud: Leaf seda ei muuda ja just seda
 msgid "Unsaved changes"
 msgstr "Salvestamata muudatused"
 
-#: lib/phoenix_kit_templates_editor/web/letter.ex:185
+#: lib/phoenix_kit_templates_editor/web/letter.ex:175
 #, elixir-autogen, elixir-format
 msgid "Write the letter here"
 msgstr "Kirjutage kiri siia"
@@ -1006,8 +1006,3 @@ msgstr "Asenda oma tekstiga"
 #, elixir-autogen, elixir-format
 msgid "This email is protected and shown read only. Which emails may be replaced here is set in the application's configuration (the `overridable` key)."
 msgstr "See kiri on kaitstud ja kuvatakse ainult lugemiseks. Milliseid kirju saab siin asendada, määratakse rakenduse seadistuses (võti `overridable`)."
-
-#: lib/phoenix_kit_templates_editor/web/letter.ex:173
-#, elixir-autogen, elixir-format
-msgid "This letter keeps empty lines as room for typing, so it is edited as plain text: the visual mode cannot hold them."
-msgstr "Selles kirjas on jäetud tühjad read oma teksti jaoks, seepärast muudetakse seda tavalise tekstina: visuaalne režiim neid ei säilita."

@@ -700,27 +700,21 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorLetterTest do
     end
 
     # Room left on purpose: more than one blank line in a row, where the
-    # writer of a frame letter types. Markdown has no word for it, so the
-    # letter is edited as its source, and the text version keeps the run.
-    test "a blank-room letter opens as plain text, and a save keeps its room in both files",
+    # writer of a frame letter types. Markdown has no word for it and the
+    # visual editor writes none of it back; what the editor is given and what
+    # it hands over as source keep it, and so does the text version.
+    test "a blank-room letter: the room typed as source is kept in both files",
          %{tmp_dir: root} do
       seed(root)
       put(root, "order_offer", "text.et.txt", "Tere!\n\n\n\nLugupidamisega\n")
       view = mount_editor(root)
       select(view, "order_offer")
 
-      assert has_element?(view, "#editor-body-room-note")
-
       edit_body(view, "Tere!\n\n\n\nParimat\nMari")
       assert save(view, %{}) =~ "Saved"
 
       assert read(root, "markdown.et.md") == {:ok, "Tere!\n\n\n\nParimat\\\nMari"}
       assert read(root, "text.et.txt") == {:ok, "Tere!\n\n\n\nParimat\nMari\n"}
-    end
-
-    test "a letter with no such room has no note and its visual mode", %{tmp_dir: root} do
-      view = letter(root)
-      refute has_element?(view, "#editor-body-room-note")
     end
 
     test "a body over the limit is refused before anything is read into Markdown",

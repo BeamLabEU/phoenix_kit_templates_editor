@@ -929,7 +929,7 @@ msgstr "У вас нет доступа к шаблонам писем."
 msgid "Actions"
 msgstr "Действия"
 
-#: lib/phoenix_kit_templates_editor/web/letter.ex:171
+#: lib/phoenix_kit_templates_editor/web/letter.ex:166
 #, elixir-autogen, elixir-format
 msgid "Body"
 msgstr "Текст письма"
@@ -970,7 +970,7 @@ msgstr "HTML этого письма написан вручную: Leaf его 
 msgid "Unsaved changes"
 msgstr "Несохранённые изменения"
 
-#: lib/phoenix_kit_templates_editor/web/letter.ex:185
+#: lib/phoenix_kit_templates_editor/web/letter.ex:175
 #, elixir-autogen, elixir-format
 msgid "Write the letter here"
 msgstr "Напишите письмо здесь"
@@ -1006,8 +1006,3 @@ msgstr "Заменить своим текстом"
 #, elixir-autogen, elixir-format
 msgid "This email is protected and shown read only. Which emails may be replaced here is set in the application's configuration (the `overridable` key)."
 msgstr "Это письмо защищено и показано только для чтения. Какие письма можно заменять, задаётся в настройках системы (ключ `overridable`)."
-
-#: lib/phoenix_kit_templates_editor/web/letter.ex:173
-#, elixir-autogen, elixir-format
-msgid "This letter keeps empty lines as room for typing, so it is edited as plain text: the visual mode cannot hold them."
-msgstr "В этом письме оставлены пустые строки под свой текст, поэтому оно правится как обычный текст: визуальный режим их не хранит."

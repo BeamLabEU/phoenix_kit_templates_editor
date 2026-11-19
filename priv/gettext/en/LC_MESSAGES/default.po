@@ -929,7 +929,7 @@ msgstr ""
 msgid "Actions"
 msgstr ""
 
-#: lib/phoenix_kit_templates_editor/web/letter.ex:171
+#: lib/phoenix_kit_templates_editor/web/letter.ex:166
 #, elixir-autogen, elixir-format
 msgid "Body"
 msgstr ""
@@ -970,7 +970,7 @@ msgstr ""
 msgid "Unsaved changes"
 msgstr ""
 
-#: lib/phoenix_kit_templates_editor/web/letter.ex:185
+#: lib/phoenix_kit_templates_editor/web/letter.ex:175
 #, elixir-autogen, elixir-format
 msgid "Write the letter here"
 msgstr ""
@@ -1005,9 +1005,4 @@ msgstr ""
 #: lib/phoenix_kit_templates_editor/web/editor.ex:3648
 #, elixir-autogen, elixir-format
 msgid "This email is protected and shown read only. Which emails may be replaced here is set in the application's configuration (the `overridable` key)."
-msgstr ""
-
-#: lib/phoenix_kit_templates_editor/web/letter.ex:173
-#, elixir-autogen, elixir-format
-msgid "This letter keeps empty lines as room for typing, so it is edited as plain text: the visual mode cannot hold them."
 msgstr ""
