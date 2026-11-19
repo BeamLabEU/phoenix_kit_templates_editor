@@ -243,6 +243,18 @@ defmodule PhoenixKitTemplatesEditor.BodyTest do
   end
 
   describe "from_text/1" do
+    test "blank lines at the ends go, a run of them between two paragraphs stays" do
+      assert Body.from_text("\n\nTere!\n\n\n\nParimat\n\n") == "Tere!\n\n\n\nParimat"
+      assert Body.room?("Tere!\n\n\n\nParimat")
+      refute Body.room?("Tere!\n\nParimat\n\n\n")
+    end
+
+    test "keeping_room/2 converts each stretch and puts the runs back" do
+      upcase = fn stretch -> {:ok, String.upcase(stretch)} end
+      assert Body.keeping_room("a\n \n\n\nb\nc", upcase) == {:ok, "A\n\n\n\nB\nC"}
+      assert Body.keeping_room("a\n\n\nb", fn _ -> {:error, :down} end) == {:error, :down}
+    end
+
     test "paragraphs, and single line breaks kept as they are" do
       text = "Tere!\n\nBody.\n\nLugupidamisega\n{{designer_name}}\nDisainer-konsultant, ACME"
 
@@ -250,7 +262,7 @@ defmodule PhoenixKitTemplatesEditor.BodyTest do
     end
 
     test "Windows line ends, indentation and trailing spaces do not reach the Markdown" do
-      assert Body.from_text("A  \r\n   B\t\r\n\r\n\r\n  C") == "A\nB\n\nC"
+      assert Body.from_text("A  \r\n   B\t\r\n\r\n  C") == "A\nB\n\nC"
     end
 
     test "nothing in a blank text" do

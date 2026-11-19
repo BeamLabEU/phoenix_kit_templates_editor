@@ -314,7 +314,9 @@ defmodule PhoenixKitTemplatesEditor.Body do
   The Markdown a text-only letter is opened in Leaf with (see the moduledoc):
   blank lines separate paragraphs, a single newline stays a line break, and
   what the renderer would read as Markdown is escaped. Leading and trailing
-  spaces of a line, and any run of blank lines beyond one, are dropped.
+  spaces of a line are dropped, and so are the blank lines before the first
+  paragraph and after the last. A run of blank lines between two paragraphs
+  is kept as it is: room left on purpose (`room?/1`).
   """
   @spec from_text(String.t()) :: String.t()
   def from_text(text) when is_binary(text) do
@@ -322,9 +324,60 @@ defmodule PhoenixKitTemplatesEditor.Body do
     |> lines()
     |> Enum.map(&(&1 |> trim_leading_blanks() |> trim_trailing_blanks()))
     |> Enum.chunk_by(&(&1 == ""))
-    |> Enum.reject(&(&1 == [""] or hd(&1) == ""))
-    |> Enum.map_join("\n\n", fn paragraph -> Enum.map_join(paragraph, "\n", &escape_line/1) end)
+    |> Enum.drop_while(&(hd(&1) == ""))
+    |> Enum.reverse()
+    |> Enum.drop_while(&(hd(&1) == ""))
+    |> Enum.reverse()
+    |> Enum.map_join("\n", fn
+      ["" | _] = blanks -> Enum.join(blanks, "\n")
+      paragraph -> Enum.map_join(paragraph, "\n", &escape_line/1)
+    end)
   end
+
+  ## Room left on purpose
+
+  # Two or more blank lines in a row between two paragraphs.
+  @room ~r/\n(?:[ \t]*\n){2,}/
+
+  @doc """
+  Whether `markdown` has room left on purpose: more than one blank line in a
+  row between two paragraphs — the place a writer types into in a letter that
+  is a frame. Markdown reads any such run as one paragraph break, so a visual
+  editor cannot hold it; the source and the text version do.
+  """
+  @spec room?(String.t()) :: boolean()
+  def room?(markdown) when is_binary(markdown), do: Regex.match?(@room, String.trim(markdown))
+
+  @doc """
+  The text of `markdown` with its room kept: `convert` is given each stretch
+  between two runs of blank lines, and the runs go back between the results
+  as they were. `{:error, reason}` of the first stretch that fails.
+  """
+  @spec keeping_room(String.t(), (String.t() -> {:ok, String.t()} | {:error, term()})) ::
+          {:ok, String.t()} | {:error, term()}
+  def keeping_room(markdown, convert) when is_binary(markdown) and is_function(convert, 1) do
+    @room
+    |> Regex.split(markdown, include_captures: true)
+    |> Enum.with_index()
+    |> Enum.reduce_while({:ok, []}, fn
+      {run, index}, {:ok, done} when rem(index, 2) == 1 ->
+        {:cont, {:ok, [blank_lines(run) | done]}}
+
+      {stretch, _index}, {:ok, done} ->
+        case convert.(stretch) do
+          {:ok, text} -> {:cont, {:ok, [String.trim_trailing(text, "\n") | done]}}
+          {:error, reason} -> {:halt, {:error, reason}}
+        end
+    end)
+    |> case do
+      {:ok, parts} -> {:ok, parts |> Enum.reverse() |> Enum.join()}
+      error -> error
+    end
+  end
+
+  # The run with whatever spaces its blank lines held taken out.
+  defp blank_lines(run),
+    do: String.duplicate("\n", run |> String.graphemes() |> Enum.count(&(&1 == "\n")))
 
   @address ~r/(?:https?:\/\/|www\.)[^\s<]+/
 

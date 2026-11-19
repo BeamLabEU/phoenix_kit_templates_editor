@@ -597,16 +597,6 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   def handle_event("close_text_version", _params, socket),
     do: {:noreply, assign(socket, text_version?: false)}
 
-  def handle_event("rebuild_text", _params, socket) do
-    {:noreply,
-     permitted(socket, :save, fn socket ->
-       if form_writable?(socket) and Letter.letter?(socket.assigns) and
-            not unsaved?(socket.assigns),
-          do: save(socket, %{}, rebuild: true),
-          else: socket
-     end)}
-  end
-
   # The open template or language clicked again keeps the form (unsaved values
   # included) and only clears what is transient: a notice, a pending delete.
   def handle_event("select", %{"name" => name}, %{assigns: %{selected: name}} = socket),
@@ -917,7 +907,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   # only for HTML variables, no variable of the other kind of template
   # unless confirmed.
   defp save(socket, form_params, opts \\ []) do
-    case letter_params(socket, form_params, opts) do
+    case letter_params(socket, form_params) do
       {:ok, params} ->
         save_params(socket, form_params, params, opts)
 
@@ -930,16 +920,16 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   # arrives under those names is not read. Its body is what Leaf holds —
   # when the writer changed it — as Markdown, and the text derived from that;
   # a hand-written HTML file keeps its field.
-  defp letter_params(socket, params, opts) do
+  defp letter_params(socket, params) do
     if Letter.letter?(socket.assigns) do
       keys = ["label", "subject"] ++ if(socket.assigns.contents[:html], do: ["html"], else: [])
-      letter_body(socket, Map.take(params, keys), Keyword.get(opts, :rebuild, false))
+      letter_body(socket, Map.take(params, keys))
     else
       {:ok, params}
     end
   end
 
-  defp letter_body(%{assigns: %{body: %{dirty?: true, markdown: markdown}}} = socket, params, _) do
+  defp letter_body(%{assigns: %{body: %{dirty?: true, markdown: markdown}}} = socket, params) do
     if byte_size(markdown) > Overrides.max_bytes() do
       {:error,
        gettext("Body: %{reason}",
@@ -950,15 +940,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     end
   end
 
-  # Asked for by name ("Rebuild from the body"): the body as the editor shows
-  # it is stored as Markdown and the text version made from it anew, though
-  # nothing was typed. A save alone never does that — a letter that has only
-  # its old text file keeps it byte for byte until its body is edited.
-  defp letter_body(%{assigns: %{body: %{content: content}}} = socket, params, true)
-       when content != "",
-       do: body_changes(socket, content, params)
-
-  defp letter_body(_socket, params, _rebuild), do: {:ok, params}
+  defp letter_body(_socket, params), do: {:ok, params}
 
   # The Markdown that is stored leaves the line next to a block placeholder
   # as Leaf has it (the send puts the block there); the text is made from the
@@ -996,7 +978,23 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   # The text version of a body, by the host's converter, else this module's.
   defp derive_text(_socket, markdown) when markdown in ["", "\n"], do: {:ok, ""}
 
+  # Room left on purpose (`Body.room?/1`) stays in the text version: each
+  # stretch between two runs of blank lines is converted on its own.
   defp derive_text(socket, markdown) do
+    if Body.room?(markdown) do
+      with {:ok, text} <- Body.keeping_room(markdown, &derive_stretch(socket, &1)),
+           do: {:ok, keep_end(text, markdown)}
+    else
+      derive_stretch(socket, markdown)
+    end
+  end
+
+  defp keep_end(text, markdown),
+    do: if(String.ends_with?(markdown, "\n"), do: text <> "\n", else: text)
+
+  defp derive_stretch(_socket, markdown) when markdown in ["", "\n"], do: {:ok, ""}
+
+  defp derive_stretch(socket, markdown) do
     callback = converter(socket.assigns, :to_text) || (&Converters.to_text/2)
     args = [:markdown, markdown]
 
@@ -3816,19 +3814,6 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             </p>
             <pre id={"#{@id}-text-version-text"} class={pre_class()}>{@text_version}</pre>
             <:actions>
-              <%!-- A letter never saved here shows its old text file; this
-                   makes the text version from the body as it stands. --%>
-              <.button
-                :if={@can_edit && @letter? && !@contents[:markdown] && !@form_dirty?}
-                id={"#{@id}-text-version-rebuild"}
-                type="button"
-                variant="outline"
-                size="sm"
-                phx-click="rebuild_text"
-                phx-target={@myself}
-              >
-                {gettext("Rebuild from the body")}
-              </.button>
               <.button
                 id={"#{@id}-text-version-close"}
                 type="button"

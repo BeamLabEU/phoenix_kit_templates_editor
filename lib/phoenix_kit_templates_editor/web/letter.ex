@@ -161,16 +161,26 @@ defmodule PhoenixKitTemplatesEditor.Web.Letter do
 
   @doc "The Leaf editor of a letter's body."
   def body_field(assigns) do
+    # Room left on purpose is more than one blank line in a row: the visual
+    # mode cannot hold it (Markdown reads the run as one break and Leaf writes
+    # none of it back), so such a letter is edited as its source.
+    assigns = assign(assigns, room?: Body.room?(assigns.body.content))
+
     ~H"""
     <div id={@id} class="flex min-w-0 flex-col gap-1">
       <span class="text-sm font-semibold">{gettext("Body")}</span>
+      <p :if={@room?} id={"#{@id}-room-note"} class="text-xs opacity-70">
+        {gettext(
+          "This letter keeps empty lines as room for typing, so it is edited as plain text: the visual mode cannot hold them."
+        )}
+      </p>
       <.live_component
         module={Leaf}
         id={@body.doc}
         content={@body.content}
-        mode={@mode}
+        mode={if(@room?, do: :markdown, else: @mode)}
         preset={:simple}
-        deny={denied_modes()}
+        deny={if(@room?, do: [:visual_mode | denied_modes()], else: denied_modes())}
         notify={@notify}
         placeholder={gettext("Write the letter here")}
         height="420px"
