@@ -372,7 +372,9 @@ defmodule PhoenixKitTemplatesEditor.Body do
 
   # A line that ends with a bare web address gets two spaces, not `\`: the
   # renderer's autolink takes a trailing backslash into the address (the link
-  # would end in `\` and no break would be drawn).
+  # would end in `\` and no break would be drawn). Its autolink takes any
+  # `scheme://…`, and core then drops a link that is not http(s), leaving the
+  # backslash in the HTML and the text — so any scheme counts.
   defp add_break(line) do
     cond do
       hard_break?(line) -> line
@@ -381,8 +383,9 @@ defmodule PhoenixKitTemplatesEditor.Body do
     end
   end
 
-  # The last blank-separated word of the line holds `http://`, `https://` or
-  # `www.` (any case), not an `<…>` link. Linear in the line's length: one split, one match.
+  # The last blank-separated word of the line holds `://` (any scheme, any
+  # case) or `www.`, and is not an `<…>` link. Linear in the line's length:
+  # one split, one match.
   defp ends_with_address?(line) do
     has?(line, :address_start) and last_word_address?(line)
   end
@@ -391,10 +394,10 @@ defmodule PhoenixKitTemplatesEditor.Body do
     last = line |> trim_trailing_blanks() |> String.split([" ", "\t"]) |> List.last()
 
     not angle_link?(last) and
-      :binary.match(String.downcase(last), ["http://", "https://", "www."]) != :nomatch
+      :binary.match(String.downcase(last), ["://", "www."]) != :nomatch
   end
 
-  # `<https://…>` is no bare address: the `>` ends it, a backslash after is a break.
+  # `<scheme://…>` is no bare address: the `>` ends it, a backslash after is a break.
   defp angle_link?(<<"<", _rest::binary>> = word), do: String.ends_with?(word, ">")
   defp angle_link?(_word), do: false
 

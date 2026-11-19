@@ -575,6 +575,27 @@ defmodule PhoenixKitTemplatesEditor.BodyTest do
       end
     end
 
+    # The autolink takes any `scheme://…`; core then drops a link that is not
+    # http(s) and leaves the backslash in the HTML and the text.
+    for line <- ~w(ftp://files.example/x sftp://files.example/x file://host/x
+                   irc://chat.example/room ssh://host.example git://host.example/a
+                   FTP://FILES.EXAMPLE/X) do
+      test "#{line}: the break after it is drawn, no backslash is left" do
+        line = unquote(line)
+        markdown = Body.from_editor("Intro line\n#{line}\nThank you")
+
+        html = Markdown.to_html(markdown, %{})
+        refute html =~ "\\"
+        assert html =~ ~r/#{Regex.escape(line)}<br\s*\/?>\s*Thank you/
+
+        text = Markdown.to_text(markdown, %{})
+        refute text =~ "\\"
+        assert text =~ "#{line}\nThank you"
+
+        assert Body.to_editor(markdown) == "Intro line\n#{line}\nThank you"
+      end
+    end
+
     test "a stored `\\` after an address (an earlier save) is opened without it" do
       assert Body.to_editor("Pay:\\\nhttps://shop.example/pay\\\nThank you") ==
                "Pay:\nhttps://shop.example/pay\nThank you"
