@@ -61,12 +61,20 @@ HTML file keeps that file in a code field with a note. Headers, footers and
 layouts keep their code fields. *Text version* in the template's actions shows
 the derived text, read only.
 
-The module depends on `leaf` (`~> 0.11.0 or ~> 0.12.0`). Leaf is a LiveComponent
-with a JavaScript hook: the host's `app.js` has to load it
-(`import "../../deps/leaf/priv/static/assets/leaf.js"` — it registers
-`window.LeafHooks` — and spread `...(window.LeafHooks || {})` into the
-LiveSocket's `hooks`, as in Leaf's own README; the JS and the Hex package must
-be the same version), else the body stays on its loading text. Leaf's own buttons are in English.
+The module depends on `leaf` (`~> 0.11.0 or ~> 0.12.0 or ~> 0.13.0`). Leaf is a
+LiveComponent with a JavaScript hook, and PhoenixKit already takes care of it:
+core 3.5 and later registers a lazy `Leaf` hook in `window.PhoenixKitHooks`
+that loads the installed copy of Leaf's `leaf.js` (copied to
+`priv/static/assets/vendor/lib/` by PhoenixKit's own asset step) the first time
+an editor mounts, so a page without one — a public page included — downloads
+nothing. A host needs no `app.js` line for it.
+
+Only a host that does not use `PhoenixKitHooks` loads Leaf itself: in `app.js`,
+`import "../../deps/leaf/priv/static/assets/leaf.js"` (it registers
+`window.LeafHooks`) and spread `...(window.LeafHooks || {})` into the
+LiveSocket's `hooks`, as in Leaf's own README. The JS and the Hex package must
+be the same version, or the body stays on its loading text. Leaf's own buttons
+are in English.
 
 **What the first save changes in how a letter is built.** Core makes an
 email's HTML from the first of these that exists: the `html` file, the
@@ -95,10 +103,19 @@ starts with one, and the text version still keeps every line. Leaf's toolbar is 
 strike-through, inline code and emoji, which the preset cannot drop, and the
 phone toolbar's «Heading».
 
-**Known limits of the body.** Several blank lines in a row are one in Leaf (it
-writes an empty paragraph as nothing) and in core's text version; so a letter
-with blank room left on purpose keeps its text file as it is until its body is
-edited, and loses the room then.
+**Known limits of the body.** Several blank lines in a row are one in Leaf's
+visual mode (it writes an empty paragraph as nothing) and in core's text
+version of a Markdown file. A letter with room left on purpose (more than one
+blank line in a row, where a writer of a frame letter types) is therefore
+opened in Markdown mode, where the run of blank lines is kept as typed and
+goes into both files; if the writer switches to the visual mode, the form says
+that only one blank line of each run survives an edit. A letter without room
+opens in the mode chosen last. A letter with room that is never edited keeps
+its files as they are.
+
+A line that ends with a bare web address (`https://…`, `www.…`) is followed by
+a break of two spaces, not of a trailing `\`: the renderer's autolink would take
+that backslash into the address.
 
 Opening a letter in Markdown mode (the mode the writer chose last is kept),
 switching to visual and leaving the field can rewrite the body into Leaf's own
@@ -129,6 +146,33 @@ systemd `UMask=0002`): new files come out `0664` and new directories `2775`,
 in the root's group. The module sets no mode and no owner itself: doing that
 after a write, as the server's user, in a directory other people can write to,
 could be turned onto another file through a link put there in the meantime.
+
+## Upgrading from 0.2
+
+0.2 put the editor in a section of Settings › Emails Transactional; this
+version gives it a page of its own, and a letter's body is edited in Leaf. What
+changes for a host:
+
+- **The address.** The page is `/admin/settings/email-templates`. A link to the
+  old section (`?tab=module_templates_editor`) is not redirected: build links
+  with `PhoenixKitTemplatesEditor.tab_path/1`.
+- **Gone from the page**: the introduction and the hints, the block that showed
+  the project's own `README.<language>.md` notes (the files stay where they are,
+  for the people who work with the folder; the page does not show them), and the
+  line naming the variables that work only in a header, footer or layout.
+- **Scope.** `PhoenixKitTemplatesEditor.Web.Section` takes the user's scope only
+  from its `phoenix_kit_current_scope` assign, which the page gives it; it no
+  longer falls back to `PhoenixKitTemplatesEditor.Web.ScopeHook`. A host that
+  mounts the section itself has to pass the assign, or the editor is read only.
+  The hook module stays, so a config naming it still compiles; the page does not
+  use it, and the line can be dropped from `extra_live_session_on_mount`.
+- **A letter's body.** A letter has one Leaf editor instead of the text,
+  Markdown and HTML fields and the conversion buttons. The first *Save* of a
+  body writes the Markdown file and derives the text file from it, replacing a
+  hand-written text file; for what that changes in the sent letter, see
+  «What the first save changes» above. A letter with a hand-written HTML file
+  keeps that file in a code field.
+- **A new dependency**: `leaf` (see above for its JavaScript).
 
 ## Who sees the page
 
