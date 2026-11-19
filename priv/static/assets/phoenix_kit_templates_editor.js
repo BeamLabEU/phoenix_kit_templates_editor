@@ -108,7 +108,8 @@
 
   function read() {
     try {
-      return JSON.parse(window.localStorage.getItem(KEY) || "{}") || {};
+      var saved = JSON.parse(window.localStorage.getItem(KEY) || "{}");
+      return saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
     } catch (_error) {
       return {};
     }
@@ -124,7 +125,7 @@
 
   window.PhoenixKitTemplatesEditorHooks.PhoenixKitTemplatesEditorFolds = {
     mounted() {
-      this._seen = {};
+      this._selected = new Map();
       this._restore();
 
       // `toggle` does not bubble: caught on the way down.
@@ -138,26 +139,34 @@
       this.el.addEventListener("toggle", this._toggle, true);
     },
 
-    // A re-render can bring a section the list had none of (a layout group
-    // that appeared, a list that was empty): it is drawn on its defaults, so
-    // the kept state is applied to it — once; a section already seen keeps
-    // what the reader did with it since.
-    updated() {
-      this._restore();
+    beforeUpdate() {
+      this._before = {};
+      this.el.querySelectorAll("details[id]").forEach((section) => {
+        this._before[section.id] = section.open;
+      });
     },
 
-    _restore() {
+    updated() {
+      this._restore(this._before);
+      this._before = null;
+    },
+
+    _restore(before) {
       var saved = read();
+      var selected = new Map();
 
       this.el.querySelectorAll("details[id]").forEach((section) => {
-        if (this._seen[section.id]) return;
-        this._seen[section.id] = true;
+        var state = before && Object.hasOwn(before, section.id) ? before : saved;
+        if (Object.hasOwn(state, section.id)) section.open = state[section.id] === true;
 
-        if (Object.prototype.hasOwnProperty.call(saved, section.id)) {
-          section.open = saved[section.id] === true;
+        var active = section.querySelector(".menu-active");
+        if (active) {
+          var name = active.getAttribute("phx-value-name");
+          if (this._selected.get(section.id) !== name) section.open = true;
+          selected.set(section.id, name);
         }
-        if (section.querySelector(".menu-active")) section.open = true;
       });
+      this._selected = selected;
     },
 
     destroyed() {

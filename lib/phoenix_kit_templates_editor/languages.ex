@@ -29,7 +29,12 @@ defmodule PhoenixKitTemplatesEditor.Languages do
   def items(tabs, default_label, primary \\ nil) do
     codes = Enum.filter(tabs, &is_binary/1)
 
-    languages(codes, primary) ++
+    with_default(languages(codes, primary), tabs, default_label)
+  end
+
+  @doc false
+  def with_default(languages, tabs, default_label) do
+    languages ++
       if(nil in tabs,
         do: [%{code: "", name: default_label, short_code: default_label, is_primary: false}],
         else: []

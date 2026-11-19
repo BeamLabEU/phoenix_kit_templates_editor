@@ -29,7 +29,13 @@ defmodule PhoenixKitTemplatesEditor.NamesOverrideTest do
                   passkey_added passkey_removed)
 
       core = for %{name: name} <- CoreTemplates.entries(), do: name
-      assert Names.auth_emails() -- core == []
+      # Core added the passkey notices after the supported 3.5 floor.
+      expected_missing =
+        if Version.match?(to_string(Application.spec(:phoenix_kit, :vsn)), "< 3.6.0"),
+          do: ~w(passkey_added passkey_removed),
+          else: []
+
+      assert Names.auth_emails() -- core == expected_missing
     end
 
     # A new email of core is either one of them or named here on purpose:

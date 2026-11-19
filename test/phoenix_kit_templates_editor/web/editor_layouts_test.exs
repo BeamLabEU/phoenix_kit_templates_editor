@@ -40,6 +40,15 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorLayoutsTest do
     view |> form("#editor-email-layout", email_layout: %{group: group}) |> render_change()
   end
 
+  test "copying a layout counts all its files before creating the first part", %{tmp_dir: root} do
+    layout_seed(root)
+    bytes = PhoenixKitTemplatesEditor.Files.usage(root).bytes
+    view = mount_layouts(root, %{max_root_bytes: bytes})
+
+    assert create_layout(view, "shop-copy", "shop") =~ "may not grow"
+    assert Path.wildcard(Path.join(root, "_*-shop-copy")) == []
+  end
+
   test "choosing a layout respects the byte limit and permits a smaller replacement",
        %{tmp_dir: root} do
     layout_seed(root)

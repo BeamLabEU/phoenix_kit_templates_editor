@@ -22,6 +22,58 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorLetterTest do
     view
   end
 
+  defp leaf_message(view, message) do
+    Phoenix.LiveView.send_update(view.pid, PhoenixKitTemplatesEditor.Web.Editor,
+      id: "editor",
+      leaf: message
+    )
+
+    render(view)
+  end
+
+  test "Save waits for the focused Leaf to flush its last keystrokes", %{tmp_dir: root} do
+    view = letter(root)
+    doc = leaf_id(view)
+    leaf_message(view, {:leaf_focus, %{editor_id: doc}})
+    save(view, %{})
+
+    assert_push_event(view, "leaf-command:" <> ^doc, %{action: "flush", ref: ref})
+    edit_body(view, "Last keystroke")
+    leaf_message(view, {:leaf_flushed, %{editor_id: doc, ref: "stale"}})
+    assert read(root, "markdown.et.md") == {:error, :enoent}
+
+    leaf_message(view, {:leaf_flushed, %{editor_id: doc, ref: ref}})
+    assert read(root, "markdown.et.md") == {:ok, "Last keystroke"}
+  end
+
+  test "switching languages asks about edits reported during the flush", %{tmp_dir: root} do
+    view = letter(root)
+    doc = leaf_id(view)
+    leaf_message(view, {:leaf_focus, %{editor_id: doc}})
+    tab(view, "ru")
+    assert_push_event(view, "leaf-command:" <> ^doc, %{action: "flush", ref: ref})
+    edit_body(view, "Still typing")
+    leaf_message(view, {:leaf_flushed, %{editor_id: doc, ref: ref}})
+    assert has_element?(view, "#editor-confirm-switch")
+    assert leaf_id(view) == doc
+  end
+
+  test "a frame letter's conversion callbacks share one task outside the page", %{tmp_dir: root} do
+    owner = self()
+
+    converter = fn :markdown, text ->
+      send(owner, {:converted_in, self()})
+      text
+    end
+
+    view = letter(root, %{convert: %{to_text: converter}})
+    edit_body(view, "One\n\n\n\nTwo")
+    save(view, %{})
+    assert_received {:converted_in, worker}
+    assert_received {:converted_in, ^worker}
+    refute worker == view.pid
+  end
+
   describe "the form" do
     test "label and subject, then one Leaf; no text, Markdown or HTML field, no conversion buttons",
          %{tmp_dir: root} do

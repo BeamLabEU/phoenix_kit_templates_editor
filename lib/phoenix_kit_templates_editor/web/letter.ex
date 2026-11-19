@@ -23,7 +23,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Letter do
   Leaf tells the editor what it holds in `{:leaf_changed, …}` (delivered by
   `notify:` as an update of the editor component). The editor keeps the last
   Markdown of an edited document, and nothing else: no message writes a file.
-  Only the Save event does, from that Markdown, after every check a save has.
+  Before saving or switching away from a focused editor, the parent asks
+  Leaf to flush. The matching acknowledgement arrives after the final
+  change. The parent then runs the original action and its access checks.
   A message that says the document is clean (Leaf compares with what it
   opened with) drops the pending text — undoing every edit leaves nothing to
   write.
@@ -93,6 +95,8 @@ defmodule PhoenixKitTemplatesEditor.Web.Letter do
 
     Phoenix.Component.assign(socket,
       body: body,
+      pending_body_action: nil,
+      focused_body: nil,
       body_mode: mode_for(socket.assigns, body),
       body_rev: rev
     )
@@ -196,6 +200,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Letter do
         preset={:simple}
         deny={denied_modes()}
         notify={@notify}
+        emit_events={true}
         placeholder={gettext("Write the letter here")}
         height="420px"
         debounce={400}

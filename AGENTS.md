@@ -102,6 +102,7 @@ lib/
     ├── variables.ex                         # a part's variables by template kind; the save check
     ├── watcher.ex                           # child: re-reads the files every 2 s where edited/watched
     └── web/
+        ├── editor/                          # layouts, module emails, variables and preview components; save, conflict and layout actions
         ├── letter.ex                        # Web.Letter — a letter's body: one Leaf per document, what its messages may do, the field
         ├── editor.ex                        # Web.Editor — the editor LiveComponent (from phoenix_kit_templates 0.2.4)
         ├── scope_hook.ex                    # on_mount hook; kept for host configs, the page does not use it
@@ -181,4 +182,3 @@ publish has succeeded.
 - **The library's cache is reset key by key** (`Overrides.reset_cache/1` walks `:persistent_term`, and every erase costs the VM a global collection); resetting by a generation counter is a library change. Trigger: a `phoenix_kit_templates` release with generation-based cache reset. Until then Reload is a writer's, once in 5 s.
 - **The library's lookup follows links** (`Overrides.locate/4`, `copy_template/3`): the module checks the template directories before calling it (`Files.check_template/2`), which leaves a race between the check and the read. A library change making `locate` and `copy_template` refuse links closes it. Trigger: a `phoenix_kit_templates` release whose lookup and copy refuse links.
 - **No transfer of an Emails database row over existing files**: "Create file from the database template" is offered only while the email has no file. Doing it over files needs a diff and a confirmation. Trigger: a host that keeps database rows and files of the same email.
-- **`Web.Editor` is one 3.9k-line component** (`render/1` alone ~730 lines), its controls raw `<input>`/`<select>`/`<button>` rather than core's components. Committed: before any new feature lands in the editor, it is split — the layouts panel, the module emails view, the variables panel and the preview pane into function-component modules, the save, conflict and layout actions into plain modules — and its controls move to core's components (`<.input>`, `<.select>`, `<.button>`, `<.modal>`), with no behaviour change. Trigger: the next feature in the editor, which waits for that split.
