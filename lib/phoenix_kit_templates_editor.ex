@@ -100,11 +100,16 @@ defmodule PhoenixKitTemplatesEditor do
 
   @impl PhoenixKit.Module
   @doc """
-  The editor's JS hook (`PhoenixKitTemplatesEditorInsertVariable`: a
-  variable put at the cursor), a prebuilt file in `priv/static/assets`
-  folded into the host's LiveSocket by core's `:phoenix_kit_js_sources`
-  compiler — no inline script. Without it a variable goes at the end of the
-  body instead.
+  The editor's JS hooks, a prebuilt file in `priv/static/assets` folded into
+  the host's LiveSocket by core's `:phoenix_kit_js_sources` compiler — no
+  inline script:
+
+    * `PhoenixKitTemplatesEditorInsertVariable` — a variable put at the cursor
+      of the field last typed in (without it, at the end of the body);
+    * `PhoenixKitTemplatesEditorKeepFocus` — a letter's variable button does
+      not take the focus, so Leaf's caret is where it was at the click;
+    * `PhoenixKitTemplatesEditorFolds` — the list's folding sections keep their
+      state in the browser.
   """
   def js_sources do
     [

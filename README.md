@@ -110,10 +110,12 @@ blank line in a row, where a writer of a frame letter types) is therefore
 opened in Markdown mode, where the run of blank lines is kept as typed and
 goes into both files; if the writer switches to the visual mode, the form says
 that only one blank line of each run survives an edit. A letter without room
-opens in the mode chosen last. A letter with room that is never edited keeps
+opens in the mode chosen last, except the one right after a frame letter,
+which opens in the visual mode again. A letter with room that is never edited keeps
 its files as they are.
 
-A line that ends with a bare web address (`https://…`, `www.…`) is followed by
+A line that ends with a bare web address (`https://…`, any other `scheme://…`,
+`www.…`) is followed by
 a break of two spaces, not of a trailing `\`: the renderer's autolink would take
 that backslash into the address.
 

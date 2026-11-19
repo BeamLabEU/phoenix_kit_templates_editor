@@ -108,8 +108,10 @@ defmodule PhoenixKitTemplatesEditor.MixProject do
       # The editor of a letter's body (Web.Letter). 0.11 is the first with
       # `notify:` (an editor inside a LiveComponent sends its messages to that
       # component); core admits 0.4 through 0.12, so the two meet at 0.11 and
-      # 0.12. 0.13 is admitted for a host that overrides core's ceiling. A host
-      # loads Leaf's browser half itself (README, installation).
+      # 0.12. 0.13 is admitted for a host that overrides core's ceiling. Core 3.5 and
+      # later loads Leaf's browser half itself, through its lazy `Leaf` hook in
+      # `window.PhoenixKitHooks`; only a host without it imports `leaf.js`
+      # (README, «The letter's body: Leaf»).
       {:leaf, "~> 0.11.0 or ~> 0.12.0 or ~> 0.13.0"},
 
       # LiveView is needed for the settings section.
