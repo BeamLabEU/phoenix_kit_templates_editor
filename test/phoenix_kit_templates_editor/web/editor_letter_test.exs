@@ -699,6 +699,22 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorLetterTest do
       assert {:error, :enoent} = read(root, "markdown.et.md")
     end
 
+    test "a blank-room letter: «Rebuild from the body» makes its text version anew, asked by name",
+         %{tmp_dir: root} do
+      seed(root)
+      put(root, "order_offer", "text.et.txt", "Tere!\n\n\n\nLugupidamisega\n")
+      view = mount_editor(root)
+      select(view, "order_offer")
+
+      view |> element("#editor-text-version") |> render_click()
+      view |> element("#editor-text-version-rebuild") |> render_click()
+
+      assert read(root, "text.et.txt") == {:ok, "Tere!\n\nLugupidamisega\n"}
+      assert {:ok, "Tere!\n\nLugupidamisega" <> _} = read(root, "markdown.et.md")
+      # made once: the letter has its Markdown now
+      refute has_element?(view, "#editor-text-version-rebuild")
+    end
+
     test "a body over the limit is refused before anything is read into Markdown",
          %{tmp_dir: root} do
       view = letter(root)
