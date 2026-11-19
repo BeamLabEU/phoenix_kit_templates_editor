@@ -65,9 +65,11 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       `preview(name, locale)` (`locale` is `nil` for the Default entry, and
       `name` may be a layout part such as `_header-x`). It returns
       `{subject, html}` or `{subject, html, text}` — each a string or `nil`
-      — or `{:error, reason}`. With a text version the preview has two
-      tabs, *HTML* and *Text*, and a template opens on HTML (on Text when
-      its HTML is `nil`); the text is shown as plain text. The HTML is
+      — or `{:error, reason}`. A letter's preview is one view, its HTML (its
+      text when the host gives no HTML). For a header, footer or layout with
+      a text version the preview has two tabs, *HTML* and *Text*, and the
+      template opens on HTML (on Text when its HTML is `nil`); the text is
+      shown as plain text. The HTML is
       shown in an `<iframe sandbox srcdoc>` without `allow-scripts`, so
       nothing in an edited template runs in the admin page; a
       `{:safe, iodata}` is escaped like a string, never trusted.
@@ -121,7 +123,10 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       when nothing changed. Reported and logged like `:after_write`.
     * `:convert` — the host's converters, a map with either or both keys,
       each `{module, function}` or a function. Each adds a button to the
-      form; without them, and read-only, there are none.
+      form of a header, footer or layout (a letter's body is one Leaf editor,
+      and its text version is derived on a save: `to_text` is what makes it,
+      `PhoenixKitTemplatesEditor.Converters.to_text/2` otherwise); without
+      them, and read-only, there are none.
       * `to_text: callback`, called as `to_text(:markdown, markdown)` or
         `to_text(:html, html)` — the *Fill text from content* button: the
         form's Markdown if it is not blank, else its HTML, made into plain
@@ -152,6 +157,15 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       is all it takes. A host passes its permission check here (for
       example `fn _action -> MyApp.authorize(scope, :write) end`), so a
       permission taken away while the page is open counts at once.
+    * `:open` — the template to open on the first render, taken once (the
+      page's `?template=`); only a name the editor shows is opened, else
+      the first message of the list. Default `nil`.
+    * `:patch_path` — the page's path: with it, the editor keeps the open
+      template in the address (`?template=`) by patching the LiveView to it,
+      replacing the history entry. Default `nil`: the address is left alone.
+    * `:block_placeholders` — variables the host fills with a block of their
+      own (a list): the break a letter's body writes next to one is left out
+      (`PhoenixKitTemplatesEditor.Body.from_editor/2`). Default `[]`.
     * `:max_templates`, `:max_root_bytes` — the most templates the root may
       hold, and the most bytes its files may take: a save,
       copy or new file past either is refused. Default `nil`: no limit.
@@ -201,16 +215,22 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     * Gives an open email (on disk) a *Layout* field: the default, or one of
       the layouts; it writes `layout.txt` or deletes it for the default
       (`:save` for `authorize`), and the preview is drawn again at once.
-    * Edits the `label`, `subject`, `text`, `markdown` and `html` parts per
-      language. Saving writes the parts that changed; a part saved empty
+    * Edits a letter's `label` and `subject` in fields and its body in one Leaf
+      editor (`PhoenixKitTemplatesEditor.Web.Letter`): the Markdown file is
+      the body and the text file is derived from it on a save; a hand-written
+      HTML file keeps a code field. A header, footer or layout has a field
+      per part. The `label`, `subject`, `text`, `markdown` and `html` parts
+      are edited per language. Saving writes the parts that changed; a part saved empty
       has its file deleted, so the message falls back to the next file in
       line — and a template left with no files loses its directory, staying
       open as an unsaved one. Line breaks are stored as `\\n`. A save that
       is partly refused (one part too large, say) names the parts it saved
       and the ones it did not, and what was typed into those stays in the
       form to be fixed and saved again. Each language is saved on its own:
-      switching to another language or template, or a reconnect, drops unsaved
-      changes.
+      switching to another language or template, or a reload, asks first
+      when a letter has something unsaved (body, label, subject or HTML) and
+      drops it on a «Discard»; a header, footer or layout drops its unsaved
+      changes without asking.
     * A part is written only when the user changed it from what the form
       was given (on opening the template or language, or after a save): a part
       left alone is never written back over another session's change made
@@ -463,7 +483,15 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   # template the address names is opened — once, on the first render — else
   # the first message of the list. A phone still starts from the list unless
   # the address names a template.
+  #
+  # Not on the disconnected render: the page is drawn again once the socket
+  # connects, and the host's preview, the sources lookup and the variables
+  # check would run twice for the same document.
   defp open_initial(socket) do
+    if connected?(socket), do: open_initial_connected(socket), else: socket
+  end
+
+  defp open_initial_connected(socket) do
     wanted = if socket.assigns.opened?, do: nil, else: socket.assigns.open
     socket = assign(socket, opened?: true)
 
@@ -4346,7 +4374,11 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     <.accordion id={@id}>
       <:title>{gettext("Variables")}</:title>
       <:content>
-        <ul class="flex min-w-0 flex-col gap-2 text-sm">
+        <ul
+          id={"#{@id}-list"}
+          phx-hook={if(@leaf, do: "PhoenixKitTemplatesEditorKeepFocus")}
+          class="flex min-w-0 flex-col gap-2 text-sm"
+        >
           <li
             :for={row <- @rows}
             id={"#{@id}-#{row.name}"}
@@ -4366,7 +4398,8 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
               {placeholder(row)}
             </.button>
             <%!-- A letter's variable goes into Leaf at its caret. The button does not
-                 take the focus (mousedown), or the caret would be gone by the click. --%>
+                 take the focus (the module's hook on the list stops its mousedown), or
+                 the caret would be gone by the click. --%>
             <.button
               :if={@leaf}
               type="button"
@@ -4376,7 +4409,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
               phx-click="insert_variable"
               phx-value-name={row.name}
               phx-target={@leaf}
-              onmousedown="event.preventDefault()"
+              data-keep-focus
             >
               {placeholder(row)}
             </.button>

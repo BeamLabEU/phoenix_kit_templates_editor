@@ -380,6 +380,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorLetterTest do
     test "a message with no letter open changes nothing", %{tmp_dir: root} do
       seed(root)
       view = mount_editor(root)
+      ref = Process.monitor(view.pid)
 
       select(view, "_header-shop")
       edit_body(view, "Nobody's", doc: "editor-leaf-1")
@@ -387,7 +388,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorLetterTest do
       tab(view, "")
 
       assert save(view, %{}) =~ "No changes"
-      assert Process.alive?(view.pid)
+      refute_receive {:DOWN, ^ref, :process, _pid, _reason}, 50
     end
 
     test "a save the host's authorize refuses writes nothing, whatever Leaf said",
@@ -476,6 +477,65 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorLetterTest do
     test "a letter without one has no HTML field", %{tmp_dir: root} do
       view = letter(root)
       refute has_element?(view, "#editor-parts [name='parts[html]']")
+    end
+  end
+
+  describe "a frame letter's room" do
+    defp body_mode(view) do
+      view
+      |> element("#editor-body [phx-hook=Leaf]")
+      |> render()
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.attribute("data-mode")
+    end
+
+    test "opens in Markdown mode, so nothing in it is lost to the visual editor",
+         %{tmp_dir: root} do
+      seed(root)
+      put(root, "order_offer", "text.et.txt", "Tere!\n\n\n\nLugupidamisega\n")
+      view = mount_editor(root)
+      select(view, "order_offer")
+
+      assert body_mode(view) == ["markdown"]
+      refute has_element?(view, "#editor-body-room-note")
+    end
+
+    test "a note in the form when the writer chooses the visual mode, gone in Markdown mode again",
+         %{tmp_dir: root} do
+      seed(root)
+      put(root, "order_offer", "markdown.et.md", "Tere!\n\n\n\nLugupidamisega")
+      view = mount_editor(root)
+      select(view, "order_offer")
+
+      send_mode(view, :visual)
+      assert has_element?(view, "#editor-body-room-note")
+
+      send_mode(view, :markdown)
+      refute has_element?(view, "#editor-body-room-note")
+    end
+
+    test "a letter without room opens in the visual mode, and so does the next after a frame letter",
+         %{tmp_dir: root} do
+      seed(root)
+      put(root, "order_offer", "markdown.ru.md", "A\n\n\n\nB")
+      view = mount_editor(root)
+      select(view, "order_offer")
+      assert body_mode(view) == ["visual"]
+      refute has_element?(view, "#editor-body-room-note")
+
+      tab(view, "ru")
+      assert body_mode(view) == ["markdown"]
+
+      tab(view, "et")
+      assert body_mode(view) == ["visual"]
+    end
+
+    test "the mode the writer chose is kept for letters without room", %{tmp_dir: root} do
+      view = letter(root)
+      send_mode(view, :markdown)
+
+      tab(view, "ru")
+      assert body_mode(view) == ["markdown"]
     end
   end
 
@@ -602,9 +662,18 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorLetterTest do
     test "the button keeps the focus where it was", %{tmp_dir: root} do
       view = letter(root)
 
-      assert view
-             |> element("#editor-variables button[phx-value-name=order_number]")
-             |> render() =~ "onmousedown=\"event.preventDefault()\""
+      # No inline handler (a strict script-src refuses it): the module's hook
+      # on the list stops the mousedown of a button that asks for it.
+      button =
+        view |> element("#editor-variables button[phx-value-name=order_number]") |> render()
+
+      assert button =~ "data-keep-focus"
+      refute button =~ "onmousedown"
+
+      assert has_element?(
+               view,
+               "#editor-variables-list[phx-hook=PhoenixKitTemplatesEditorKeepFocus]"
+             )
     end
   end
 

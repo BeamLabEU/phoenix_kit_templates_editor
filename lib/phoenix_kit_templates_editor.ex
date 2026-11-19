@@ -118,7 +118,11 @@ defmodule PhoenixKitTemplatesEditor do
         # takes no pushed event, and without it the button still works
         # through the server.
         scope: :admin,
-        hooks: ["PhoenixKitTemplatesEditorInsertVariable", "PhoenixKitTemplatesEditorFolds"]
+        hooks: [
+          "PhoenixKitTemplatesEditorInsertVariable",
+          "PhoenixKitTemplatesEditorKeepFocus",
+          "PhoenixKitTemplatesEditorFolds"
+        ]
       }
     ]
   end

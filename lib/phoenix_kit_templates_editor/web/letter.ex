@@ -50,7 +50,8 @@ defmodule PhoenixKitTemplatesEditor.Web.Letter do
           content: String.t(),
           dirty?: boolean(),
           markdown: String.t() | nil,
-          retained: String.t() | nil
+          retained: String.t() | nil,
+          room?: boolean()
         }
 
   @doc "Is the open template a letter?"
@@ -85,12 +86,26 @@ defmodule PhoenixKitTemplatesEditor.Web.Letter do
           content: content,
           dirty?: retained != nil,
           markdown: retained,
-          retained: retained
+          retained: retained,
+          room?: Body.room?(content)
         }
       end
 
-    Phoenix.Component.assign(socket, body: body, body_rev: rev)
+    Phoenix.Component.assign(socket,
+      body: body,
+      body_mode: mode_for(socket.assigns, body),
+      body_rev: rev
+    )
   end
+
+  # A letter with room left on purpose (`Body.room?/1`) opens in Markdown
+  # mode: the visual editor cannot hold more than one blank line in a row, so
+  # a first edit there would drop the room without a word. Any other letter
+  # opens in the mode the writer chose last, and the one after a frame letter
+  # in the default mode again.
+  defp mode_for(_assigns, %{room?: true}), do: :markdown
+  defp mode_for(%{body: %{room?: true}}, _body), do: :visual
+  defp mode_for(%{body_mode: mode}, _body), do: mode
 
   @doc """
   What Leaf opens with: the Markdown file, else the text file as Markdown,
@@ -164,6 +179,15 @@ defmodule PhoenixKitTemplatesEditor.Web.Letter do
     ~H"""
     <div id={@id} class="flex min-w-0 flex-col gap-1">
       <span class="text-sm font-semibold">{gettext("Body")}</span>
+      <p
+        :if={@body.room? and @mode == :visual}
+        id={"#{@id}-room-note"}
+        class="text-xs text-warning"
+      >
+        {gettext(
+          "This letter leaves room for text: several blank lines in a row. The visual mode keeps only one of them; use the Markdown mode to keep them all."
+        )}
+      </p>
       <.live_component
         module={Leaf}
         id={@body.doc}

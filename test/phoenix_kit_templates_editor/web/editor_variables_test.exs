@@ -153,22 +153,24 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorVariablesTest do
     test "a name that is not in the panel, or without a document, does nothing", %{tmp_dir: root} do
       seed(root)
       view = mount_editor(root)
+      ref = Process.monitor(view.pid)
       target = with_target(view, "#editor")
 
       assert render_click(target, "insert_variable", %{"name" => "order_number"})
       select(view, "order_offer")
       assert render_click(target, "insert_variable", %{"name" => "site_url"})
       assert render_click(target, "insert_variable", %{})
-      assert Process.alive?(view.pid)
+      refute_receive {:DOWN, ^ref, :process, _pid, _reason}, 50
     end
 
     test "read only, it is refused", %{tmp_dir: root} do
       seed(root)
       view = mount_editor(root, %{editable: false})
+      ref = Process.monitor(view.pid)
       select(view, "order_offer")
 
       render_click(with_target(view, "#editor"), "insert_variable", %{"name" => "order_number"})
-      assert Process.alive?(view.pid)
+      refute_receive {:DOWN, ^ref, :process, _pid, _reason}, 50
     end
   end
 

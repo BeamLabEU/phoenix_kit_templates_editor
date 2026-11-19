@@ -67,6 +67,33 @@
   };
 })();
 
+// PhoenixKitTemplatesEditorKeepFocus sits on the variables list of a letter.
+// A button with data-keep-focus does not take the focus on mousedown, so the
+// caret of the Leaf editor is still where it was when the click arrives (an
+// inline onmousedown would be refused by a strict script-src).
+(function () {
+  "use strict";
+
+  window.PhoenixKitTemplatesEditorHooks = window.PhoenixKitTemplatesEditorHooks || {};
+  if (window.PhoenixKitTemplatesEditorHooks.PhoenixKitTemplatesEditorKeepFocus) return;
+
+  window.PhoenixKitTemplatesEditorHooks.PhoenixKitTemplatesEditorKeepFocus = {
+    mounted() {
+      this._keep = (event) => {
+        var target = event.target;
+        if (target && target.closest && target.closest("button[data-keep-focus]")) {
+          event.preventDefault();
+        }
+      };
+      this.el.addEventListener("mousedown", this._keep);
+    },
+
+    destroyed() {
+      this.el.removeEventListener("mousedown", this._keep);
+    }
+  };
+})();
+
 // PhoenixKitTemplatesEditorFolds sits on the list of templates. Its sections
 // fold (<details>); which of them the reader left open is kept in this
 // browser, so the list opens the way it was left. The section holding the
@@ -97,14 +124,8 @@
 
   window.PhoenixKitTemplatesEditorHooks.PhoenixKitTemplatesEditorFolds = {
     mounted() {
-      var saved = read();
-
-      this.el.querySelectorAll("details[id]").forEach(function (section) {
-        if (Object.prototype.hasOwnProperty.call(saved, section.id)) {
-          section.open = saved[section.id] === true;
-        }
-        if (section.querySelector(".menu-active")) section.open = true;
-      });
+      this._seen = {};
+      this._restore();
 
       // `toggle` does not bubble: caught on the way down.
       this._toggle = (event) => {
@@ -115,6 +136,28 @@
         write(state);
       };
       this.el.addEventListener("toggle", this._toggle, true);
+    },
+
+    // A re-render can bring a section the list had none of (a layout group
+    // that appeared, a list that was empty): it is drawn on its defaults, so
+    // the kept state is applied to it — once; a section already seen keeps
+    // what the reader did with it since.
+    updated() {
+      this._restore();
+    },
+
+    _restore() {
+      var saved = read();
+
+      this.el.querySelectorAll("details[id]").forEach((section) => {
+        if (this._seen[section.id]) return;
+        this._seen[section.id] = true;
+
+        if (Object.prototype.hasOwnProperty.call(saved, section.id)) {
+          section.open = saved[section.id] === true;
+        }
+        if (section.querySelector(".menu-active")) section.open = true;
+      });
     },
 
     destroyed() {
