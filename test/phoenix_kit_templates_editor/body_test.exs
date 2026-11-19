@@ -515,6 +515,69 @@ defmodule PhoenixKitTemplatesEditor.BodyTest do
     end
   end
 
+  describe "a web address at the end of a line" do
+    # A trailing `\` would be taken into a bare address by the renderer's
+    # autolink; the break after such a line is two spaces.
+    for {name, line} <- [
+          {"https", "https://shop.example/pay?order=37"},
+          {"http", "http://shop.example/pay"},
+          {"www", "www.shop.example/pay"},
+          {"after a word", "Pay here: https://shop.example/pay?order=37"},
+          {"in parentheses", "(see https://shop.example/pay)"}
+        ] do
+      test "#{name}: a break is made that leaves the link clean" do
+        line = unquote(line)
+        markdown = Body.from_editor("Pay here:\n#{line}\nThank you")
+
+        html = Markdown.to_html(markdown, %{})
+        refute html =~ "\\"
+        assert html =~ ~r/<br\s*\/?>\s*(\(see )?(Pay here: )?<a /
+        assert html =~ ~r/<br\s*\/?>\s*Thank you/
+
+        refute Markdown.to_text(markdown, %{}) =~ "\\"
+        assert Markdown.to_text(markdown, %{}) =~ ~r/#{Regex.escape(line)}\nThank you/
+      end
+
+      test "#{name}: the break comes back as the bare newline Leaf holds" do
+        leaf = "Pay here:\n#{unquote(line)}\nThank you"
+        stored = Body.from_editor(leaf)
+
+        assert Body.to_editor(stored) == leaf
+        assert Body.from_editor(Body.to_editor(stored)) == stored
+      end
+    end
+
+    test "a stored `\\` after an address (an earlier save) is opened without it" do
+      assert Body.to_editor("Pay:\\\nhttps://shop.example/pay\\\nThank you") ==
+               "Pay:\nhttps://shop.example/pay\nThank you"
+    end
+
+    test "a text-only letter with an address line keeps its text and its link" do
+      text = "Pay here:\nhttps://shop.example/pay?order=37\nThank you"
+      markdown = text |> Body.from_text() |> Body.from_editor()
+
+      html = Markdown.to_html(markdown, %{})
+      assert html =~ ~s(href="https://shop.example/pay?order=37")
+      refute html =~ "\\"
+      assert round_trip(text) == text
+    end
+
+    test "an address in an angle bracket, a link or an e-mail address keeps a clean break" do
+      for line <- ["<https://shop.example/pay>", "[pay](https://shop.example/pay)", "a@b.ee"] do
+        markdown = Body.from_editor("x\n#{line}\ny")
+        html = Markdown.to_html(markdown, %{})
+
+        refute html =~ "\\"
+        assert html =~ ~r/<br\s*\/?>\s*y/
+        assert Body.to_editor(markdown) == "x\n#{line}\ny"
+      end
+    end
+
+    test "an address in the middle of a line leaves its break as it is" do
+      assert Body.from_editor("see https://a.ee/x now\nnext") == "see https://a.ee/x now\\\nnext"
+    end
+  end
+
   describe "large input" do
     @large 256 * 1024
 

@@ -41,21 +41,79 @@ defmodule PhoenixKitTemplatesEditor.Body do
 
   alias PhoenixKit.Templates.Substitution
 
-  @fence ~r/\A {0,3}(?:```|~~~)/
-  @heading ~r/\A {0,3}\#{1,6}(?:[ \t]|\z)/
-  @thematic ~r/\A {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*\z/
-  @setext ~r/\A {0,3}=+[ \t]*\z/
+  # Compiled once, when the module is loaded, and read from `:persistent_term`:
+  # on Erlang/OTP 28 a `~r` kept in a module attribute is compiled again
+  # at every use, which on a long body costs
+  # more than the matching itself.
+  @regexes [
+    fence: {~S"\A {0,3}(?:```|~~~)", ""},
+    heading: {~S"\A {0,3}\#{1,6}(?:[ \t]|\z)", ""},
+    thematic: {~S"\A {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*\z", ""},
+    setext: {~S"\A {0,3}=+[ \t]*\z", ""},
+    table_delimiter:
+      {~S"\A[ \t]*(?:\|[ \t]*)?:?-+:?(?:[ \t]*\|[ \t]*:?-+:?)*(?:[ \t]*\|)?[ \t]*\z", ""},
+    list_item: {~S"\A[ \t]*(?:[-+*](?:[ \t]|\z)|\d{1,9}[.)](?:[ \t]|\z))", ""},
+    html_block: {~S"\A {0,3}(?:<\/?[A-Za-z][A-Za-z0-9-]*(?:[ \t\/>]|\z)|<[!?])", ""},
+    table_row: {~S"\A[ \t]*\|", ""},
+    target: {~S"(\]\()(<[^<>\n]*>|(?:[^\s()]|\([^\s()]*\))*)", ""},
+    encoded: {~S"((?:%7B){2,3})([A-Za-z0-9_.\-]*)((?:%7D){2,3})", "i"},
+    braced: {~S"\{\{\{?(?:[^{}\n])*?\}\}\}?", ""},
+    escape: {~S"\\([!-\/:-@\[-`{-~])", ""},
+    room: {~S"\n(?:[ \t]*\n){2,}", ""},
+    address: {~S"(?:https?:\/\/|www\.)[^\s<]+", ""},
+    block_name: {~S"\A\{\{\{?\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}\}?\z", ""},
+    dashes: {~S"\A[-:| \t]+\z", ""},
+    numbered: {~S"\A(\d{1,9})([.)])(.*)\z", "s"},
+    entity: {~S"\A#?\w+;", ""},
+    word_char: {~S"\A[\p{L}\p{N}]\z", "u"}
+  ]
+
+  @on_load :compile_regexes
+
+  @doc false
+  def compile_regexes do
+    for {name, {source, options}} <- @regexes do
+      :persistent_term.put({__MODULE__, name}, Regex.compile!(source, options))
+    end
+
+    :ok
+  end
+
+  defp rx(name), do: :persistent_term.get({__MODULE__, name})
+
+  # A line class can only match when the first character that is no blank is
+  # one of a few: asking that first (a byte of the line) spares the regular
+  # expression for every line that is plain text, a quotation or a list.
+  @gates %{
+    fence: ~c"`~",
+    heading: ~c"#",
+    thematic: ~c"-*_",
+    setext: ~c"=",
+    table_delimiter: ~c"|:-",
+    list_item: ~c"-+*0123456789",
+    html_block: ~c"<",
+    table_row: ~c"|"
+  }
+
+  defp is?(:quote, line), do: quote_rest(line, 0) != nil
+
+  defp is?(name, line) do
+    case first_char(line) do
+      nil -> false
+      char -> :lists.member(char, Map.fetch!(@gates, name)) and Regex.match?(rx(name), line)
+    end
+  end
+
+  defp blank?(line), do: first_char(line) == nil
+
+  defp first_char(<<c, rest::binary>>) when c in [?\s, ?\t], do: first_char(rest)
+  defp first_char(<<c, _rest::binary>>), do: c
+  defp first_char(<<>>), do: nil
+
   # No two quantifiers that can take the same space in a row: a line of
   # blanks is read in one pass, not in as many as it has characters squared.
-  @table_delimiter ~r/\A[ \t]*(?:\|[ \t]*)?:?-+:?(?:[ \t]*\|[ \t]*:?-+:?)*(?:[ \t]*\|)?[ \t]*\z/
   # A list item at any indent: a nested one is indented past its parent's marker.
-  @list_item ~r/\A[ \t]*(?:[-+*](?:[ \t]|\z)|\d{1,9}[.)](?:[ \t]|\z))/
-  @quote ~r/\A {0,3}>/
-  @quote_prefix ~r/\A {0,3}>[ \t]?/
   # A tag, a comment or a declaration — not `<https://x>` or `<a@b.ee>`, which are links.
-  @html_block ~r/\A {0,3}(?:<\/?[A-Za-z][A-Za-z0-9-]*(?:[ \t\/>]|\z)|<[!?])/
-  @table_row ~r/\A[ \t]*\|/
-  @blank ~r/\A[ \t]*\z/
 
   ## Placeholders
 
@@ -71,12 +129,9 @@ defmodule PhoenixKitTemplatesEditor.Body do
     markdown |> decode_targets() |> unescape_placeholders()
   end
 
-  @target ~r/(\]\()(<[^<>\n]*>|(?:[^\s()]|\([^\s()]*\))*)/
-  @encoded ~r/((?:%7B){2,3})([A-Za-z0-9_.\-]*)((?:%7D){2,3})/i
-
   defp decode_targets(markdown) do
-    Regex.replace(@target, markdown, fn _whole, open, target ->
-      open <> Regex.replace(@encoded, target, &decode_braces/4)
+    Regex.replace(rx(:target), markdown, fn _whole, open, target ->
+      open <> Regex.replace(rx(:encoded), target, &decode_braces/4)
     end)
   end
 
@@ -88,12 +143,9 @@ defmodule PhoenixKitTemplatesEditor.Body do
       else: whole
   end
 
-  @braced ~r/\{\{\{?(?:[^{}\n])*?\}\}\}?/
-  @escape ~r/\\([!-\/:-@\[-`{-~])/
-
   defp unescape_placeholders(markdown) do
-    Regex.replace(@braced, markdown, fn span ->
-      plain = Regex.replace(@escape, span, "\\1")
+    Regex.replace(rx(:braced), markdown, fn span ->
+      plain = Regex.replace(rx(:escape), span, "\\1")
 
       if plain != span and Substitution.split(plain) == ["", plain, ""], do: plain, else: span
     end)
@@ -145,7 +197,7 @@ defmodule PhoenixKitTemplatesEditor.Body do
     do: Enum.reverse([line | acc])
 
   defp map_breaks([line, next | rest], fenced?, in_list?, fun, blocks, acc) do
-    fence? = not word_start?(line) and Regex.match?(@fence, line)
+    fence? = not word_start?(line) and is?(:fence, line)
     in_list? = list_state(line, in_list?)
 
     line =
@@ -163,8 +215,8 @@ defmodule PhoenixKitTemplatesEditor.Body do
   defp list_state(line, in_list?) do
     cond do
       word_start?(line) -> in_list?
-      Regex.match?(@blank, line) -> false
-      Regex.match?(@list_item, line) -> true
+      blank?(line) -> false
+      is?(:list_item, line) -> true
       true -> in_list?
     end
   end
@@ -179,11 +231,23 @@ defmodule PhoenixKitTemplatesEditor.Body do
 
   # Two lines of one quotation: the text after the `>`.
   defp quoted_pair?(line, next) do
-    Regex.match?(@quote, line) and Regex.match?(@quote, next) and
+    is?(:quote, line) and is?(:quote, next) and
       breakable?(unquote_line(line), false) and plain?(unquote_line(next))
   end
 
-  defp unquote_line(line), do: Regex.replace(@quote_prefix, line, "", global: false)
+  # What follows a quote mark and the one blank after it (`>` and ` {0,3}>[ \t]?`).
+  defp unquote_line(line) do
+    case quote_rest(line, 0) do
+      nil -> line
+      <<c, rest::binary>> when c in [?\s, ?\t] -> rest
+      rest -> rest
+    end
+  end
+
+  # A quotation's mark: up to three spaces, then `>`; what follows it, or nil.
+  defp quote_rest(<<?\s, rest::binary>>, count) when count < 3, do: quote_rest(rest, count + 1)
+  defp quote_rest(<<?>, rest::binary>>, _count), do: rest
+  defp quote_rest(_line, _count), do: nil
 
   # Whether a line starts and whether it ends with the placeholder of a
   # variable the send fills with a block (a quotation's `>` marks do not
@@ -201,7 +265,7 @@ defmodule PhoenixKitTemplatesEditor.Body do
   defp unquote_up_to(line, 0), do: line
 
   defp unquote_up_to(line, levels) do
-    if Regex.match?(@quote, line),
+    if is?(:quote, line),
       do: line |> unquote_line() |> unquote_up_to(levels - 1),
       else: line
   end
@@ -213,14 +277,14 @@ defmodule PhoenixKitTemplatesEditor.Body do
 
       parts ->
         {
-          Regex.match?(@blank, hd(parts)) and block_name?(Enum.at(parts, 1), blocks),
-          Regex.match?(@blank, List.last(parts)) and block_name?(Enum.at(parts, -2), blocks)
+          blank?(hd(parts)) and block_name?(Enum.at(parts, 1), blocks),
+          blank?(List.last(parts)) and block_name?(Enum.at(parts, -2), blocks)
         }
     end
   end
 
   defp block_name?(placeholder, blocks) do
-    case Regex.run(~r/\A\{\{\{?\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}\}?\z/, placeholder) do
+    case Regex.run(rx(:block_name), placeholder) do
       [_whole, name] -> name in blocks
       nil -> false
     end
@@ -231,12 +295,19 @@ defmodule PhoenixKitTemplatesEditor.Body do
   defp breakable?(line, in_list?), do: word_start?(line) or breakable_block?(line, in_list?)
 
   defp breakable_block?(line, in_list?) do
-    not Regex.match?(@blank, line) and
-      (in_list? or Regex.match?(@list_item, line) or
+    not blank?(line) and
+      (in_list? or is?(:list_item, line) or
          not String.starts_with?(line, ["    ", "\t"])) and
       not Enum.any?(
-        [@heading, @thematic, @setext, @table_delimiter, @table_row, @html_block],
-        &Regex.match?(&1, line)
+        [
+          :heading,
+          :thematic,
+          :setext,
+          :table_delimiter,
+          :table_row,
+          :html_block
+        ],
+        &is?(&1, line)
       )
   end
 
@@ -245,20 +316,20 @@ defmodule PhoenixKitTemplatesEditor.Body do
   defp plain?(line), do: word_start?(line) or plain_block?(line)
 
   defp plain_block?(line) do
-    not Regex.match?(@blank, line) and
+    not blank?(line) and
       not Enum.any?(
         [
-          @fence,
-          @heading,
-          @thematic,
-          @setext,
-          @table_delimiter,
-          @table_row,
-          @html_block,
-          @list_item,
-          @quote
+          :fence,
+          :heading,
+          :thematic,
+          :setext,
+          :table_delimiter,
+          :table_row,
+          :html_block,
+          :list_item,
+          :quote
         ],
-        &Regex.match?(&1, line)
+        &is?(&1, line)
       )
   end
 
@@ -267,9 +338,33 @@ defmodule PhoenixKitTemplatesEditor.Body do
   defp word_start?(<<c, _rest::binary>>), do: c in ?a..?z or c in ?A..?Z or c >= 128
   defp word_start?(<<>>), do: false
 
+  # A line that ends with a bare web address gets two spaces, not `\`: the
+  # renderer's autolink takes a trailing backslash into the address (the link
+  # would end in `\` and no break would be drawn).
   defp add_break(line) do
-    if hard_break?(line), do: line, else: trim_trailing_blanks(line) <> "\\"
+    cond do
+      hard_break?(line) -> line
+      ends_with_address?(line) -> trim_trailing_blanks(line) <> "  "
+      true -> trim_trailing_blanks(line) <> "\\"
+    end
   end
+
+  # The last blank-separated word of the line holds `http://`, `https://` or
+  # `www.` (any case), not an `<…>` link. Linear in the line's length: one split, one match.
+  defp ends_with_address?(line) do
+    :binary.match(line, ["://", "www.", "WWW.", "Www."]) != :nomatch and last_word_address?(line)
+  end
+
+  defp last_word_address?(line) do
+    last = line |> trim_trailing_blanks() |> String.split([" ", "\t"]) |> List.last()
+
+    not angle_link?(last) and
+      :binary.match(String.downcase(last), ["http://", "https://", "www."]) != :nomatch
+  end
+
+  # `<https://…>` is no bare address: the `>` ends it, a backslash after is a break.
+  defp angle_link?(<<"<", _rest::binary>> = word), do: String.ends_with?(word, ">")
+  defp angle_link?(_word), do: false
 
   defp drop_break(line) do
     cond do
@@ -337,7 +432,6 @@ defmodule PhoenixKitTemplatesEditor.Body do
   ## Room left on purpose
 
   # Two or more blank lines in a row between two paragraphs.
-  @room ~r/\n(?:[ \t]*\n){2,}/
 
   @doc """
   Whether `markdown` has room left on purpose: more than one blank line in a
@@ -346,7 +440,7 @@ defmodule PhoenixKitTemplatesEditor.Body do
   editor cannot hold it; the source and the text version do.
   """
   @spec room?(String.t()) :: boolean()
-  def room?(markdown) when is_binary(markdown), do: Regex.match?(@room, String.trim(markdown))
+  def room?(markdown) when is_binary(markdown), do: Regex.match?(rx(:room), String.trim(markdown))
 
   @doc """
   The text of `markdown` with its room kept: `convert` is given each stretch
@@ -356,7 +450,7 @@ defmodule PhoenixKitTemplatesEditor.Body do
   @spec keeping_room(String.t(), (String.t() -> {:ok, String.t()} | {:error, term()})) ::
           {:ok, String.t()} | {:error, term()}
   def keeping_room(markdown, convert) when is_binary(markdown) and is_function(convert, 1) do
-    @room
+    rx(:room)
     |> Regex.split(markdown, include_captures: true)
     |> Enum.with_index()
     |> Enum.reduce_while({:ok, []}, fn
@@ -379,13 +473,12 @@ defmodule PhoenixKitTemplatesEditor.Body do
   defp blank_lines(run),
     do: String.duplicate("\n", run |> String.graphemes() |> Enum.count(&(&1 == "\n")))
 
-  @address ~r/(?:https?:\/\/|www\.)[^\s<]+/
-
   defp escape_line(line) do
-    all_dashes? = Regex.match?(~r/\A[-:| \t]+\z/, line)
+    # Only a `-` is told apart by it, so a line without one need not ask.
+    all_dashes? = String.contains?(line, "-") and Regex.match?(rx(:dashes), line)
 
     line
-    |> Substitution.split()
+    |> split_placeholders()
     |> Enum.with_index()
     |> Enum.map_join(fn
       {placeholder, index} when rem(index, 2) == 1 -> placeholder
@@ -393,17 +486,26 @@ defmodule PhoenixKitTemplatesEditor.Body do
     end)
   end
 
+  defp split_placeholders(line),
+    do: if(String.contains?(line, "{{"), do: Substitution.split(line), else: [line])
+
   # A web address is left as it is: a renderer takes it from the source
   # with its backslashes, so an escaped `~` or `*` would show in the text.
   defp escape_text(text, first?, all_dashes?) do
-    @address
-    |> Regex.split(text, include_captures: true)
+    text
+    |> split_addresses()
     |> Enum.with_index()
     |> Enum.map_join(fn
       {address, index} when rem(index, 2) == 1 -> address
       {piece, 0} when first? -> escape_start(piece, all_dashes?)
       {piece, _index} -> escape_inline(piece, nil, all_dashes?, [])
     end)
+  end
+
+  defp split_addresses(text) do
+    if :binary.match(text, ["http", "www."]) == :nomatch,
+      do: [text],
+      else: Regex.split(rx(:address), text, include_captures: true)
   end
 
   # The start of a line: what would open a heading, quote, list or rule.
@@ -413,8 +515,8 @@ defmodule PhoenixKitTemplatesEditor.Body do
     "\\" <> <<c>> <> escape_inline(rest, <<c>>, all_dashes?, [])
   end
 
-  defp escape_start(text, all_dashes?) do
-    case Regex.run(~r/\A(\d{1,9})([.)])(.*)\z/s, text) do
+  defp escape_start(<<c, _rest::binary>> = text, all_dashes?) when c in ?0..?9 do
+    case Regex.run(rx(:numbered), text) do
       [_whole, digits, delimiter, rest] ->
         digits <> "\\" <> delimiter <> escape_inline(rest, delimiter, all_dashes?, [])
 
@@ -422,6 +524,8 @@ defmodule PhoenixKitTemplatesEditor.Body do
         escape_inline(text, nil, all_dashes?, [])
     end
   end
+
+  defp escape_start(text, all_dashes?), do: escape_inline(text, nil, all_dashes?, [])
 
   defp escape_inline("", _prev, _all_dashes?, acc),
     do: acc |> Enum.reverse() |> IO.iodata_to_binary()
@@ -442,7 +546,7 @@ defmodule PhoenixKitTemplatesEditor.Body do
 
   defp escape?("_", prev, rest, _all_dashes?), do: not (word?(prev) and word?(first(rest)))
 
-  defp escape?("&", _prev, rest, _all_dashes?), do: Regex.match?(~r/\A#?\w+;/, rest)
+  defp escape?("&", _prev, rest, _all_dashes?), do: Regex.match?(rx(:entity), rest)
 
   defp escape?("-", prev, rest, all_dashes?),
     do: all_dashes? or prev == "-" or String.starts_with?(rest, "-")
@@ -456,5 +560,5 @@ defmodule PhoenixKitTemplatesEditor.Body do
   defp first(<<byte, _rest::binary>>), do: <<byte>>
 
   defp word?(nil), do: false
-  defp word?(char), do: Regex.match?(~r/\A[\p{L}\p{N}]\z/u, char)
+  defp word?(char), do: Regex.match?(rx(:word_char), char)
 end
