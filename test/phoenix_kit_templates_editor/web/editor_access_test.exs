@@ -41,6 +41,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorAccessTest do
     for action <- ["to_text", "md_to_html"] do
       test "#{action} converts nothing and says so", %{tmp_dir: root} do
         seed(root)
+        seed_chrome(root)
         test_pid = self()
 
         converter = fn _source ->
@@ -57,7 +58,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorAccessTest do
             }
           })
 
-        select(view, "order_offer")
+        select(view, "_footer-shop")
 
         html = convert(view, unquote(action), %{markdown: "**Tere**"})
 
@@ -76,7 +77,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorAccessTest do
       assert create(view, "order_new") =~ @refused
       assert_received {:authorize, :create}
       refute render(view) =~ "not saved yet"
-      refute has_element?(view, "#editor-parts")
+      refute has_element?(view, "#editor-list .menu-active", "order_new")
 
       assert create(view, "order_copy", "order_offer") =~ @refused
       refute File.exists?(Path.join(root, "order_copy"))
@@ -155,8 +156,11 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorAccessTest do
 
       assert save(view, %{subject: "Uus"}) =~ "Saved."
       assert_received {:authorize, :save}
-      assert subject_et(root) == "Uus"
+      assert subject_et(root) == "Uus\n"
 
+      seed_chrome(root)
+      send(view.pid, {:put, %{sample_variables: %{"order_number" => "37"}}})
+      select(view, "_footer-shop")
       convert(view, "to_text", %{markdown: "**Tere**"})
       assert_received {:authorize, :convert}
       assert field(view, :text) == "Tere"
@@ -178,7 +182,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorAccessTest do
       select(view, "order_offer")
 
       assert save(view, %{subject: "Uus"}) =~ "Saved."
-      assert subject_et(root) == "Uus"
+      assert subject_et(root) == "Uus\n"
     end
   end
 

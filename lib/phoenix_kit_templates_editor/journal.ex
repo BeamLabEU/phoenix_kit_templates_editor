@@ -1,6 +1,6 @@
 defmodule PhoenixKitTemplatesEditor.Journal do
   @moduledoc """
-  The template changes made through the tab, in PhoenixKit's activity log
+  The template changes made through the editor, in PhoenixKit's activity log
   (`PhoenixKit.Activity`): who made the change, the
   template, the part and its language, and a short diff — so "who changed
   the password-reset email, and how" has an answer.

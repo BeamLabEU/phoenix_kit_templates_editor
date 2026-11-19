@@ -14,12 +14,16 @@ defmodule PhoenixKitTemplatesEditor.I18nSmokeTest do
         {"et", "Kirjade mallid", "Mallide redaktor"},
         {"ru", "Шаблоны писем", "Редактор шаблонов"}
       ] do
-    test "the section title and the module name translate to #{locale}" do
+    test "the Settings item label and the module name translate to #{locale}" do
+      [%{label: label, gettext_backend: backend}] = PhoenixKitTemplatesEditor.settings_tabs()
+
+      assert label == "Email templates"
+
+      assert Gettext.with_locale(backend, unquote(locale), fn ->
+               Gettext.dgettext(backend, "default", label)
+             end) == unquote(title)
+
       Gettext.put_locale(Backend, unquote(locale))
-
-      assert [%{title: unquote(title), link: %{label: unquote(title)}}] =
-               PhoenixKitTemplatesEditor.email_settings_sections()
-
       assert PhoenixKitTemplatesEditor.module_name() == unquote(name)
     end
 
@@ -34,8 +38,11 @@ defmodule PhoenixKitTemplatesEditor.I18nSmokeTest do
   end
 
   test "an unknown locale falls back to the English msgid" do
-    Gettext.put_locale(Backend, "xx")
+    [%{label: label, gettext_backend: backend}] = PhoenixKitTemplatesEditor.settings_tabs()
 
-    assert [%{title: "Email templates"}] = PhoenixKitTemplatesEditor.email_settings_sections()
+    assert Gettext.with_locale(backend, "xx", fn ->
+             Gettext.dgettext(backend, "default", label)
+           end) ==
+             "Email templates"
   end
 end

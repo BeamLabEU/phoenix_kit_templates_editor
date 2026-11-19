@@ -160,6 +160,10 @@ defmodule PhoenixKitTemplatesEditor.Names do
 
   defp plain_prefixes(rules), do: Enum.reject(rules.prefixes, &chrome/1)
 
+  @doc "The prefixes `rules` allow a message's name to begin with (not a layout part's)."
+  @spec message_prefixes(rules()) :: [String.t()]
+  def message_prefixes(rules), do: plain_prefixes(rules)
+
   @doc """
   The names of core's emails about getting into an account: those with a
   link that signs in, registers or confirms (account confirmation,

@@ -1,9 +1,10 @@
 defmodule PhoenixKitTemplatesEditorTest do
   use ExUnit.Case, async: true
 
+  alias PhoenixKit.Dashboard.Tab
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
-  alias PhoenixKitTemplatesEditor.Web.Section
+  alias PhoenixKitTemplatesEditor.Web.SettingsLive
 
   # `function_exported?/3` answers false for a module that is merely not
   # loaded, so callback assertions would fail intermittently under a random
@@ -116,10 +117,9 @@ defmodule PhoenixKitTemplatesEditorTest do
   end
 
   describe "optional callbacks" do
-    test "no migrations, tabs or routes of its own" do
+    test "no migrations, admin tabs or routes of its own" do
       assert PhoenixKitTemplatesEditor.migration_module() == nil
       assert PhoenixKitTemplatesEditor.admin_tabs() == []
-      assert PhoenixKitTemplatesEditor.settings_tabs() == []
       assert PhoenixKitTemplatesEditor.route_module() == nil
     end
 
@@ -128,37 +128,57 @@ defmodule PhoenixKitTemplatesEditorTest do
     end
   end
 
-  describe "email_settings_sections/0" do
-    test "contributes one section, gated by the module key, with a link button" do
-      assert [section] = PhoenixKitTemplatesEditor.email_settings_sections()
+  describe "settings_tabs/0" do
+    test "one item under Settings, gated by the module key, opening the page" do
+      assert [tab] = PhoenixKitTemplatesEditor.settings_tabs()
 
-      assert section.id == :templates_editor
-      assert section.title == "Email templates"
-      assert section.permission == PhoenixKitTemplatesEditor.module_key()
-      assert section.component == Section
-      assert section.link == %{label: "Email templates"}
+      assert tab.id == :admin_settings_templates_editor
+      assert tab.parent == :admin_settings
+      assert tab.level == :admin
+      assert tab.path == "email-templates"
+      assert tab.label == "Email templates"
+      assert tab.permission == PhoenixKitTemplatesEditor.module_key()
+      assert tab.live_view == {SettingsLive, :index}
+      assert tab.gettext_backend == PhoenixKitTemplatesEditor.Gettext
     end
 
-    test "the section component is a LiveComponent" do
-      Code.ensure_loaded!(Section)
+    test "the page is a LiveView, not a component" do
+      Code.ensure_loaded!(SettingsLive)
 
-      assert function_exported?(Section, :__live__, 0)
-      assert Section.__live__().kind == :component
+      assert function_exported?(SettingsLive, :mount, 3)
+      assert function_exported?(SettingsLive, :render, 1)
+      refute function_exported?(SettingsLive, :update, 2)
+    end
+
+    test "resolves to /admin/settings/email-templates" do
+      [tab] = PhoenixKitTemplatesEditor.settings_tabs()
+
+      assert Tab.resolve_path(tab, :settings).path == "/admin/settings/email-templates"
+    end
+  end
+
+  describe "email_settings_sections/0" do
+    test "contributes none: core would make every section a tab of the email page" do
+      assert PhoenixKitTemplatesEditor.email_settings_sections() == []
     end
   end
 
   describe "tab_path/0" do
-    test "is core's tab address for the section, through Routes" do
+    test "is the page's address, through Routes" do
       assert PhoenixKitTemplatesEditor.tab_path() ==
-               Routes.path("/admin/settings/email-sending?tab=module_templates_editor")
+               Routes.path("/admin/settings/email-templates")
     end
 
     test "passes options on to Routes, e.g. the locale" do
       assert PhoenixKitTemplatesEditor.tab_path(locale: "ru") ==
-               Routes.path(
-                 "/admin/settings/email-sending?tab=module_templates_editor",
-                 locale: "ru"
-               )
+               Routes.path("/admin/settings/email-templates", locale: "ru")
+    end
+
+    test "is the path the Settings item resolves to" do
+      [tab] = PhoenixKitTemplatesEditor.settings_tabs()
+
+      assert PhoenixKitTemplatesEditor.tab_path() ==
+               Routes.path(Tab.resolve_path(tab, :settings).path)
     end
   end
 

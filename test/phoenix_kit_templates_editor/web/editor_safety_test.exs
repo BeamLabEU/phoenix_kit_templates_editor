@@ -133,12 +133,13 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorSafetyTest do
   describe "the module's converter limits" do
     test "too large and too slow are told in words", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
 
       for {reason, words} <- [too_large: "larger than 256 KiB", timeout: "it took too long"] do
         view =
           mount_editor(root, %{convert: %{to_text: fn _format, _source -> {:error, reason} end}})
 
-        select(view, "order_offer")
+        select(view, "_footer-shop")
 
         html = convert(view, "to_text", %{markdown: "# Hi"})
 
@@ -158,7 +159,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorSafetyTest do
     select(view, "order_offer")
     html = save(view, %{subject: "Uus"})
 
-    assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "Uus"
+    assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "Uus\n"
     assert html =~ "alert-warning"
     assert html =~ "Saved."
     assert html =~ "order_offer/subject.et.txt: mode not set"

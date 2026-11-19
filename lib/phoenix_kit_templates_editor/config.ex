@@ -19,7 +19,7 @@ defmodule PhoenixKitTemplatesEditor.Config do
   | `root` | first of `PhoenixKit.Email.Content.override_paths/0` | the templates directory; must exist |
   | `editable` | `false` | `true` allows writing, `false` shows the files read-only; any other value is a config error |
   | `name_prefixes` | `[]` | which templates the editor sees and writes; `[]` shows none. One shaped like a layout part (`_header-shop`) is a namespace (`PhoenixKitTemplatesEditor.Names`) |
-  | `locales` | PhoenixKit's enabled languages (base codes), else `[base_locale]` | the language tabs, in order |
+  | `locales` | PhoenixKit's enabled languages (base codes), else `[base_locale]` | the languages of the switcher, in order |
   | `base_locale` | first of `locales`, else PhoenixKit's default language, else `"en"` | the language labels and notes fall back to |
   | `layout_group` | `nil` | the layout (`_header-<g>`, `_footer-<g>`, `_layout-<g>`) of an email without `layout.txt` |
   | `layout_groups` | `[layout_group]` | layout namespaces the editor may show and write: `g` and `g-…` |
@@ -31,7 +31,7 @@ defmodule PhoenixKitTemplatesEditor.Config do
   | `test_send` | `nil` | `(name, locale, user)` — "Send to me" for the host's own emails (below); `nil`, and for core's and the modules' emails: `PhoenixKit.Mailer` |
   | `block_placeholders` | `[]` | variables that stand as a block of their own (taken out of `<p>`) |
   | `raw_variables` | `[]` | variables allowed in `{{{x}}}` besides `content`, `header`, `footer` |
-  | `email_fallback` | `true` | whether emails get a locale-less *Fallback* tab |
+  | `email_fallback` | `true` | whether emails get the *Default* entry (the locale-less files) in the language switcher |
   | `shared_layout_editable` | `false` | whether the shared `_header`/`_footer`/`_layout` (core's system emails) are editable |
   | `overridable` | `[]` | which emails core and other modules send may get a file here: `[]` — none; a list — exactly those names (a sign-in email only so); `:all`, an explicit choice — every one but core's sign-in emails (`PhoenixKitTemplatesEditor.Names.auth_emails/0`) |
   | `catalog` | `false` | whether the templates are offered to core's email preview |
@@ -48,8 +48,8 @@ defmodule PhoenixKitTemplatesEditor.Config do
       editor. `name` is one of the host's emails, an email core or a module
       sends once it has files here, or a layout part: `_header-<g>`,
       `_footer-<g>`, `_layout-<g>` (and the shared `_header`, `_footer`,
-      `_layout` with `shared_layout_editable: true`). `locale` is `nil` on
-      the *Fallback* tab. It returns `{subject, html}`, `{subject, html,
+      `_layout` with `shared_layout_editable: true`). `locale` is `nil` for
+      the *Default* entry. It returns `{subject, html}`, `{subject, html,
       text}` — each a string or `nil`; a `{:safe, iodata}` is escaped like a
       string — or `{:error, reason}`, shown in the host's own words. Anything
       else is shown as an error. It runs in a task with a 5 s deadline, past
@@ -58,7 +58,7 @@ defmodule PhoenixKitTemplatesEditor.Config do
       module will not read (a symbolic link, one leading out of the root, one
       over 256 KiB).
     * `sample_variables()` — or a map: the variables of the host's own
-      emails, `%{name => sample}`, read when the tab is mounted. Anything but
+      emails, `%{name => sample}`, read when the page is mounted. Anything but
       a map is logged and taken as `%{}`.
     * `describe_variables(name)` — `%{variable => description}` for the
       variables panel of template `name` (layout parts included).
@@ -73,9 +73,9 @@ defmodule PhoenixKitTemplatesEditor.Config do
     * `test_send(name, locale, user)` — "Send to me" for one of the host's
       own emails: never a layout part, never an email core or a module sends
       (those go through `PhoenixKit.Mailer`, as they do for real). `locale` is
-      the tab's, `base_locale` on the *Fallback* tab; `user` is the user
+      the open language's, `base_locale` for *Default*; `user` is the user
       asking, once the module has checked that the page says who it is, that
-      they may see the tab and that they sent none in the last 30 s. It
+      they may see the page and that they sent none in the last 30 s. It
       returns `{:ok, address}` (where it went, when not to the user: a test
       mode, say), `:ok` or `{:ok, _}` (to the user), or `{:error, reason}`.
       It runs in the page's process, with no deadline: keep it fast.

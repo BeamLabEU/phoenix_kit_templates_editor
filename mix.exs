@@ -16,7 +16,7 @@ defmodule PhoenixKitTemplatesEditor.MixProject do
 
       # Hex
       description:
-        "Email templates editor for PhoenixKit — a tab on the email settings page " <>
+        "Email templates editor for PhoenixKit — a page in Settings " <>
           "for the host's phoenix_kit_templates files",
       package: package(),
 
@@ -85,8 +85,8 @@ defmodule PhoenixKitTemplatesEditor.MixProject do
 
   defp deps do
     [
-      # PhoenixKit provides the Module behaviour, Settings and the email
-      # settings page this module adds a tab to.
+      # PhoenixKit provides the Module behaviour, Settings and the Settings
+      # menu this module adds a page to.
       # Floor 3.5.0, ceiling open through every core 3.x. Compound form, never
       # a three-segment `~>`, which would pin a single core minor (see
       # test/core_pin_conformance_test.exs).
@@ -104,6 +104,15 @@ defmodule PhoenixKitTemplatesEditor.MixProject do
       # depends on it too; declared here because this module calls it
       # directly.
       pk_dep(:phoenix_kit_templates, "~> 0.2.5"),
+
+      # The editor of a letter's body (Web.Letter). 0.11 is the first with
+      # `notify:` (an editor inside a LiveComponent sends its messages to that
+      # component); core admits 0.4 through 0.12, so the two meet at 0.11 and
+      # 0.12. 0.13 is admitted for a host that overrides core's ceiling. Core 3.5 and
+      # later loads Leaf's browser half itself, through its lazy `Leaf` hook in
+      # `window.PhoenixKitHooks`; only a host without it imports `leaf.js`
+      # (README, «The letter's body: Leaf»).
+      {:leaf, "~> 0.11.0 or ~> 0.12.0 or ~> 0.13.0"},
 
       # LiveView is needed for the settings section.
       {:phoenix_live_view, "~> 1.1"},

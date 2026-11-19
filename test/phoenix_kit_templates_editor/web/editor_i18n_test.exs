@@ -41,8 +41,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorI18nTest do
     assert html =~ "Письма"
     assert html =~ "Оформления"
     assert html =~ "унаследован: стандартный из ядра"
-    assert html =~ "Название в списках. В письме не отправляется."
-    assert has_element?(view, "#editor [role=tab][phx-value-locale='']", "Общий")
+    assert has_element?(view, "#editor [phx-click=locale][phx-value-language='']", "По умолчанию")
     assert has_element?(view, "#editor-parts button[value=save]", "Сохранить")
 
     assert save(view, %{subject: "Новая тема"}) =~ "Сохранено."
@@ -55,7 +54,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorI18nTest do
     html = select(view, "order_offer")
 
     assert html =~ "Kirjad"
-    assert has_element?(view, "#editor [role=tab][phx-value-locale='']", "Üldine")
+    assert has_element?(view, "#editor [phx-click=locale][phx-value-language='']", "Vaikimisi")
     assert has_element?(view, "#editor-parts button[value=save]", "Salvesta")
 
     assert save(view, %{subject: "Uus"}) =~
@@ -64,11 +63,33 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorI18nTest do
 
   test "a part title inside a notice is translated too", %{tmp_dir: root} do
     seed(root)
+    seed_chrome(root)
     view = mount_editor(root, %{locale: "ru"})
-    select(view, "order_offer")
+    select(view, "_footer-shop")
 
     html = save(view, %{html: String.duplicate("a", Overrides.max_bytes() + 1)})
 
     assert html =~ "Не сохранено: HTML: больше 256 КиБ"
+  end
+
+  test "the letter's body, its text version and the switch question are translated",
+       %{tmp_dir: root} do
+    seed(root)
+
+    for {locale, body, text_version, stay} <- [
+          {"ru", "Текст письма", "Текстовая версия", "Остаться"},
+          {"et", "Sisu", "Tekstiversioon", "Jää siia"}
+        ] do
+      view = mount_editor(root, %{locale: locale})
+      select(view, "order_offer")
+
+      assert has_element?(view, "#editor-body", body)
+      assert has_element?(view, "#editor-text-version", text_version)
+
+      edit_body(view, "Unsaved")
+      view |> element("#editor-parts") |> render()
+      tab(view, "en")
+      assert has_element?(view, "#editor-confirm-switch-cancel", stay)
+    end
   end
 end

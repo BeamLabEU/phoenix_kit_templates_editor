@@ -38,6 +38,26 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionTest do
   defp select(view, name),
     do: view |> element("#templates-editor button[phx-value-name=#{name}]") |> render_click()
 
+  # What Leaf tells the editor when the writer has typed `markdown`.
+  defp edit_body(view, markdown) do
+    [doc] =
+      view
+      |> render()
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.query("#templates-editor-body [phx-hook='Leaf']")
+      |> Enum.flat_map(&LazyHTML.attribute(&1, "id"))
+
+    message =
+      {:leaf_changed, %{editor_id: doc, markdown: markdown, html: "", dirty: true}}
+
+    Phoenix.LiveView.send_update(view.pid, PhoenixKitTemplatesEditor.Web.Editor,
+      id: "templates-editor",
+      leaf: message
+    )
+
+    render(view)
+  end
+
   defp save(view, parts),
     do: view |> form("#templates-editor-parts", parts: parts) |> render_submit()
 
@@ -53,7 +73,7 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionTest do
 
       assert save(view, %{subject: "New offer"}) =~ "Saved."
       assert File.read!(Path.join([root, "shop_offer", "subject.en.txt"])) == "New offer"
-      assert has_element?(view, "#templates-editor-hints")
+      refute has_element?(view, "#templates-editor-hints")
     end
 
     test "without it: read only, and the tab says why", %{root: root} do
@@ -74,7 +94,16 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionTest do
       send(view.pid, {:scope, scope(["settings", "templates_editor"])})
       _ = render(view)
 
-      assert save(view, %{subject: "Sneaky"}) =~ "You are not allowed to change templates"
+      # The page's new scope reaches the editor at once: no form any more ...
+      refute has_element?(view, "#templates-editor-parts")
+
+      # ... and a forged save is refused on the server all the same.
+      html =
+        render_click(with_target(view, "#templates-editor"), "save", %{
+          "parts" => %{"subject" => "Sneaky"}
+        })
+
+      assert html =~ "read-only here"
       assert File.read!(Path.join([root, "shop_offer", "subject.en.txt"])) =~ "Offer"
     end
 
@@ -96,7 +125,7 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionTest do
 
       refute has_element?(view, "#templates-editor-parts")
       refute has_element?(view, "#templates-editor-no-write")
-      assert has_element?(view, "#templates-editor-intro", "Read only on this server")
+      refute has_element?(view, "#templates-editor-intro")
       assert File.exists?(Path.join([root, "shop_offer", "subject.en.txt"]))
     end
   end
@@ -124,12 +153,14 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionTest do
       send(view.pid, {:scope, scope(["settings", "templates_editor"])})
       _ = render(view)
 
-      html =
-        view
-        |> form("#templates-editor-email-layout", email_layout: %{group: ""})
-        |> render_change()
+      refute has_element?(view, "#templates-editor-email-layout")
 
-      assert html =~ "You are not allowed to change templates"
+      html =
+        render_click(with_target(view, "#templates-editor"), "set_layout", %{
+          "email_layout" => %{"group" => ""}
+        })
+
+      assert html =~ "read-only here"
       assert File.read!(Path.join([root, "shop_offer", "layout.txt"])) == "shop-partner"
     end
   end
@@ -175,10 +206,12 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionTest do
 
     view = mount_section(scope: writer())
     select(view, "shop_offer")
-    save(view, %{text: "Saved"})
+    edit_body(view, "Saved")
+    save(view, %{})
     assert text.() == "Saved"
 
-    save(view, %{text: ""})
+    edit_body(view, "")
+    save(view, %{})
     assert text.() in [nil, ""]
   end
 
@@ -226,6 +259,46 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionTest do
     end
   end
 
+  describe "the actions menu" do
+    test "a writer: one «⋯» menu at the top of the list holds Reload and the git check" do
+      view = mount_section(scope: writer())
+
+      assert has_element?(view, "#templates-editor-actions")
+      assert has_element?(view, "#templates-editor-actions #templates-editor-reload")
+      assert has_element?(view, "#templates-editor-actions #templates-editor-uncommitted-check")
+      assert has_element?(view, "#templates-editor-list #templates-editor-actions")
+      # the editor's own Reload button is not drawn beside the menu
+      refute has_element?(view, "#templates-editor-list > #templates-editor-reload")
+    end
+
+    test "Reload from the menu reads the files again", %{root: root} do
+      view = mount_section(scope: writer())
+      select(view, "shop_offer")
+
+      File.write!(Path.join([root, "shop_offer", "subject.en.txt"]), "Changed by hand")
+      Overrides.reset_cache([root])
+
+      html = view |> element("#templates-editor-reload") |> render_click()
+
+      assert html =~ "Read again from disk."
+
+      assert has_element?(
+               view,
+               "#templates-editor-parts input[name='parts[subject]'][value='Changed by hand']"
+             )
+    end
+
+    test "a reader has no menu, and a forged reload changes nothing" do
+      view = mount_section(scope: scope(["settings", "templates_editor"]))
+
+      refute has_element?(view, "#templates-editor-actions")
+      refute has_element?(view, "#templates-editor-reload")
+
+      html = render_click(with_target(view, "#templates-editor"), "reload", %{})
+      refute html =~ "Read again from disk."
+    end
+  end
+
   test "the module's own preview: the email in its group's chrome, the samples filled in" do
     view = mount_section(scope: writer())
     select(view, "shop_offer")
@@ -241,15 +314,5 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionTest do
     assert srcdoc =~ "SHOP-HEADER"
     assert srcdoc =~ "Hello, Mari!"
     assert has_element?(view, "#templates-editor-preview-subject", "Offer 37")
-  end
-
-  test "the layout's variables, less the branding's, are named in the hints" do
-    view = mount_section(scope: writer())
-
-    hint = view |> element("#templates-editor-layout-variables") |> render()
-    assert hint =~ "{{site_name}}"
-    assert hint =~ "{{site_url}}"
-    refute hint =~ "{{logo_url}}"
-    refute hint =~ "{{accent_color}}"
   end
 end

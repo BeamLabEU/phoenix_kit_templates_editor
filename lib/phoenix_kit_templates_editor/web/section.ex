@@ -1,49 +1,42 @@
 defmodule PhoenixKitTemplatesEditor.Web.Section do
   @moduledoc """
-  The "Email templates" tab of Settings › Emails Transactional.
+  What `PhoenixKitTemplatesEditor.Web.SettingsLive` shows: the host's config
+  checked, the notices that matter, and the editor.
 
-  Core mounts it as `<.live_component module={…} id={:templates_editor} />`
-  with no other assigns, so everything comes from the host's config
-  (`PhoenixKitTemplatesEditor.Config`); a config that does not load is shown
+  A config that does not load (`PhoenixKitTemplatesEditor.Config`) is shown
   as an error here rather than taking the page down. The section:
 
-    * introduces the files — editable here, or read only (neutral words: the
-      module does not know the host's servers);
-    * where the user may write, gives the general hints: what the
-      converter buttons do, what the *Fallback* tab is, which variables only
-      the header and footer have (`PhoenixKit.Email.Layout.render_parts/2`
-      of `layout_group`, less the branding's);
-    * shows the project's own notes, `README.<page language>.md`, else
-      `README.<base_locale>.md`, else `README.md` in the templates root, as
-      Markdown through core's sanitizer — read only too;
+    * says, where the files are editable but not by this user, why they are
+      read only;
+    * says when the templates directory is not the one core reads emails
+      from (so "Preview emails" does not offer them);
     * where the files are editable, lists those not committed to git
       (`PhoenixKitTemplatesEditor.Files.uncommitted/1`): on a button only a
       writer has (asked again on the click, once in 5 s), and again after
-      every change the editor makes — never on opening the tab;
+      every change the editor makes — never on opening the page;
     * mounts `PhoenixKitTemplatesEditor.Web.Editor` with everything the
       config says.
+
+  The project's own notes (`README.<locale>.md` beside the templates) are
+  not shown on the page: the files stay where they are, for the people who
+  work with the folder.
 
   ## Who may write
 
   `editable: true` in the config **and** `PhoenixKitTemplatesEditor.authorize(scope, :write)`
   — the module enabled, `settings`, `templates_editor` and
-  `templates_editor.write`. Asked when the tab renders (no form for anyone
+  `templates_editor.write`. Asked when the page renders (no form for anyone
   else) and again by the editor on every change. The scope is the page's
-  `:phoenix_kit_current_scope` as `PhoenixKitTemplatesEditor.Web.ScopeHook`
-  keeps it (core passes the section none); without the hook the files are
-  read only, and the tab says so.
+  `:phoenix_kit_current_scope`, handed in as an assign by the page
+  (`PhoenixKitTemplatesEditor.Web.SettingsLive`); a section mounted without
+  one is read only.
 
-  The editor's `after_change` runs in core's LiveView process, which has no
+  The editor's `after_change` runs in the page's process, which has no
   `handle_info` for this component: it tells the section by `send_update/2`.
   """
   use PhoenixKitWeb, :live_component
   use Gettext, backend: PhoenixKitTemplatesEditor.Gettext
 
-  require Logger
-
-  alias PhoenixKit.Email.Branding
-  alias PhoenixKit.Email.Layout
-  alias PhoenixKit.Modules.Languages.DialectMapper
   alias PhoenixKit.Utils.Routes
   alias PhoenixKitTemplatesEditor.Catalog
   alias PhoenixKitTemplatesEditor.Config
@@ -53,7 +46,6 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
   alias PhoenixKitTemplatesEditor.Preview
   alias PhoenixKitTemplatesEditor.TestSend
   alias PhoenixKitTemplatesEditor.Web.Editor
-  alias PhoenixKitTemplatesEditor.Web.ScopeHook
 
   @impl true
   def mount(socket), do: {:ok, assign(socket, uncommitted: nil, uncommitted_at: nil)}
@@ -97,8 +89,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
   defp recently?(last, now), do: now - last < @uncommitted_interval_ms
 
   defp configure(socket, config) do
-    assigned_scope = socket.assigns[:phoenix_kit_current_scope]
-    scope = current_scope(assigned_scope)
+    scope = socket.assigns[:phoenix_kit_current_scope]
     write = if config.editable, do: PhoenixKitTemplatesEditor.authorize(scope, :write)
 
     socket
@@ -106,31 +97,21 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
       config: config,
       errors: [],
       can_write: write == :ok,
-      no_write:
-        if(config.editable and write != :ok,
-          do: no_write_reason(scope, write, connected?(socket))
-        ),
-      readme: readme(config),
+      no_write: if(config.editable and write != :ok, do: no_write_reason(write)),
       catalog_off: config.catalog and not Catalog.root_read_by_core?(config),
-      authorize: authorizer(assigned_scope),
-      journal: journaller(assigned_scope)
+      authorize: authorizer(scope),
+      journal: journaller(scope)
     )
     |> assign_new(:module_emails, fn -> module_emails() end)
-    |> then(&assign(&1, test_send: test_sender(config, assigned_scope, &1.assigns.module_emails)))
+    |> then(&assign(&1, test_send: test_sender(config, scope, &1.assigns.module_emails)))
     |> assign_new(:sample_variables, fn -> Preview.sample_variables(config) end)
-    |> assign_new(:layout_variables, fn -> layout_variables(config) end)
     |> assign_new(:image_origins, fn -> image_origins() end)
     |> assign_new(:callbacks, fn -> callbacks(socket.assigns.id, config) end)
   end
 
-  # Core passes no scope (`:phoenix_kit_current_scope` is there only for a
-  # host that mounts the section itself); the scope hook's is the page's.
-  defp current_scope(nil), do: ScopeHook.current_scope()
-  defp current_scope(scope), do: scope
-
-  # Asked by the editor on every change, with the scope as it is then.
-  defp authorizer(assigned_scope) do
-    fn _action -> PhoenixKitTemplatesEditor.authorize(current_scope(assigned_scope), :write) end
+  # Asked by the editor on every change, with the scope the page gave last.
+  defp authorizer(scope) do
+    fn _action -> PhoenixKitTemplatesEditor.authorize(scope, :write) end
   end
 
   # The emails core and the other modules send (core's catalogue, in the
@@ -138,16 +119,16 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
   defp module_emails, do: Catalog.core_entries()
 
   # "Send to me", to the user of the page at the moment of the click.
-  defp test_sender(config, assigned_scope, module_emails) do
+  defp test_sender(config, scope, module_emails) do
     fn name, locale ->
       entry = Enum.find(module_emails, &(&1.name == name))
-      TestSend.deliver(config, current_scope(assigned_scope), name, locale, entry)
+      TestSend.deliver(config, scope, name, locale, entry)
     end
   end
 
   # Every change, in PhoenixKit's activity log, as done by the user then.
-  defp journaller(assigned_scope) do
-    fn event -> Journal.log(current_scope(assigned_scope), event) end
+  defp journaller(scope) do
+    fn event -> Journal.log(scope, event) end
   end
 
   # The editor's callbacks, made once: a new function on every update would
@@ -182,62 +163,15 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
 
   defp assign_uncommitted(socket), do: socket
 
-  # The first, disconnected render has no scope (`ScopeHook`): read only
-  # for a moment, nothing to explain.
-  defp no_write_reason(nil, _write, false), do: nil
-
-  defp no_write_reason(nil, _write, true),
-    do:
-      gettext(
-        "The templates are editable on this server, but the page does not tell the editor who you are, so they are shown read only (the module's scope hook is not set up)."
-      )
-
-  defp no_write_reason(_scope, {:error, :disabled}, _connected),
+  defp no_write_reason({:error, :disabled}),
     do: gettext("The templates editor is switched off: the templates are shown read only.")
 
-  defp no_write_reason(_scope, _forbidden, _connected),
+  defp no_write_reason(_forbidden),
     do:
       gettext(
-        "The templates are editable on this server, but not by you: changing them needs the “%{permission}” permission.",
+        "Editing needs the “%{permission}” permission: the templates are shown read only.",
         permission: gettext("Edit email templates")
       )
-
-  # The project's notes beside the templates, in the page's language.
-  defp readme(%Config{root: root, base_locale: base}) do
-    names = Enum.uniq(["README.#{page_locale()}.md", "README.#{base}.md", "README.md"])
-
-    Enum.find_value(names, &read_note(root, &1))
-  end
-
-  defp read_note(root, name) do
-    with {:ok, content} <- Files.safe_read(root, Path.join(root, name)),
-         true <- String.valid?(content) do
-      content
-    else
-      _none -> nil
-    end
-  end
-
-  defp page_locale do
-    PhoenixKitTemplatesEditor.Gettext |> Gettext.get_locale() |> DialectMapper.extract_base()
-  end
-
-  # The variables core gives a header and footer (and the layout) but not an
-  # email's body, less the branding's, which a Markdown body has as well.
-  # Rendered without reading any file: only the names are wanted.
-  defp layout_variables(%Config{layout_group: group}) do
-    parts = Layout.render_parts(nil, group: group, paths: [])
-
-    (Map.keys(parts.variables) -- Map.keys(Branding.variables()))
-    |> Enum.sort()
-  rescue
-    exception ->
-      Logger.warning(
-        "[PhoenixKitTemplatesEditor] layout variables: #{Exception.message(exception)}"
-      )
-
-      []
-  end
 
   # The site's own origin, for images (its logo) in the preview frame.
   defp image_origins do
@@ -258,6 +192,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
   def render(assigns) do
     ~H"""
     <div id="templates-editor-section" class="flex flex-col gap-4">
+      <%!-- No title, no back chip, no header row of the page's own: the admin
+           bar above names the page and its "Settings" crumb is the way back, as
+           on the other modules' pages. The actions menu sits in the list. --%>
       <div :if={@config == nil} role="alert" class="alert alert-error alert-soft">
         <.icon name="hero-exclamation-triangle" class="size-5 shrink-0" />
         <div>
@@ -271,18 +208,6 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
       </div>
 
       <%= if @config do %>
-        <p id="templates-editor-intro" class="text-sm text-base-content/60">
-          <%= if @config.editable do %>
-            {gettext(
-              "The email templates of this server, as files. A change saved here changes the file; it reaches other servers once it is committed to git."
-            )}
-          <% else %>
-            {gettext(
-              "Read only on this server: the templates are changed where editing is allowed and come here with the program."
-            )}
-          <% end %>
-        </p>
-
         <div
           :if={@no_write}
           id="templates-editor-no-write"
@@ -303,51 +228,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
           )}
         </div>
 
-        <ul
-          :if={@can_write}
-          id="templates-editor-hints"
-          class="list-disc pl-5 text-sm text-base-content/60 space-y-1"
-        >
-          <li>
-            {gettext(
-              "“%{fill}” writes the Markdown — or the HTML when there is no Markdown — into Text as plain text; “%{render}” writes the Markdown into HTML, with today's accent colour written into it for good. Neither saves: check the field, then “%{save}”.",
-              fill: gettext("Fill text from content"),
-              render: gettext("Markdown → HTML"),
-              save: gettext("Save")
-            )}
-          </li>
-          <li>
-            {gettext(
-              "The “%{fallback}” tab holds the files without a language: a language with no file of its own gets them.",
-              fallback: gettext("Fallback")
-            )}
-          </li>
-          <li :if={@layout_variables != []} id="templates-editor-layout-variables">
-            {gettext("%{variables} work only in the header, the footer and the layout.",
-              variables: Enum.map_join(@layout_variables, ", ", &"{{#{&1}}}")
-            )}
-          </li>
-        </ul>
-
-        <div
-          :if={@readme}
-          id="templates-editor-readme"
-          class="rounded-box border border-base-300 p-4"
-        >
-          <PhoenixKitWeb.Components.Core.Markdown.markdown content={@readme} compact />
-        </div>
-
         <div :if={@config.editable and @can_write} class="flex flex-col items-start gap-2">
-          <button
-            id="templates-editor-uncommitted-check"
-            type="button"
-            phx-click="check_uncommitted"
-            phx-target={@myself}
-            class="btn btn-sm btn-ghost"
-          >
-            <.icon name="hero-arrow-path" class="size-4" />
-            {gettext("Show what is not committed to git")}
-          </button>
           <div
             :if={@uncommitted not in [nil, []]}
             id="templates-editor-uncommitted"
@@ -356,7 +237,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
             <span>
               {gettext("Changed on this server and not yet committed to git:")}
             </span>
-            <ul class="font-mono text-xs">
+            <ul class="font-mono text-xs break-all">
               <li :for={path <- @uncommitted} data-path={path}>{path}</li>
             </ul>
           </div>
@@ -372,8 +253,11 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
         <.live_component
           module={Editor}
           id="templates-editor"
+          open={assigns[:open]}
+          patch_path={assigns[:path]}
           root={@config.root}
           editable={@can_write}
+          show_reload={false}
           name_prefixes={@config.name_prefixes}
           layout_group={@config.layout_group}
           layout_groups={@config.layout_groups}
@@ -384,6 +268,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
           email_fallback={@config.email_fallback}
           sample_variables={@sample_variables}
           raw_variables={@config.raw_variables}
+          block_placeholders={@config.block_placeholders}
           describe_variables={@config.describe_variables}
           preview={@callbacks.preview}
           preview_image_origins={@image_origins}
@@ -397,7 +282,33 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
           test_send={@test_send}
           max_templates={@config.max_templates}
           max_root_bytes={@config.max_root_bytes}
-        />
+        >
+          <:list_actions :if={@config.editable and @can_write}>
+            <.table_row_menu
+              id="templates-editor-actions"
+              label={gettext("Actions")}
+              trigger_size="sm"
+            >
+              <.table_row_menu_button
+                id="templates-editor-reload"
+                phx-click="reload"
+                phx-target="#templates-editor"
+                icon="hero-arrow-path"
+                label={gettext("Reload")}
+                title={
+                  gettext("Read the templates again from disk: after a change by hand or a git pull.")
+                }
+              />
+              <.table_row_menu_button
+                id="templates-editor-uncommitted-check"
+                phx-click="check_uncommitted"
+                phx-target={@myself}
+                icon="hero-code-bracket-square"
+                label={gettext("Show what is not committed to git")}
+              />
+            </.table_row_menu>
+          </:list_actions>
+        </.live_component>
       <% end %>
     </div>
     """

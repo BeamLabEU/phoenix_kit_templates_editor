@@ -29,18 +29,55 @@ defmodule PhoenixKitTemplatesEditor.Integration.ModuleTest do
       assert PhoenixKitTemplatesEditor in ModuleRegistry.all_modules()
     end
 
-    test "collects the section only while the module is enabled" do
-      refute Enum.any?(
-               ModuleRegistry.all_email_settings_sections(),
-               &(&1.id == :templates_editor)
+    test "collects the Settings item, and no section of the email settings page" do
+      assert Enum.any?(
+               ModuleRegistry.all_settings_tabs(),
+               &(&1.id == :admin_settings_templates_editor)
              )
 
       {:ok, _} = PhoenixKitTemplatesEditor.enable_system()
 
       assert Enum.any?(
+               ModuleRegistry.all_settings_tabs(),
+               &(&1.id == :admin_settings_templates_editor)
+             )
+
+      refute Enum.any?(
                ModuleRegistry.all_email_settings_sections(),
                &(&1.id == :templates_editor)
              )
+    end
+  end
+
+  describe "who is shown the Settings item" do
+    alias PhoenixKit.Dashboard.Tab
+
+    defp item do
+      Enum.find(
+        PhoenixKitTemplatesEditor.settings_tabs(),
+        &(&1.id == :admin_settings_templates_editor)
+      )
+    end
+
+    test "settings and the module key: the item; the module key alone: no item" do
+      {:ok, _} = PhoenixKitTemplatesEditor.enable_system()
+
+      assert Tab.visible?(item(), scope(["settings", "templates_editor"]))
+      refute Tab.visible?(item(), scope(["templates_editor"]))
+      refute Tab.visible?(item(), scope(["settings"]))
+    end
+
+    test "no scope: no item" do
+      {:ok, _} = PhoenixKitTemplatesEditor.enable_system()
+
+      refute Tab.visible?(item(), nil)
+    end
+
+    test "the module switched off: no item, even for the owner" do
+      {:ok, _} = PhoenixKitTemplatesEditor.disable_system()
+
+      refute Tab.visible?(item(), scope(["settings", "templates_editor"]))
+      refute Tab.visible?(item(), scope(["*"]))
     end
   end
 

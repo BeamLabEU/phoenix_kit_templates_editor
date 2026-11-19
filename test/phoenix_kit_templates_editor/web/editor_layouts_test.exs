@@ -503,7 +503,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorLayoutsTest do
       create(view, "order_copy", "order_offer")
 
       assert File.exists?(Path.join([root, "order_copy", "audience.txt"]))
-      assert has_element?(view, ~s(#{name_field}[value=""]))
+      assert has_element?(view, ~s(#{name_field}[value="order_"]))
       assert has_element?(view, ~s(#{source} option[value=""][selected]))
       refute has_element?(view, "#editor-create-extras")
     end
@@ -526,7 +526,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorLayoutsTest do
       assert log =~ "after_write"
 
       assert File.exists?(Path.join([root, "order_copy", "subject.et.txt"]))
-      assert has_element?(view, ~s(#{name_field}[value=""]))
+      assert has_element?(view, ~s(#{name_field}[value="order_"]))
     end
 
     test "none to list, no list", %{tmp_dir: root} do

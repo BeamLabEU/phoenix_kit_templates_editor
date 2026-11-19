@@ -34,14 +34,16 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
       refute html =~ "secret_other"
     end
 
-    test "captions a template with its label in the first locale", %{tmp_dir: root} do
+    test "captions a template with its label in the first locale that has one",
+         %{tmp_dir: root} do
       seed(root)
-      view = mount_editor(root)
+      # The page's language (ru) has no label: the module's languages in order.
+      view = mount_editor(root, %{locale: "ru"})
 
       assert view |> element("[phx-value-name=order_offer]") |> render() =~
                "Pakkumiskiri"
 
-      view = mount_editor(root, %{locales: ["en", "et"]})
+      view = mount_editor(root, %{locale: "ru", locales: ["en", "et"]})
       assert view |> element("[phx-value-name=order_offer]") |> render() =~ "Price offer"
     end
 
@@ -82,19 +84,27 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
       view = mount_editor(root)
       select(view, "order_offer")
 
-      assert view |> element("#editor-parts textarea[name='parts[subject]']") |> render() =~
+      assert view |> element("#editor-parts [name='parts[subject]']") |> render() =~
                "Pakkumine {{order_number}}"
 
       tab(view, "ru")
 
-      assert view |> element("#editor-parts textarea[name='parts[subject]']") |> render() =~
+      assert view |> element("#editor-parts [name='parts[subject]']") |> render() =~
                "Предложение"
 
-      assert has_element?(view, "#editor [role=tab][aria-selected=true]", "ru")
-      refute has_element?(view, "#editor [role=tab][aria-selected=true]", "et")
+      assert has_element?(view, "#editor [phx-click=locale][aria-pressed=true]", "Русский")
+      refute has_element?(view, "#editor [phx-click=locale][aria-pressed=true]", "Eesti")
 
-      for part <- ~w(label subject text markdown html) do
-        assert has_element?(view, "#editor-parts textarea[name='parts[#{part}]']")
+      # A letter: label and subject fields, its body in Leaf, no field for the
+      # text, the Markdown or the HTML.
+      for part <- ~w(label subject) do
+        assert has_element?(view, "#editor-parts [name='parts[#{part}]']")
+      end
+
+      assert has_element?(view, "#editor-body [phx-hook=Leaf]")
+
+      for part <- ~w(text markdown html) do
+        refute has_element?(view, "#editor-parts [name='parts[#{part}]']")
       end
     end
 
@@ -114,11 +124,11 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
       select(view, "order_offer")
       tab(view, "en")
 
-      html = save(view, %{label: "Offer", subject: "Offer {{order_number}}", text: ""})
+      html = save(view, %{label: "Offer", subject: "Offer {{order_number}}"})
 
       assert html =~ "Saved"
       dir = Path.join(root, "order_offer")
-      assert File.read!(Path.join(dir, "label.en.txt")) == "Offer"
+      assert File.read!(Path.join(dir, "label.en.txt")) == "Offer\n"
       assert File.read!(Path.join(dir, "subject.en.txt")) == "Offer {{order_number}}"
       refute File.exists?(Path.join(dir, "text.en.txt"))
       assert_received {:after_write, paths}
@@ -175,31 +185,34 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
 
     test "stores browser CRLF line breaks as LF", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root)
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       save(view, %{text: "Tere!\r\n\r\nNägemist\r\n"})
 
-      assert File.read!(Path.join([root, "order_offer", "text.et.txt"])) ==
+      assert File.read!(Path.join([root, "_footer-shop", "text.et.txt"])) ==
                "Tere!\n\nNägemist\n"
     end
 
     test "surfaces a refusal from the write API", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root)
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       html = save(view, %{html: String.duplicate("a", Overrides.max_bytes() + 1)})
 
       assert html =~ "larger than"
-      refute File.exists?(Path.join([root, "order_offer", "html.et.html"]))
+      refute File.exists?(Path.join([root, "_footer-shop", "html.et.html"]))
       refute_received {:after_write, _paths}
     end
 
     test "a save that is partly refused says which parts were saved", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root)
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       html =
         save(view, %{
@@ -209,8 +222,8 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
         })
 
       assert html =~ "Saved: Subject, Text. Not saved: HTML: larger than"
-      assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "New subject"
-      refute File.exists?(Path.join([root, "order_offer", "text.et.txt"]))
+      assert File.read!(Path.join([root, "_footer-shop", "subject.et.txt"])) == "New subject\n"
+      refute File.exists?(Path.join([root, "_footer-shop", "text.et.txt"]))
       assert_received {:after_write, [_subject]}
     end
 
@@ -220,37 +233,43 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
 
       html = select(view, "order_offer")
 
-      assert html =~ "Fallback"
+      assert has_element?(view, "#editor [phx-click=locale][phx-value-language='']", "Default")
       assert html =~ "Pakkumine"
-      refute has_element?(view, "#editor [role=tab][phx-value-locale='ru']")
-      assert length(Regex.scan(~r/phx-value-locale="et"/, html)) == 1
+      refute has_element?(view, "#editor [phx-click=locale][phx-value-language='ru']")
+      assert length(Regex.scan(~r/phx-value-language="et"/, html)) == 1
 
       view2 = mount_editor(root, %{locales: "et"})
-      assert select(view2, "order_offer") =~ "Fallback"
+      select(view2, "order_offer")
+
+      # No language is left but the files without one: nothing to switch.
+      assert has_element?(view2, "#editor-parts")
+      refute has_element?(view2, "#editor-languages")
     end
 
     test "a part the write refused stays in the form, so the edit is not lost", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root)
-      select(view, "order_offer")
+      select(view, "_footer-shop")
       big = String.duplicate("a", Overrides.max_bytes() + 1)
 
       save(view, %{subject: "New subject", html: big})
 
       assert view |> element("#editor-parts textarea[name='parts[html]']") |> render() =~ "aaaa"
       # What was saved shows what is on disk now.
-      assert view |> element("#editor-parts textarea[name='parts[subject]']") |> render() =~
+      assert view |> element("#editor-parts [name='parts[subject]']") |> render() =~
                "New subject"
 
       # Still an edit to retry: fixing the part and saving writes it.
       save(view, %{html: "<p>small</p>"})
-      assert File.read!(Path.join([root, "order_offer", "html.et.html"])) == "<p>small</p>"
+      assert File.read!(Path.join([root, "_footer-shop", "html.et.html"])) == "<p>small</p>"
     end
 
     test "a refused part is dropped from the form on another tab", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root)
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       save(view, %{html: String.duplicate("a", Overrides.max_bytes() + 1)})
       tab(view, "ru")
@@ -266,7 +285,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
       log = capture_log(fn -> assert save(view, %{subject: "Uus"}) =~ "chown failed" end)
 
       path = Path.join([root, "order_offer", "subject.et.txt"])
-      assert File.read!(path) == "Uus"
+      assert File.read!(path) == "Uus\n"
       assert Process.alive?(view.pid)
       assert log =~ "after_write"
       assert log =~ "chown failed"
@@ -314,7 +333,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
       save(view, %{subject: "Uus"})
       render_submit(with_target(view, "#editor"), "save", %{"parts" => %{"text" => ""}})
 
-      assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "Uus"
+      assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "Uus\n"
       assert File.read!(Path.join([root, "order_offer", "text.et.txt"])) == latin
     end
 
@@ -334,9 +353,25 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
       select(view, "order_offer")
       refute has_element?(view, "#editor-missing")
 
-      save(view, %{text: "Tere {{order_numbr}}"})
+      edit_body(view, "Tere {{order_numbr}}")
+      save(view, %{})
 
       assert view |> element("#editor-missing") |> render() =~ "order_numbr"
+    end
+
+    # A header is the layout's: `site_url` is one of its variables, an
+    # email's `order_number` is not.
+    test "a header is checked against the layout's variables, not an email's", %{tmp_dir: root} do
+      seed(root)
+      put(root, "_header-shop", "html.html", ~s(<img src="{{site_url}}/logo.png">\n))
+      view = mount_editor(root)
+      select(view, "_header-shop")
+      refute has_element?(view, "#editor-missing")
+
+      put(root, "_footer-shop", "html.html", "<p>{{order_number}}</p>\n")
+      view = mount_editor(root)
+      select(view, "_footer-shop")
+      assert view |> element("#editor-missing") |> render() =~ "order_number"
     end
   end
 
@@ -771,11 +806,11 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
       view = mount_editor(root)
       select(view, "order_offer")
 
-      render_click(with_target(view, "#editor"), "locale", %{"locale" => "de"})
+      render_click(with_target(view, "#editor"), "locale", %{"language" => "de"})
       save(view, %{subject: "x"})
 
       refute File.exists?(Path.join([root, "order_offer", "subject.de.txt"]))
-      assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "x"
+      assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "x\n"
     end
   end
 
@@ -785,7 +820,8 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
       view = mount_editor(root)
       select(view, "order_offer")
 
-      html = save(view, %{text: ""})
+      edit_body(view, "")
+      html = save(view, %{})
 
       assert html =~ "Saved"
       refute File.exists?(Path.join([root, "order_offer", "text.et.txt"]))
@@ -856,7 +892,8 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
 
       log =
         capture_log(fn ->
-          html = save(view, %{text: ""})
+          edit_body(view, "")
+          html = save(view, %{})
           assert html =~ "after_change failed"
         end)
 
@@ -868,11 +905,12 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
   describe "a part the user did not edit" do
     test "is not written back over another session's change", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root)
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       # Another session saves the subject; the host re-renders the editor.
-      File.write!(Path.join([root, "order_offer", "subject.et.txt"]), "Teine sessioon\n")
+      File.write!(Path.join([root, "_footer-shop", "subject.et.txt"]), "Teine sessioon\n")
       Overrides.reset_cache([root])
       send(view.pid, {:put, %{sample_variables: %{"order_number" => "38"}}})
       _ = render(view)
@@ -885,10 +923,10 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
         "parts" => %{"subject" => "Pakkumine {{order_number}}\n", "text" => "Uus tekst\n"}
       })
 
-      assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) ==
+      assert File.read!(Path.join([root, "_footer-shop", "subject.et.txt"])) ==
                "Teine sessioon\n"
 
-      assert File.read!(Path.join([root, "order_offer", "text.et.txt"])) == "Uus tekst\n"
+      assert File.read!(Path.join([root, "_footer-shop", "text.et.txt"])) == "Uus tekst\n"
     end
 
     # An edited part no longer wins — the save is refused
@@ -932,35 +970,37 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
   describe "preview with a text version" do
     test "a host returning text gets HTML and Text tabs", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root, %{preview: {Host, :preview_with_text}})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
-      assert has_element?(view, "#editor-preview-tab-html[aria-selected=true]")
+      assert has_element?(view, "#editor-preview-tabs [phx-value-tab=html].tab-active")
       assert has_element?(view, "#editor-preview iframe")
       refute has_element?(view, "#editor-preview-text")
 
-      view |> element("#editor-preview-tab-text") |> render_click()
+      view |> element("#editor-preview-tabs [phx-value-tab=text]") |> render_click()
 
-      assert has_element?(view, "#editor-preview-tab-text[aria-selected=true]")
+      assert has_element?(view, "#editor-preview-tabs [phx-value-tab=text].tab-active")
       refute has_element?(view, "#editor-preview iframe")
 
       assert view |> element("#editor-preview-text") |> render() =~
-               "Hello from order_offer &lt;as text&gt;"
+               "Hello from _footer-shop &lt;as text&gt;"
 
       assert view |> element("#editor-preview-subject") |> render() =~
-               "Subject of order_offer (et)"
+               "Subject of _footer-shop (et)"
 
-      view |> element("#editor-preview-tab-html") |> render_click()
+      view |> element("#editor-preview-tabs [phx-value-tab=html]") |> render_click()
       assert has_element?(view, "#editor-preview iframe")
     end
 
     test "a text version of nil says there is none", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root)
       send(view.pid, {:put, %{preview: fn _name, _locale -> {"S", "<p>H</p>", nil} end}})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
-      view |> element("#editor-preview-tab-text") |> render_click()
+      view |> element("#editor-preview-tabs [phx-value-tab=text]") |> render_click()
 
       assert view |> element("#editor-preview") |> render() =~ "No text."
     end
@@ -971,7 +1011,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
       select(view, "order_offer")
 
       assert has_element?(view, "#editor-preview iframe")
-      refute has_element?(view, "#editor-preview-tab-text")
+      refute has_element?(view, "#editor-preview-tabs")
     end
 
     test "a text version that is not a string is an error", %{tmp_dir: root} do
@@ -989,53 +1029,57 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
     test "opens on HTML for each template, or on Text when there is no HTML",
          %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root, %{preview: {Host, :preview_with_text}})
-      select(view, "order_offer")
-      view |> element("#editor-preview-tab-text") |> render_click()
+      select(view, "_footer-shop")
+      view |> element("#editor-preview-tabs [phx-value-tab=text]") |> render_click()
       select(view, "_header-shop")
 
-      assert has_element?(view, "#editor-preview-tab-html[aria-selected=true]")
+      assert has_element?(view, "#editor-preview-tabs [phx-value-tab=html].tab-active")
 
       send(view.pid, {:put, %{preview: fn _name, _locale -> {"S", nil, "Only text"} end}})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
-      assert has_element?(view, "#editor-preview-tab-text[aria-selected=true]")
+      assert has_element?(view, "#editor-preview-tabs [phx-value-tab=text].tab-active")
       assert view |> element("#editor-preview-text") |> render() =~ "Only text"
     end
 
-    test "a draft's first save opens the preview on Text when it has no HTML",
+    test "a letter's first save shows the text when the preview has no HTML, in one view",
          %{tmp_dir: root} do
       seed(root)
       view = mount_editor(root)
       send(view.pid, {:put, %{preview: fn _name, _locale -> {"S", nil, "Only text"} end}})
       create(view, "order_new")
 
-      save(view, %{text: "Only text"})
+      edit_body(view, "Only text")
+      save(view, %{})
 
-      assert has_element?(view, "#editor-preview-tab-text[aria-selected=true]")
-      assert view |> element("#editor-preview-text") |> render() =~ "Only text"
+      refute has_element?(view, "#editor-preview-tabs")
+      assert view |> element("#editor-preview") |> render() =~ "Only text"
     end
   end
 
   describe "conversion buttons" do
     test "are not shown without a convert callback, or read-only", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root)
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       refute has_element?(view, "#editor-parts button[name=action][value=to_text]")
       refute has_element?(view, "#editor-parts button[name=action][value=md_to_html]")
 
       view = mount_editor(root, %{editable: false, convert: @convert})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       refute has_element?(view, "button[name=action]")
     end
 
     test "each shows only with its own callback", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root, %{convert: %{to_text: {Host, :to_text}}})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       assert has_element?(view, "#editor-parts button[name=action][value=to_text]")
       refute has_element?(view, "#editor-parts button[name=action][value=md_to_html]")
@@ -1044,8 +1088,9 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
     test "Save is the form's first submit button, and a submit naming none saves",
          %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root, %{convert: @convert})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       [first | _rest] =
         view
@@ -1063,31 +1108,33 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
       |> put_submitter("#editor-parts button[value=save]")
       |> render_submit()
 
-      assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "Uus"
+      assert File.read!(Path.join([root, "_footer-shop", "subject.et.txt"])) == "Uus\n"
 
       view |> form("#editor-parts", parts: %{subject: "Uuem"}) |> render_submit()
 
-      assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) == "Uuem"
+      assert File.read!(Path.join([root, "_footer-shop", "subject.et.txt"])) == "Uuem\n"
     end
 
     test "a submit with an unknown action neither saves nor converts", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root, %{convert: @convert})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       render_submit(with_target(view, "#editor"), "save", %{
         "action" => "publish",
         "parts" => %{"subject" => "x"}
       })
 
-      assert File.read!(Path.join([root, "order_offer", "subject.et.txt"])) ==
+      assert File.read!(Path.join([root, "_footer-shop", "subject.et.txt"])) ==
                "Pakkumine {{order_number}}\n"
     end
 
     test "fill the text from Markdown, keeping the other unsaved fields", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root, %{convert: @convert})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       html =
         convert(view, "to_text", %{
@@ -1101,9 +1148,9 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
       assert field(view, :subject) == "Unsaved subject"
       assert field(view, :markdown) == "**Tere** {{order_number}}"
       assert field(view, :html) == "<p>Ignored</p>"
-      assert field(view, :label) == "Pakkumiskiri\n"
+      assert field(view, :label) == "Pakkumiskiri"
 
-      dir = Path.join(root, "order_offer")
+      dir = Path.join(root, "_footer-shop")
       assert File.read!(Path.join(dir, "text.et.txt")) == "Tere!\n\n{{documents_list}}\n"
       refute File.exists?(Path.join(dir, "markdown.et.md"))
       refute_received {:after_write, _paths}
@@ -1112,8 +1159,9 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
 
     test "fill the text from HTML when there is no Markdown", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root, %{convert: @convert})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       convert(view, "to_text", %{markdown: "  \n", html: "<p>Tere <b>{{order_number}}</b></p>"})
 
@@ -1122,8 +1170,9 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
 
     test "Markdown to HTML fills the HTML field, keeping the rest", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root, %{convert: @convert})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       convert(view, "md_to_html", %{
         text: "Unsaved text",
@@ -1134,13 +1183,14 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
                "<p><strong>Pakkumine</strong> {{order_number}}\n\n{{{raw_block}}}</p>"
 
       assert field(view, :text) == "Unsaved text"
-      refute File.exists?(Path.join([root, "order_offer", "html.et.html"]))
+      refute File.exists?(Path.join([root, "_footer-shop", "html.et.html"]))
     end
 
     test "a conversion is sent to the page again over the user's retyping", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root, %{convert: @convert})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
       convert(view, "md_to_html", %{markdown: "**Tere**"})
 
       # The user retypes only the HTML, then converts again: the form comes
@@ -1158,6 +1208,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
 
     test "with nothing to convert says so and calls nothing", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       test_pid = self()
 
       to_text = fn format, source ->
@@ -1172,7 +1223,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
 
       view = mount_editor(root)
       send(view.pid, {:put, %{convert: %{to_text: to_text, markdown_to_html: markdown_to_html}}})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       assert convert(view, "to_text", %{markdown: "", html: " "}) =~ "Nothing to convert"
       assert convert(view, "md_to_html", %{markdown: ""}) =~ "Nothing to convert"
@@ -1181,23 +1232,24 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
 
     test "a save after a conversion writes only the changed parts", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root, %{convert: @convert})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       convert(view, "md_to_html", %{markdown: "**Tere**"})
 
       # Another session saves the subject meanwhile; the host re-renders.
-      File.write!(Path.join([root, "order_offer", "subject.et.txt"]), "Teine sessioon\n")
+      File.write!(Path.join([root, "_footer-shop", "subject.et.txt"]), "Teine sessioon\n")
       Overrides.reset_cache([root])
       send(view.pid, {:put, %{sample_variables: %{"order_number" => "38"}}})
 
       assert field(view, :html) == "<p><strong>Tere</strong></p>"
-      assert field(view, :subject) == "Pakkumine {{order_number}}\n"
+      assert field(view, :subject) == "Pakkumine {{order_number}}"
 
       html = save(view, %{})
 
       assert html =~ "Saved."
-      dir = Path.join(root, "order_offer")
+      dir = Path.join(root, "_footer-shop")
       assert File.read!(Path.join(dir, "html.et.html")) == "<p><strong>Tere</strong></p>"
       assert File.read!(Path.join(dir, "markdown.et.md")) == "**Tere**"
       assert File.read!(Path.join(dir, "subject.et.txt")) == "Teine sessioon\n"
@@ -1210,20 +1262,21 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
              ]
 
       # The form is drawn from the files again.
-      assert field(view, :subject) == "Teine sessioon\n"
+      assert field(view, :subject) == "Teine sessioon"
     end
 
     test "a converted part a save refuses stays in the form", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       too_large = String.duplicate("x", Overrides.max_bytes() + 1)
       view = mount_editor(root)
       send(view.pid, {:put, %{convert: %{markdown_to_html: fn _markdown -> too_large end}}})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
       convert(view, "md_to_html", %{markdown: "**Tere**"})
 
       assert save(view, %{subject: "Uus"}) =~ "Not saved: HTML: larger than 256 KiB"
-      dir = Path.join(root, "order_offer")
-      assert File.read!(Path.join(dir, "subject.et.txt")) == "Uus"
+      dir = Path.join(root, "_footer-shop")
+      assert File.read!(Path.join(dir, "subject.et.txt")) == "Uus\n"
       refute File.exists?(Path.join(dir, "html.et.html"))
       assert field(view, :html) == too_large
       assert field(view, :subject) == "Uus"
@@ -1234,8 +1287,9 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
 
     test "converted values are dropped on another tab or template", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root, %{convert: @convert})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       convert(view, "to_text", %{markdown: "**Tere**"})
       tab(view, "ru")
@@ -1246,15 +1300,16 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
 
       convert(view, "to_text", %{markdown: "**Tere**"})
       select(view, "_header-shop")
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       assert field(view, :text) == "Tere!\n\n{{documents_list}}\n"
     end
 
     test "the open tab or template clicked again keeps the form", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root, %{convert: @convert})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       convert(view, "to_text", %{markdown: "**Tere**", subject: "Typed"})
       tab(view, "et")
@@ -1262,7 +1317,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
       assert field(view, :text) == "Tere"
       assert field(view, :subject) == "Typed"
 
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       assert field(view, :text) == "Tere"
       assert field(view, :subject) == "Typed"
@@ -1272,8 +1327,9 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
     test "a failing converter is reported and logged, the fields unchanged",
          %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root, %{convert: %{to_text: {Host, :failing_to_text}}})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       log =
         capture_log(fn ->
@@ -1290,6 +1346,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
     test "a converter's refusal or odd result is an error, the field unchanged",
          %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
 
       for {callback, message} <- [
             {:refusing_to_text, "Not converted: cannot convert this"},
@@ -1297,7 +1354,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
             {:latin_to_text, "Not converted: unexpected result"}
           ] do
         view = mount_editor(root, %{convert: %{to_text: {Host, callback}}})
-        select(view, "order_offer")
+        select(view, "_footer-shop")
 
         html = convert(view, "to_text", %{markdown: "**Tere**"})
 
@@ -1309,8 +1366,9 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
 
     test "a field that is not UTF-8 is refused, nothing changed", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root, %{convert: @convert})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       # A form submit cannot carry it (Plug refuses the params); an event
       # payload sent by other means can.
@@ -1323,31 +1381,33 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
       assert html =~ "Not converted: not valid UTF-8 text"
       assert String.valid?(render(view))
       assert field(view, :text) == "Tere!\n\n{{documents_list}}\n"
-      assert field(view, :subject) == "Pakkumine {{order_number}}\n"
+      assert field(view, :subject) == "Pakkumine {{order_number}}"
     end
 
     test "a target part that is not UTF-8 on disk is not converted into",
          %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       latin = <<"Tere ", 0xE4, "\n">>
-      put(root, "order_offer", "text.et.txt", latin)
+      put(root, "_footer-shop", "text.et.txt", latin)
       view = mount_editor(root, %{convert: @convert})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       html = convert(view, "to_text", %{markdown: "**Tere**"})
 
       assert html =~ "Not converted: Text"
       refute has_element?(view, "#editor-parts textarea[name='parts[text]']")
       save(view, %{})
-      assert File.read!(Path.join([root, "order_offer", "text.et.txt"])) == latin
+      assert File.read!(Path.join([root, "_footer-shop", "text.et.txt"])) == latin
     end
 
     test "a source part that is not UTF-8 on disk is not passed over", %{tmp_dir: root} do
       seed(root)
-      put(root, "order_offer", "markdown.et.md", <<"Tere ", 0xE4, "\n">>)
-      put(root, "order_html", "html.et.html", <<"<p>Tere ", 0xE4, "</p>\n">>)
+      seed_chrome(root)
+      put(root, "_footer-shop", "markdown.et.md", <<"Tere ", 0xE4, "\n">>)
+      put(root, "_layout-shop", "html.et.html", <<"<p>Tere ", 0xE4, "</p>\n">>)
       view = mount_editor(root, %{convert: @convert})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       assert convert(view, "to_text", %{html: "<p>Tere</p>"}) =~
                "Not converted: Markdown is not valid UTF-8 text on disk"
@@ -1360,7 +1420,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
       assert field(view, :html) == ""
 
       # The HTML is read only when the Markdown is blank.
-      select(view, "order_html")
+      select(view, "_layout-shop")
       convert(view, "to_text", %{markdown: "**Tere**"})
       assert field(view, :text) == "Tere"
 
@@ -1371,6 +1431,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
     test "conversion events are refused read-only or without the callback",
          %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       test_pid = self()
 
       to_text = fn _format, _source ->
@@ -1386,7 +1447,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
           ] do
         view = mount_editor(root)
         send(view.pid, {:put, opts})
-        select(view, "order_offer")
+        select(view, "_footer-shop")
 
         render_submit(with_target(view, "#editor"), "save", %{
           "action" => "to_text",
@@ -1429,8 +1490,9 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
 
     test "a keyword list of converters is taken like a map", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root, %{convert: [to_text: {Host, :to_text}]})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       assert has_element?(view, "#editor-parts button[name=action][value=to_text]")
     end
@@ -1447,8 +1509,9 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
 
     test "converted and unsaved values survive a parent re-render", %{tmp_dir: root} do
       seed(root)
+      seed_chrome(root)
       view = mount_editor(root, %{convert: @convert})
-      select(view, "order_offer")
+      select(view, "_footer-shop")
 
       convert(view, "to_text", %{subject: "Unsaved subject", markdown: "**Tere**"})
       send(view.pid, {:put, %{sample_variables: %{"order_number" => "38"}}})

@@ -21,17 +21,21 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorI18nSectionsTest do
 
     select(view, "order_offer")
     assert view |> element("#editor-variables") |> render() =~ "только в Markdown"
-    save(view, %{text: "{{site_url}}"})
+    edit_body(view, "{{site_url}}")
+    save(view, %{})
     assert has_element?(view, "#editor-confirm-variables-save", "Всё равно сохранить")
 
     view
     |> element("#editor-module-emails [phx-click=select_module][phx-value-name=billing_invoice]")
     |> render_click()
 
+    # The unsaved body asks first.
+    view |> element("#editor-confirm-switch-discard") |> render_click()
+
     assert has_element?(
              view,
              "#editor-module-create-default",
-             "Создать файл из встроенного текста"
+             "Заменить своим текстом"
            )
   end
 
@@ -61,13 +65,15 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorI18nSectionsTest do
       view = mount_editor(root, %{locale: unquote(locale)})
       select(view, "order_offer")
 
-      html = save(view, %{html: "<div>{{{order_number}}}</div>"})
+      edit_body(view, "{{{order_number}}}")
+      html = save(view, %{})
       assert html =~ unquote(none)
 
       view = mount_editor(root, %{locale: unquote(locale), raw_variables: ["documents_list"]})
       select(view, "order_offer")
 
-      html = save(view, %{html: "<div>{{{order_number}}}</div>"})
+      edit_body(view, "{{{order_number}}}")
+      html = save(view, %{})
       assert html =~ unquote(allowed)
     end
   end

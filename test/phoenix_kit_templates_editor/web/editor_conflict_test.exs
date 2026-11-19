@@ -42,7 +42,8 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorConflictTest do
     elsewhere(view, root, "markdown.et.md", "**Kelleltki**")
     elsewhere(view, root, "text.et.txt", nil)
 
-    html = save(view, %{markdown: "**Minu**", text: "Minu tekst"})
+    edit_body(view, "**Minu**")
+    html = save(view, %{})
 
     assert html =~ "changed on disk"
     assert File.read!(path(root, "markdown.et.md")) == "**Kelleltki**"
@@ -56,8 +57,9 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorConflictTest do
     select(view, "order_offer")
     elsewhere(view, root, "subject.et.txt", "Teine sessioon\n")
 
-    assert save(view, %{text: "Uus tekst"}) =~ "Saved."
-    assert File.read!(path(root, "text.et.txt")) == "Uus tekst"
+    edit_body(view, "Uus tekst")
+    assert save(view, %{}) =~ "Saved."
+    assert File.read!(path(root, "text.et.txt")) == "Uus tekst\n"
   end
 
   test "after a save the next save of the same part goes through", %{tmp_dir: root} do
@@ -67,7 +69,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorConflictTest do
 
     assert save(view, %{subject: "Üks"}) =~ "Saved."
     assert save(view, %{subject: "Kaks"}) =~ "Saved."
-    assert File.read!(path(root, "subject.et.txt")) == "Kaks"
+    assert File.read!(path(root, "subject.et.txt")) == "Kaks\n"
   end
 
   test "Reload gives the form what is on disk, and then it saves", %{tmp_dir: root} do
@@ -80,9 +82,9 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorConflictTest do
     view |> element("#editor-reload") |> render_click()
 
     refute has_element?(view, "#editor-conflict")
-    assert field(view, :subject) == "Teine sessioon\n"
+    assert field(view, :subject) == "Teine sessioon"
     assert save(view, %{subject: "Minu muudatus"}) =~ "Saved."
-    assert File.read!(path(root, "subject.et.txt")) == "Minu muudatus"
+    assert File.read!(path(root, "subject.et.txt")) == "Minu muudatus\n"
   end
 
   test "Reload drops the cache: a template put on disk by hand is listed", %{tmp_dir: root} do
