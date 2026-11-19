@@ -268,8 +268,6 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   use Phoenix.LiveComponent
   use Gettext, backend: PhoenixKitTemplatesEditor.Gettext
 
-  import PhoenixKitWeb.Components.Core.PopoverPanel
-
   alias Phoenix.LiveView.JS
 
   # PhoenixKit's components, by name: the editor's own private functions
@@ -284,6 +282,10 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   import PhoenixKitWeb.Components.Core.Input, only: [input: 1]
   import PhoenixKitWeb.Components.Core.Modal, only: [modal: 1]
   import PhoenixKitWeb.Components.Core.NavTabs, only: [nav_tabs: 1]
+
+  import PhoenixKitWeb.Components.Core.PopoverPanel,
+    only: [popover_panel: 1, toggle_popover: 1, hide_popover: 2]
+
   import PhoenixKitWeb.Components.Core.Select, only: [select: 1]
   import PhoenixKitWeb.Components.Core.Textarea, only: [textarea: 1]
 
@@ -504,7 +506,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   defp patch_address(socket), do: socket
 
   # What changes the open document, with something unsaved in a letter (its
-  # body in Leaf, its label or subject in the form): asked first, in a dialog,
+  # body in Leaf, its label, subject or HTML in the form): asked first, in a dialog,
   # before it is thrown away. Reload is one of them: it reads the files again.
   @document_events ~w(select_module create create_layout override_default override_db override_layout reload)
 
@@ -568,14 +570,14 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     {:noreply, socket}
   end
 
-  # What the writer typed in a letter's label or subject, only to know whether
-  # leaving it asks first; nothing is written.
+  # What the writer typed in a letter's label, subject or hand-written HTML,
+  # only to know whether leaving it asks first; nothing is written.
   def handle_event("form_changed", %{"parts" => parts}, socket) when is_map(parts) do
     baseline = socket.assigns.baseline
 
     dirty? =
       Letter.letter?(socket.assigns) and
-        Enum.any?(~w(label subject)a, fn part ->
+        Enum.any?(~w(label subject html)a, fn part ->
           value = parts[Atom.to_string(part)]
 
           is_binary(value) and String.valid?(value) and
@@ -4512,18 +4514,19 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       <p id={"#{@id}-preview-subject"} class="break-words text-sm">
         <span class="opacity-60">{gettext("Subject:")}</span> {@subject}
       </p>
-      <.nav_tabs
-        :if={@text != :none and not @single}
-        id={"#{@id}-preview-tabs"}
-        active_tab={to_string(@tab)}
-        on_change="preview_tab"
-        target={@myself}
-        variant={:border}
-        tabs={[
-          %{id: "html", label: part_title(:html)},
-          %{id: "text", label: part_title(:text)}
-        ]}
-      />
+      <%!-- A wrapper carries the id: `nav_tabs` has an `id` attribute only from core 3.6.0. --%>
+      <div :if={@text != :none and not @single} id={"#{@id}-preview-tabs"}>
+        <.nav_tabs
+          active_tab={to_string(@tab)}
+          on_change="preview_tab"
+          target={@myself}
+          variant={:border}
+          tabs={[
+            %{id: "html", label: part_title(:html)},
+            %{id: "text", label: part_title(:text)}
+          ]}
+        />
+      </div>
       <%!-- bg-white, not a theme colour: an email is drawn on white whatever the admin theme. --%>
       <%!-- Nothing in an edited template runs (no allow-scripts), leaks the
            admin page's address, or loads anything from outside but images

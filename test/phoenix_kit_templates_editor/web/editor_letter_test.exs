@@ -456,6 +456,23 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorLetterTest do
       assert read(root, "markdown.et.md") == {:ok, "Uus"}
     end
 
+    test "an unsaved edit in it asks first on a switch; put back as it was, it asks nothing",
+         %{tmp_dir: root} do
+      seed(root)
+      put(root, "order_offer", "html.et.html", "<p>Käsitsi</p>\n")
+      view = mount_editor(root)
+      select(view, "order_offer")
+
+      type(view, %{html: "<p>Muudetud</p>\n"})
+      tab(view, "ru")
+      assert has_element?(view, "#editor-confirm-switch")
+      view |> element("#editor-confirm-switch-cancel") |> render_click()
+
+      type(view, %{html: "<p>Käsitsi</p>\n"})
+      tab(view, "ru")
+      refute has_element?(view, "#editor-confirm-switch")
+    end
+
     test "a letter without one has no HTML field", %{tmp_dir: root} do
       view = letter(root)
       refute has_element?(view, "#editor-parts [name='parts[html]']")
