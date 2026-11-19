@@ -35,7 +35,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorI18nSectionsTest do
     assert has_element?(
              view,
              "#editor-module-create-default",
-             "Создать файл из встроенного текста"
+             "Заменить своим текстом"
            )
   end
 

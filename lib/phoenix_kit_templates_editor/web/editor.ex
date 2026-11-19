@@ -3218,142 +3218,6 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
           ]}
           phx-hook="PhoenixKitTemplatesEditorFolds"
         >
-          <%!-- Making something new is a button with a small panel under it;
-               the sections below fold. --%>
-          <div
-            :if={@can_edit or @list_actions != []}
-            id={"#{@id}-list-top"}
-            class="flex min-w-0 items-center gap-2"
-          >
-            <div :if={@can_edit} class="relative">
-              <.button
-                id={"#{@id}-create-open"}
-                title={gettext("New template")}
-                type="button"
-                variant="outline"
-                size="sm"
-                phx-click={toggle_popover("#{@id}-create-box")}
-              >
-                <.icon name="hero-plus" class="size-4" />
-                {gettext("Template")}
-              </.button>
-              <.popover_panel
-                id={"#{@id}-create-box"}
-                align="start"
-                width_class="sm:w-80"
-                class="p-4 max-sm:!top-20"
-              >
-                <form
-                  id={"#{@id}-create"}
-                  phx-submit={JS.push("create", target: @myself) |> hide_popover("#{@id}-create-box")}
-                  phx-change="create_change"
-                  phx-target={@myself}
-                  class="flex flex-col gap-2"
-                >
-                  <.input
-                    type="text"
-                    name="create[name]"
-                    aria-label={gettext("Template name")}
-                    class="input-sm font-mono"
-                    placeholder={List.first(@name_prefixes, gettext("name"))}
-                    autocomplete="off"
-                    value={@create_name}
-                  />
-                  <.select
-                    name="create[copy_from]"
-                    aria-label={gettext("Start from")}
-                    class="select-sm"
-                    options={
-                      [{gettext("Empty"), ""}] ++
-                        for(
-                          template <- @templates,
-                          do: {gettext("Copy of %{name}", name: template.name), template.name}
-                        )
-                    }
-                    value={@create_from || ""}
-                  />
-                  <fieldset
-                    :if={@create_extras != []}
-                    id={"#{@id}-create-extras"}
-                    class="fieldset min-w-0 text-sm"
-                  >
-                    <legend class="fieldset-legend">
-                      {gettext("Also copy the host’s own files:")}
-                    </legend>
-                    <input type="hidden" name="create[keep_for]" value={@create_from} />
-                    <input type="hidden" name="create[keep][]" value="" />
-                    <.checkbox
-                      :for={file <- @create_extras}
-                      name="create[keep][]"
-                      value={file}
-                      unchecked_value={nil}
-                      checked
-                      class="checkbox-xs"
-                      wrapper_class="font-mono text-xs break-all"
-                    >
-                      {file}
-                    </.checkbox>
-                  </fieldset>
-                  <.button type="submit" variant="outline" size="sm">{gettext("Create")}</.button>
-                </form>
-              </.popover_panel>
-            </div>
-            <div :if={@can_edit && @layout_sources != []} class="relative">
-              <.button
-                id={"#{@id}-layouts-create-open"}
-                title={gettext("New layout")}
-                type="button"
-                variant="outline"
-                size="sm"
-                phx-click={toggle_popover("#{@id}-layouts-create-box")}
-              >
-                <.icon name="hero-plus" class="size-4" />
-                {gettext("Layout")}
-              </.button>
-              <.popover_panel
-                id={"#{@id}-layouts-create-box"}
-                align="start"
-                width_class="sm:w-80"
-                class="p-4 max-sm:!top-20"
-              >
-                <form
-                  id={"#{@id}-layouts-create"}
-                  phx-submit={
-                    JS.push("create_layout", target: @myself)
-                    |> hide_popover("#{@id}-layouts-create-box")
-                  }
-                  phx-target={@myself}
-                  class="flex flex-col gap-2"
-                >
-                  <.input
-                    type="text"
-                    name="layout_create[name]"
-                    value=""
-                    aria-label={gettext("Layout name")}
-                    class="input-sm font-mono"
-                    placeholder={List.first(Names.namespaces(@rules), gettext("name"))}
-                    autocomplete="off"
-                  />
-                  <.select
-                    name="layout_create[copy_from]"
-                    aria-label={gettext("Start from")}
-                    class="select-sm"
-                    options={
-                      for group <- @layout_sources,
-                          do: {gettext("Copy of layout %{name}", name: group), group}
-                    }
-                    value={nil}
-                  />
-                  <.button type="submit" variant="outline" size="sm">
-                    {gettext("Create layout")}
-                  </.button>
-                </form>
-              </.popover_panel>
-            </div>
-            <div :if={@list_actions != []} class="ml-auto">
-              {render_slot(@list_actions)}
-            </div>
-          </div>
           <.button
             :if={@can_edit and @show_reload}
             id={"#{@id}-reload"}
@@ -3372,76 +3236,220 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
           </.button>
           <.empty_state :if={@templates == []} title={gettext("No templates yet.")} class="py-4" />
 
+          <%!-- Making something new is the small plus beside the section's
+               title, with a panel under it; the sections themselves fold. --%>
           <.template_group
-            :if={@messages != []}
+            :if={@messages != [] or @can_edit or @list_actions != []}
             id={"#{@id}-messages"}
             title={gettext("Messages")}
             templates={@messages}
             selected={@selected}
             base_language={@base_language}
             myself={@myself}
-          />
-          <.accordion
-            :if={@layouts != []}
-            id={"#{@id}-layouts"}
-            open={is_binary(@selected) and String.starts_with?(@selected, "_")}
-            title_class="!py-2 !min-h-0"
           >
-            <:title>{gettext("Layouts")}</:title>
-            <:content>
-              <div class="flex min-w-0 flex-col gap-2">
-                <.layout_entry
-                  :for={layout <- @layouts}
-                  id={"#{@id}-layout-#{layout.group}"}
-                  layout={layout}
-                  selected={@selected}
-                  templates={@templates}
-                  can_delete={@can_edit && layout.group in @layout_sources}
-                  emails={@layout_emails[layout.group]}
-                  myself={@myself}
-                />
-
-                <.modal
-                  show={@confirm_layout_delete != nil}
-                  id={"#{@id}-layouts-delete"}
-                  on_close="cancel_delete_layout"
+            <:actions>
+              <div :if={@can_edit} class="relative">
+                <.button
+                  id={"#{@id}-create-open"}
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  class="btn-square"
+                  title={gettext("New message")}
+                  aria-label={gettext("New message")}
+                  phx-click={toggle_popover("#{@id}-create-box")}
                 >
-                  <:title>
-                    <.icon name="hero-exclamation-triangle" class="size-5 text-warning" />
-                    {gettext("Delete")}
-                  </:title>
-                  <p class="text-sm">
-                    {gettext(
-                      "Delete the layout “%{name}”: its own header, footer and page layout, in every language?",
-                      name: @confirm_layout_delete
-                    )}
-                  </p>
-                  <:actions>
-                    <.button
-                      id={"#{@id}-layouts-delete-cancel"}
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      phx-click="cancel_delete_layout"
+                  <.icon name="hero-plus" class="size-4" />
+                </.button>
+                <.popover_panel
+                  id={"#{@id}-create-box"}
+                  align="start"
+                  width_class="sm:w-72"
+                  class="p-4 max-sm:!top-20"
+                >
+                  <div class="flex flex-col gap-2">
+                    <span class="text-sm font-semibold">{gettext("New message")}</span>
+                    <form
+                      id={"#{@id}-create"}
+                      phx-submit={
+                        JS.push("create", target: @myself) |> hide_popover("#{@id}-create-box")
+                      }
+                      phx-change="create_change"
                       phx-target={@myself}
+                      class="flex flex-col gap-2"
                     >
-                      {gettext("Cancel")}
-                    </.button>
-                    <.button
-                      id={"#{@id}-layouts-delete-confirm"}
-                      type="button"
-                      variant="error"
-                      size="sm"
-                      phx-click="confirm_delete_layout"
-                      phx-target={@myself}
-                    >
-                      {gettext("Delete")}
-                    </.button>
-                  </:actions>
-                </.modal>
+                      <.input
+                        type="text"
+                        name="create[name]"
+                        aria-label={gettext("Template name")}
+                        class="input-sm font-mono"
+                        placeholder={List.first(@name_prefixes, gettext("name"))}
+                        autocomplete="off"
+                        value={@create_name}
+                      />
+                      <.select
+                        name="create[copy_from]"
+                        aria-label={gettext("Start from")}
+                        class="select-sm"
+                        options={
+                          [{gettext("Empty"), ""}] ++
+                            for(
+                              template <- @templates,
+                              do: {gettext("Copy of %{name}", name: template.name), template.name}
+                            )
+                        }
+                        value={@create_from || ""}
+                      />
+                      <fieldset
+                        :if={@create_extras != []}
+                        id={"#{@id}-create-extras"}
+                        class="fieldset min-w-0 text-sm"
+                      >
+                        <legend class="fieldset-legend">
+                          {gettext("Also copy the host’s own files:")}
+                        </legend>
+                        <input type="hidden" name="create[keep_for]" value={@create_from} />
+                        <input type="hidden" name="create[keep][]" value="" />
+                        <.checkbox
+                          :for={file <- @create_extras}
+                          name="create[keep][]"
+                          value={file}
+                          unchecked_value={nil}
+                          checked
+                          class="checkbox-xs"
+                          wrapper_class="font-mono text-xs break-all"
+                        >
+                          {file}
+                        </.checkbox>
+                      </fieldset>
+                      <.button type="submit" variant="outline" size="sm">{gettext("Create")}</.button>
+                    </form>
+                  </div>
+                </.popover_panel>
               </div>
-            </:content>
-          </.accordion>
+              <div :if={@list_actions != []}>{render_slot(@list_actions)}</div>
+            </:actions>
+          </.template_group>
+          <div :if={@layouts != []} class="relative min-w-0">
+            <.accordion
+              id={"#{@id}-layouts"}
+              open={is_binary(@selected) and String.starts_with?(@selected, "_")}
+              title_class="!py-2 !min-h-0"
+            >
+              <:title>{gettext("Layouts")}</:title>
+              <:content>
+                <div class="flex min-w-0 flex-col gap-2">
+                  <.layout_entry
+                    :for={layout <- @layouts}
+                    id={"#{@id}-layout-#{layout.group}"}
+                    layout={layout}
+                    selected={@selected}
+                    templates={@templates}
+                    can_delete={@can_edit && layout.group in @layout_sources}
+                    emails={@layout_emails[layout.group]}
+                    myself={@myself}
+                  />
+
+                  <.modal
+                    show={@confirm_layout_delete != nil}
+                    id={"#{@id}-layouts-delete"}
+                    on_close="cancel_delete_layout"
+                  >
+                    <:title>
+                      <.icon name="hero-exclamation-triangle" class="size-5 text-warning" />
+                      {gettext("Delete")}
+                    </:title>
+                    <p class="text-sm">
+                      {gettext(
+                        "Delete the layout “%{name}”: its own header, footer and page layout, in every language?",
+                        name: @confirm_layout_delete
+                      )}
+                    </p>
+                    <:actions>
+                      <.button
+                        id={"#{@id}-layouts-delete-cancel"}
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        phx-click="cancel_delete_layout"
+                        phx-target={@myself}
+                      >
+                        {gettext("Cancel")}
+                      </.button>
+                      <.button
+                        id={"#{@id}-layouts-delete-confirm"}
+                        type="button"
+                        variant="error"
+                        size="sm"
+                        phx-click="confirm_delete_layout"
+                        phx-target={@myself}
+                      >
+                        {gettext("Delete")}
+                      </.button>
+                    </:actions>
+                  </.modal>
+                </div>
+              </:content>
+            </.accordion>
+            <div class={section_actions_class()}>
+              <div :if={@can_edit && @layout_sources != []} class="relative">
+                <.button
+                  id={"#{@id}-layouts-create-open"}
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  class="btn-square"
+                  title={gettext("New layout")}
+                  aria-label={gettext("New layout")}
+                  phx-click={toggle_popover("#{@id}-layouts-create-box")}
+                >
+                  <.icon name="hero-plus" class="size-4" />
+                </.button>
+                <.popover_panel
+                  id={"#{@id}-layouts-create-box"}
+                  align="start"
+                  width_class="sm:w-72"
+                  class="p-4 max-sm:!top-20"
+                >
+                  <div class="flex flex-col gap-2">
+                    <span class="text-sm font-semibold">{gettext("New layout")}</span>
+                    <form
+                      id={"#{@id}-layouts-create"}
+                      phx-submit={
+                        JS.push("create_layout", target: @myself)
+                        |> hide_popover("#{@id}-layouts-create-box")
+                      }
+                      phx-target={@myself}
+                      class="flex flex-col gap-2"
+                    >
+                      <.input
+                        type="text"
+                        name="layout_create[name]"
+                        value=""
+                        aria-label={gettext("Layout name")}
+                        class="input-sm font-mono"
+                        placeholder={List.first(Names.namespaces(@rules), gettext("name"))}
+                        autocomplete="off"
+                      />
+                      <.select
+                        name="layout_create[copy_from]"
+                        aria-label={gettext("Start from")}
+                        class="select-sm"
+                        options={
+                          for group <- @layout_sources,
+                              do: {gettext("Copy of layout %{name}", name: group), group}
+                        }
+                        value={nil}
+                      />
+                      <.button type="submit" variant="outline" size="sm">
+                        {gettext("Create layout")}
+                      </.button>
+                    </form>
+                  </div>
+                </.popover_panel>
+              </div>
+            </div>
+          </div>
 
           <%!-- Folded: the emails core and the modules send are looked at
                rarely, and the list is long. Open when one of them is. --%>
@@ -3581,12 +3589,48 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
               {@module_view.entry[:description]}
             </p>
             <div
+              :if={@can_edit && @module_view.overridable? && !@module_view.file?}
+              id={"#{@id}-module-replace"}
+              class="flex flex-col items-start gap-2"
+            >
+              <p class="text-sm">
+                {gettext(
+                  "A file made here is this email's text from then on: translations a module update brings no longer reach this email."
+                )}
+              </p>
+              <div class="flex flex-wrap gap-x-2 gap-y-2">
+                <.button
+                  id={"#{@id}-module-create-default"}
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  phx-click="override_default"
+                  phx-value-name={@module_selected}
+                  phx-target={@myself}
+                >
+                  {gettext("Replace with my own text")}
+                </.button>
+                <.button
+                  :if={@module_view.db?}
+                  id={"#{@id}-module-create-db"}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  phx-click="override_db"
+                  phx-value-name={@module_selected}
+                  phx-target={@myself}
+                >
+                  {gettext("Create file from the database template")}
+                </.button>
+              </div>
+            </div>
+            <div
               :if={!@module_view.overridable?}
               id={"#{@id}-module-email-not-overridable"}
               class="alert alert-info alert-soft text-sm"
             >
               {gettext(
-                "This email may not be overridden here: it is shown read only. The `overridable` key in the config says which emails may be."
+                "This email is protected and shown read only. Which emails may be replaced here is set in the application's configuration (the `overridable` key)."
               )}
             </div>
             <LanguageSwitcher.language_switcher
@@ -3630,41 +3674,6 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
                     {gettext("Could not tell: %{reason}", reason: message)}
                   </p>
               <% end %>
-            </div>
-            <div
-              :if={@can_edit && @module_view.overridable? && !@module_view.file?}
-              class="flex flex-col items-start gap-2"
-            >
-              <p class="text-sm">
-                {gettext(
-                  "A file made here is this email's text from then on: translations a module update brings no longer reach this email."
-                )}
-              </p>
-              <div class="flex flex-wrap gap-x-2 gap-y-2">
-                <.button
-                  id={"#{@id}-module-create-default"}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  phx-click="override_default"
-                  phx-value-name={@module_selected}
-                  phx-target={@myself}
-                >
-                  {gettext("Create file from the built-in text")}
-                </.button>
-                <.button
-                  :if={@module_view.db?}
-                  id={"#{@id}-module-create-db"}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  phx-click="override_db"
-                  phx-value-name={@module_selected}
-                  phx-target={@myself}
-                >
-                  {gettext("Create file from the database template")}
-                </.button>
-              </div>
             </div>
             <.variables_panel
               :if={@module_view.variables != []}
@@ -4176,6 +4185,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   defp list_button_class,
     do: "flex w-full min-w-0 flex-col items-start gap-0.5 text-left"
 
+  # Beside a folding section's title, left of its arrow.
+  defp section_actions_class, do: "absolute right-10 top-1.5 z-10 flex items-center gap-1"
+
   defp pre_class(extra \\ "p-3 text-sm"),
     do: "whitespace-pre-wrap break-words rounded-box bg-base-200 #{extra}"
 
@@ -4185,45 +4197,51 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   attr(:selected, :string, default: nil)
   attr(:base_language, :string, default: nil)
   attr(:myself, :any, required: true)
+  slot(:actions)
 
   defp template_group(assigns) do
     ~H"""
-    <.accordion id={@id} open title_class="!py-2 !min-h-0">
-      <:title>{@title}</:title>
-      <:content>
-        <ul class={list_class()}>
-          <li :for={template <- @templates} class="min-w-0">
-            <button
-              type="button"
-              phx-click="select"
-              phx-value-name={template.name}
-              phx-target={@myself}
-              class={[list_button_class(), template.name == @selected && "menu-active"]}
-            >
-              <span class="w-full break-words">{template.caption}</span>
-              <span
-                :if={template.caption != template.name}
-                class="w-full break-all font-mono text-xs opacity-60"
+    <div class="relative min-w-0">
+      <.accordion id={@id} open title_class="!py-2 !min-h-0">
+        <:title>{@title}</:title>
+        <:content>
+          <ul class={list_class()}>
+            <li :for={template <- @templates} class="min-w-0">
+              <button
+                type="button"
+                phx-click="select"
+                phx-value-name={template.name}
+                phx-target={@myself}
+                class={[list_button_class(), template.name == @selected && "menu-active"]}
               >
-                {template.name}
-              </span>
-              <span
-                :if={template.incomplete?}
-                id={"#{@id}-incomplete-#{template.name}"}
-                class="flex w-full items-baseline gap-1 text-xs text-warning"
-              >
-                <.status_badge status="draft" label="!" size={:xs} class="shrink-0" />
-                <span class="min-w-0 break-words">
-                  {gettext("Not offered for sending: no subject or body in %{locale}.",
-                    locale: @base_language
-                  )}
+                <span class="w-full break-words">{template.caption}</span>
+                <span
+                  :if={template.caption != template.name}
+                  class="w-full break-all font-mono text-xs opacity-60"
+                >
+                  {template.name}
                 </span>
-              </span>
-            </button>
-          </li>
-        </ul>
-      </:content>
-    </.accordion>
+                <span
+                  :if={template.incomplete?}
+                  id={"#{@id}-incomplete-#{template.name}"}
+                  class="flex w-full items-baseline gap-1 text-xs text-warning"
+                >
+                  <.status_badge status="draft" label="!" size={:xs} class="shrink-0" />
+                  <span class="min-w-0 break-words">
+                    {gettext("Not offered for sending: no subject or body in %{locale}.",
+                      locale: @base_language
+                    )}
+                  </span>
+                </span>
+              </button>
+            </li>
+          </ul>
+        </:content>
+      </.accordion>
+      <div :if={@actions != []} class={section_actions_class()}>
+        {render_slot(@actions)}
+      </div>
+    </div>
     """
   end
 

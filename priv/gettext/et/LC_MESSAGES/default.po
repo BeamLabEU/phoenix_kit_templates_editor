@@ -34,25 +34,25 @@ msgstr "Mallide redaktor"
 msgid "The templates editor is not configured correctly."
 msgstr "Mallide redaktor on valesti seadistatud."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2848
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2857
 #, elixir-autogen, elixir-format
 msgid "%{message} But the host's %{role} failed: %{reason}"
 msgstr "%{message} Kuid rakenduse %{role} ebaõnnestus: %{reason}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3419
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3756
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3928
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3995
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3376
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3772
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3944
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4011
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr "Tühista"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3261
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3297
 #, elixir-autogen, elixir-format
 msgid "Copy of %{name}"
 msgstr "Koopia mallist %{name}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3288
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3324
 #, elixir-autogen, elixir-format
 msgid "Create"
 msgstr "Loo"
@@ -62,25 +62,25 @@ msgstr "Loo"
 msgid "Created “%{name}” as a copy of “%{from}”."
 msgstr "Mall „%{name}“ on loodud malli „%{from}“ koopiana."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3402
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3429
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3726
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3359
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3386
 #: lib/phoenix_kit_templates_editor/web/editor.ex:3742
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3766
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3903
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3914
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3938
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4250
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3758
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3782
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3919
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3930
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3954
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4275
 #, elixir-autogen, elixir-format
 msgid "Delete"
 msgstr "Kustuta"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3917
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3933
 #, elixir-autogen, elixir-format
 msgid "Delete the files without a language of “%{name}”?"
 msgstr "Kas kustutada malli „%{name}“ keeleta failid?"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3745
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3761
 #, elixir-autogen, elixir-format
 msgid "Delete “%{name}” and all its files?"
 msgstr "Kas kustutada mall „%{name}“ koos kõigi selle failidega?"
@@ -95,12 +95,12 @@ msgstr "Malli „%{name}“ keeleta failid on kustutatud."
 msgid "Deleted “%{name}”."
 msgstr "Mall „%{name}“ on kustutatud."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3258
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3294
 #, elixir-autogen, elixir-format
 msgid "Empty"
 msgstr "Tühi"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4090
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4106
 #, elixir-autogen, elixir-format
 msgid "Fill text from content"
 msgstr "Täida tekst sisust"
@@ -110,37 +110,32 @@ msgstr "Täida tekst sisust"
 msgid "Filled %{target} from %{source}. It is not saved yet: check it, then Save."
 msgstr "Väli „%{target}“ on täidetud väljast „%{source}“. See pole veel salvestatud: vaadake see üle ja vajutage „Salvesta“."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4532
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4557
 #, elixir-autogen, elixir-format
 msgid "HTML"
 msgstr "HTML"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4528
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4553
 #, elixir-autogen, elixir-format
 msgid "Label"
 msgstr "Nimetus"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4531
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4556
 #, elixir-autogen, elixir-format
 msgid "Markdown"
 msgstr "Markdown"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4102
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4118
 #, elixir-autogen, elixir-format
 msgid "Markdown → HTML"
 msgstr "Markdown → HTML"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3369
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3244
 #, elixir-autogen, elixir-format
 msgid "Messages"
 msgstr "Kirjad"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3222
-#, elixir-autogen, elixir-format
-msgid "New template"
-msgstr "Uus mall"
-
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4488
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4513
 #, elixir-autogen, elixir-format
 msgid "No HTML."
 msgstr "HTML-i pole."
@@ -151,22 +146,22 @@ msgstr "HTML-i pole."
 msgid "No changes."
 msgstr "Muudatusi pole."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4120
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4136
 #, elixir-autogen, elixir-format
 msgid "No file."
 msgstr "Faili pole."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3194
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3203
 #, elixir-autogen, elixir-format
 msgid "No template directory is configured."
 msgstr "Mallide kausta pole seadistatud."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3364
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3237
 #, elixir-autogen, elixir-format
 msgid "No templates yet."
 msgstr "Malle veel pole."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4492
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4517
 #, elixir-autogen, elixir-format
 msgid "No text."
 msgstr "Teksti pole."
@@ -200,7 +195,7 @@ msgstr "Ei kustutatud: %{errors}"
 msgid "Not deleted: %{reason}"
 msgstr "Ei kustutatud: %{reason}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4208
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4229
 #, elixir-autogen, elixir-format
 msgid "Not offered for sending: no subject or body in %{locale}."
 msgstr "Saatmiseks ei pakuta: keeles %{locale} puudub teema või sisu."
@@ -222,33 +217,33 @@ msgstr "Pole midagi teisendada: Markdown ja HTML on tühjad."
 msgid "Nothing to convert: Markdown is empty."
 msgstr "Pole midagi teisendada: Markdown on tühi."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4145
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4484
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4161
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4509
 #, elixir-autogen, elixir-format
 msgid "Preview"
 msgstr "Eelvaade"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4508
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4533
 #, elixir-autogen, elixir-format
 msgid "Preview unavailable: %{reason}"
 msgstr "Eelvaade pole saadaval: %{reason}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4085
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4101
 #, elixir-autogen, elixir-format
 msgid "Put the Markdown, or else the HTML, as plain text in Text. Not saved until you Save."
 msgstr "Kirjutab Markdowni, selle puudumisel HTML-i, lihttekstina väljale „Tekst“. Salvestub alles nupuga „Salvesta“."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4100
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4116
 #, elixir-autogen, elixir-format
 msgid "Put the Markdown, rendered, in HTML. Not saved until you Save."
 msgstr "Kirjutab Markdowni HTML-ina väljale „HTML“. Salvestub alles nupuga „Salvesta“."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4074
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4090
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr "Salvesta"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4499
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4524
 #, elixir-autogen, elixir-format
 msgid "Save the template to preview it."
 msgstr "Eelvaate nägemiseks salvestage mall."
@@ -263,33 +258,33 @@ msgstr "Salvestatud."
 msgid "Saved: %{saved}. Not saved: %{errors}"
 msgstr "Salvestatud: %{saved}. Ei salvestatud: %{errors}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3537
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3552
 #, elixir-autogen, elixir-format
 msgid "Select a template."
 msgstr "Valige mall."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3255
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3330
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3291
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3434
 #, elixir-autogen, elixir-format
 msgid "Start from"
 msgstr "Alus"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4529
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4554
 #, elixir-autogen, elixir-format
 msgid "Subject"
 msgstr "Teema"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4458
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4483
 #, elixir-autogen, elixir-format
 msgid "Subject:"
 msgstr "Teema:"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3247
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3283
 #, elixir-autogen, elixir-format
 msgid "Template name"
 msgstr "Malli nimi"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4530
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4555
 #, elixir-autogen, elixir-format
 msgid "Text"
 msgstr "Tekst"
@@ -299,7 +294,7 @@ msgstr "Tekst"
 msgid "There is no “%{name}” to copy."
 msgstr "Malli „%{name}“ pole, seda ei saa kopeerida."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3889
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3905
 #, elixir-autogen, elixir-format
 msgid "These files without a language are not used: an email is sent only in its own languages."
 msgstr "Neid keeleta faile ei kasutata: kiri saadetakse ainult tema enda keeltes."
@@ -309,17 +304,17 @@ msgstr "Neid keeleta faile ei kasutata: kiri saadetakse ainult tema enda keeltes
 msgid "These templates are read-only here: nothing was changed."
 msgstr "Siin on mallid ainult vaatamiseks: midagi ei muudetud."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4523
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4548
 #, elixir-autogen, elixir-format
 msgid "This file is not valid UTF-8 text; fix it on disk to edit it here."
 msgstr "See fail ei ole korrektne UTF-8 tekst; parandage see kettal, et seda siin muuta."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4130
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4146
 #, elixir-autogen, elixir-format
 msgid "Unknown placeholders: %{names}"
 msgstr "Tundmatud kohatäited: %{names}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4290
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4315
 #, elixir-autogen, elixir-format
 msgid "Variables"
 msgstr "Muutujad"
@@ -329,64 +324,64 @@ msgstr "Muutujad"
 msgid "You are not allowed to change templates: nothing was changed."
 msgstr "Teil pole õigust malle muuta: midagi ei muudetud."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3114
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3123
 #, elixir-autogen, elixir-format
 msgid "already gone"
 msgstr "juba kustutatud"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4414
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4439
 #, elixir-autogen, elixir-format
 msgid "changed %{time}"
 msgstr "muudetud %{time}"
 
 #: lib/phoenix_kit_templates_editor/web/editor.ex:936
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3102
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3111
 #, elixir-autogen, elixir-format
 msgid "larger than %{size} KiB"
 msgstr "suurem kui %{size} KiB"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3249
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3325
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3285
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3429
 #, elixir-autogen, elixir-format
 msgid "name"
 msgstr "nimi"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3107
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3116
 #, elixir-autogen, elixir-format
 msgid "not a part this editor writes"
 msgstr "seda osa see redaktor ei kirjuta"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3108
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3117
 #, elixir-autogen, elixir-format
 msgid "not a valid language tag"
 msgstr "vigane keelekood"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3106
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3115
 #, elixir-autogen, elixir-format
 msgid "not a valid template name"
 msgstr "vigane malli nimi"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3680
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3696
 #, elixir-autogen, elixir-format
 msgid "not saved yet"
 msgstr "veel salvestamata"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3105
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3114
 #, elixir-autogen, elixir-format
 msgid "not valid UTF-8 text"
 msgstr "pole korrektne UTF-8 tekst"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3112
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3121
 #, elixir-autogen, elixir-format
 msgid "the path leads outside the template directory"
 msgstr "tee viib mallide kaustast välja"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3109
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3118
 #, elixir-autogen, elixir-format
 msgid "the template directory does not exist"
 msgstr "mallide kausta pole olemas"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2767
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2776
 #, elixir-autogen, elixir-format
 msgid "unexpected preview result"
 msgstr "ootamatu eelvaate tulemus"
@@ -424,8 +419,8 @@ msgstr "%{file} on link või asub mallide kaustast väljas: seda ei loeta."
 msgid "%{file} is larger than %{size} KiB: not read."
 msgstr "%{file} on suurem kui %{size} KiB: seda ei loeta."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2840
-#: lib/phoenix_kit_templates_editor/web/editor.ex:2843
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2849
+#: lib/phoenix_kit_templates_editor/web/editor.ex:2852
 #, elixir-autogen, elixir-format
 msgid "%{message} But: %{warning}"
 msgstr "%{message} Kuid: %{warning}"
@@ -460,18 +455,18 @@ msgstr "Mallide redaktor on välja lülitatud: mallid on ainult vaatamiseks."
 msgid "These templates are not offered to “Preview emails”: the templates directory is not the one the emails are read from."
 msgstr "Neid malle ei pakuta „Kirjade eelvaatesse”: mallide kaust ei ole see, kust kirju loetakse."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4514
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4539
 #, elixir-autogen, elixir-format
 msgid "This file is a link or outside the template directory: it is not read here."
 msgstr "See fail on link või asub mallide kaustast väljas: siin seda ei loeta."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4518
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4543
 #, elixir-autogen, elixir-format
 msgid "This file is larger than %{size} KiB: it is not read here."
 msgstr "See fail on suurem kui %{size} KiB: siin seda ei loeta."
 
 #: lib/phoenix_kit_templates_editor/preview.ex:77
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3104
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3113
 #, elixir-autogen, elixir-format
 msgid "it took too long"
 msgstr "see võttis liiga kaua aega"
@@ -491,17 +486,17 @@ msgstr "%{emails} ja siin näitamata: %{count}"
 msgid "%{files} could not be left out of the copy."
 msgstr "%{files}: koopiast ei õnnestunud välja jätta."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3272
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3308
 #, elixir-autogen, elixir-format
 msgid "Also copy the host’s own files:"
 msgstr "Kopeeri ka rakenduse enda failid:"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3334
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3438
 #, elixir-autogen, elixir-format
 msgid "Copy of layout %{name}"
 msgstr "Kujunduse %{name} koopia"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3339
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3443
 #, elixir-autogen, elixir-format
 msgid "Create layout"
 msgstr "Loo kujundus"
@@ -511,7 +506,7 @@ msgstr "Loo kujundus"
 msgid "Created the layout “%{name}” as a copy of “%{from}”."
 msgstr "Kujundus „%{name}“ on loodud kujunduse „%{from}“ koopiana."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3405
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3362
 #, elixir-autogen, elixir-format
 msgid "Delete the layout “%{name}”: its own header, footer and page layout, in every language?"
 msgstr "Kas kustutada kujundus „%{name}“ — selle oma päis, jalus ja lehe küljendus kõigis keeltes?"
@@ -521,49 +516,50 @@ msgstr "Kas kustutada kujundus „%{name}“ — selle oma päis, jalus ja lehe 
 msgid "Deleted the layout “%{name}”."
 msgstr "Kujundus „%{name}“ on kustutatud."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4535
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4560
 #, elixir-autogen, elixir-format
 msgid "Footer"
 msgstr "Jalus"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4534
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4559
 #, elixir-autogen, elixir-format
 msgid "Header"
 msgstr "Päis"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3302
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3863
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3877
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3879
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3893
 #, elixir-autogen, elixir-format
 msgid "Layout"
 msgstr "Kujundus"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3323
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3427
 #, elixir-autogen, elixir-format
 msgid "Layout name"
 msgstr "Kujunduse nimi"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3381
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3338
 #, elixir-autogen, elixir-format
 msgid "Layouts"
 msgstr "Kujundused"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3295
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3401
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3402
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3413
 #, elixir-autogen, elixir-format
 msgid "New layout"
 msgstr "Uus kujundus"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4552
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4577
 #, elixir-autogen, elixir-format
 msgid "No email uses it."
 msgstr "Ükski kiri seda ei kasuta."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4536
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4561
 #, elixir-autogen, elixir-format
 msgid "Page layout"
 msgstr "Lehe küljendus"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3509
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3524
 #, elixir-autogen, elixir-format
 msgid "Shared parts"
 msgstr "Ühised osad"
@@ -573,39 +569,39 @@ msgstr "Ühised osad"
 msgid "There is no layout “%{name}” to copy."
 msgstr "Kopeerimiseks pole kujundust „%{name}“."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4555
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4580
 #, elixir-autogen, elixir-format
 msgid "Used by %{emails}."
 msgstr "Kasutavad: %{emails}."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4238
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4542
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4263
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4567
 #, elixir-autogen, elixir-format
 msgid "default"
 msgstr "vaikimisi"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4543
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4568
 #, elixir-autogen, elixir-format
 msgid "default (%{group})"
 msgstr "vaikimisi (%{group})"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4540
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4565
 #, elixir-autogen, elixir-format
 msgid "inherited: core’s default"
 msgstr "päritud: tuuma vaikimisi"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4539
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4564
 #, elixir-autogen, elixir-format
 msgid "inherited: the shared one"
 msgstr "päritud: ühine"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4538
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4563
 #, elixir-autogen, elixir-format
 msgid "its own, not editable here"
 msgstr "oma, siin ei muudeta"
 
 #: lib/phoenix_kit_templates_editor/web/editor.ex:1728
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4638
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4663
 #, elixir-autogen, elixir-format
 msgid "none"
 msgstr "puuduvad"
@@ -651,12 +647,12 @@ msgstr "„%{name}“ kasutab nüüd vaikimisi kujundust."
 msgid "“%{name}” now has the layout “%{group}”."
 msgstr "„%{name}“ kasutab nüüd kujundust „%{group}“."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4645
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4670
 #, elixir-autogen, elixir-format
 msgid "%{names} belongs to the header, footer and layout, not to this email: in its body it stays as typed. Save anyway?"
 msgstr "%{names} kuulub päisele, jalusele ja lehe küljendusele, mitte sellele kirjale: kirja sisus jääb see nii, nagu kirjutatud. Kas salvestada siiski?"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4652
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4677
 #, elixir-autogen, elixir-format
 msgid "%{names} is not a variable of headers, footers and layouts — an email's, or the page layout's: here it stays as typed. Save anyway?"
 msgstr "%{names} ei ole päise, jaluse ega kujunduse muutuja — see on kirja või lehe küljenduse oma: siin jääb see nii, nagu kirjutatud. Kas salvestada siiski?"
@@ -666,38 +662,33 @@ msgstr "%{names} ei ole päise, jaluse ega kujunduse muutuja — see on kirja v�
 msgid "%{names} is not a variable of this template: it stays in the message as typed."
 msgstr "%{names} ei ole selle malli muutuja: kirjas jääb see nii, nagu kirjutatud."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3955
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3971
 #, elixir-autogen, elixir-format
 msgid "%{part} on disk now:"
 msgstr "%{part} praegu kettal:"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3630
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3595
 #, elixir-autogen, elixir-format
 msgid "A file made here is this email's text from then on: translations a module update brings no longer reach this email."
 msgstr "Siin loodud fail on edaspidi selle kirja tekst: mooduli uuendustega tulevad tõlked sellesse kirja enam ei jõua."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3605
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3656
 #, elixir-autogen, elixir-format
 msgid "Built-in text"
 msgstr "Sisseehitatud tekst"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3621
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4378
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3672
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4403
 #, elixir-autogen, elixir-format
 msgid "Could not tell: %{reason}"
 msgstr "Ei õnnestunud kindlaks teha: %{reason}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3498
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3513
 #, elixir-autogen, elixir-format
 msgid "Create file"
 msgstr "Loo fail"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3644
-#, elixir-autogen, elixir-format
-msgid "Create file from the built-in text"
-msgstr "Loo fail sisseehitatud tekstist"
-
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3656
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3621
 #, elixir-autogen, elixir-format
 msgid "Create file from the database template"
 msgstr "Loo fail andmebaasi mallist"
@@ -712,12 +703,12 @@ msgstr "„%{name}“ loodi selle sisseehitatud tekstist."
 msgid "Created “%{name}” from the Emails module's database template."
 msgstr "„%{name}“ loodi Emails-mooduli andmebaasi mallist."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4334
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4359
 #, elixir-autogen, elixir-format
 msgid "Markdown only"
 msgstr "ainult Markdownis"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3445
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3460
 #, elixir-autogen, elixir-format
 msgid "Module emails"
 msgstr "Moodulite kirjad"
@@ -734,7 +725,7 @@ msgstr "Ei loodud: %{reason}"
 msgid "Not saved: %{names} would be put into the message without escaping. Write them with two braces; three are only for %{allowed}."
 msgstr "Ei salvestatud: %{names} lisataks kirja ilma varjestamata. Kirjutage need kahe looksulguga; kolm on lubatud ainult muutujatele %{allowed}."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3950
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3966
 #, elixir-autogen, elixir-format
 msgid "Not saved: the file changed on disk since you opened it — edited by hand, by a git pull or by another user. Your changes are still in the form; reload to work on what is on disk now."
 msgstr "Ei salvestatud: fail on pärast avamist kettal muutunud — käsitsi, git pulliga või teise kasutaja poolt. Teie muudatused on veel vormis; laadige uuesti, et jätkata kettal oleva versiooniga."
@@ -755,27 +746,27 @@ msgstr "Ei saadetud: %{reason}"
 msgid "Read again from disk."
 msgstr "Kettalt uuesti loetud."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3358
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3231
 #: lib/phoenix_kit_templates_editor/web/section.ex:299
 #, elixir-autogen, elixir-format
 msgid "Read the templates again from disk: after a change by hand or a git pull."
 msgstr "Loe mallid kettalt uuesti: pärast käsitsi muutmist või git pulli."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3362
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3970
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3235
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3986
 #: lib/phoenix_kit_templates_editor/web/section.ex:297
 #, elixir-autogen, elixir-format
 msgid "Reload"
 msgstr "Laadi uuesti"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3981
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4005
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3997
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4021
 #, elixir-autogen, elixir-format
 msgid "Save anyway"
 msgstr "Salvesta siiski"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3568
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3714
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3583
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3730
 #, elixir-autogen, elixir-format
 msgid "Send to me"
 msgstr "Saada mulle"
@@ -785,48 +776,43 @@ msgstr "Saada mulle"
 msgid "Sent to %{address}."
 msgstr "Saadetud aadressile %{address}."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4375
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4400
 #, elixir-autogen, elixir-format
 msgid "The HTML is made from the %{part}."
 msgstr "HTML tehakse osast %{part}."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3579
-#, elixir-autogen, elixir-format
-msgid "This email may not be overridden here: it is shown read only. The `overridable` key in the config says which emails may be."
-msgstr "Seda kirja ei saa siin üle kirjutada: see on ainult vaatamiseks. Millised kirjad on lubatud, määrab seadistuse võti `overridable`."
-
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4367
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4392
 #, elixir-autogen, elixir-format
 msgid "What is sent"
 msgstr "Mida saadetakse"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4635
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4660
 #, elixir-autogen, elixir-format
 msgid "an empty file (%{file}): the part is left out"
 msgstr "tühi fail (%{file}): osa jäetakse välja"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3465
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4637
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3480
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4662
 #, elixir-autogen, elixir-format
 msgid "built-in text"
 msgstr "sisseehitatud tekst"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3959
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3975
 #, elixir-autogen, elixir-format
 msgid "cannot be read here"
 msgstr "siin ei saa lugeda"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3465
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3480
 #, elixir-autogen, elixir-format
 msgid "file"
 msgstr "fail"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3483
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3498
 #, elixir-autogen, elixir-format
 msgid "has its own file"
 msgstr "on oma fail"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3957
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3973
 #, elixir-autogen, elixir-format
 msgid "no file"
 msgstr "faili pole"
@@ -836,7 +822,7 @@ msgstr "faili pole"
 msgid "one test email in %{interval} s: wait %{seconds} s."
 msgstr "üks testkiri %{interval} s jooksul: oodake %{seconds} s."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4340
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4365
 #, elixir-autogen, elixir-format
 msgid "rendered HTML, three braces"
 msgstr "valmis HTML, kolm looksulgu"
@@ -846,12 +832,12 @@ msgstr "valmis HTML, kolm looksulgu"
 msgid "test emails are not available: the module's processes are not running."
 msgstr "testkirjad pole saadaval: mooduli protsessid ei tööta."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4628
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4653
 #, elixir-autogen, elixir-format
 msgid "the Emails module's database template"
 msgstr "Emails-mooduli andmebaasi mall"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4632
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4657
 #, elixir-autogen, elixir-format
 msgid "the file %{file}"
 msgstr "fail %{file}"
@@ -861,7 +847,7 @@ msgstr "fail %{file}"
 msgid "the page does not tell who you are."
 msgstr "leht ei ütle, kes te olete."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4629
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4654
 #, elixir-autogen, elixir-format
 msgid "this file"
 msgstr "see fail"
@@ -886,7 +872,7 @@ msgstr "%{file} on link või asub mallide kaustast väljas: sinna ei kirjutata m
 msgid "Read again a moment ago: wait %{seconds} s."
 msgstr "Loeti äsja uuesti: oodake %{seconds} s."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3546
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3561
 #, elixir-autogen, elixir-format
 msgid "This email lets people into their account or warns them about a sign-in: a mistake in it can keep everyone out or hide an intrusion. Send it to yourself before relying on it."
 msgstr "See kiri laseb inimesed kontole või hoiatab sisselogimisest: viga selles võib kõik välja jätta või sissetungi varjata. Saatke see enne endale ja kontrollige."
@@ -907,12 +893,12 @@ msgstr "mallide kaust ei tohi siin kasvada üle %{size} KiB."
 msgid "Not saved: %{names} would be put into the message without escaping. Write them with two braces: no variable is written with three here."
 msgstr "Ei salvestatud: %{names} lisataks kirja ilma varjestamata. Kirjutage need kahe looksulguga: siin ei kirjutata ühtegi muutujat kolme looksulguga."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3533
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3548
 #, elixir-autogen, elixir-format
 msgid "Back to the list"
 msgstr "Tagasi loendisse"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3187
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3196
 #, elixir-autogen, elixir-format
 msgid "Default"
 msgstr "Vaikimisi"
@@ -927,7 +913,7 @@ msgstr "Muutmiseks on vaja õigust „%{permission}”: mallid on ainult vaatami
 msgid "Settings"
 msgstr "Seaded"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4067
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4083
 #, elixir-autogen, elixir-format
 msgid "Switching language or template drops unsaved changes."
 msgstr "Keele või malli vahetamine kustutab salvestamata muudatused."
@@ -948,38 +934,38 @@ msgstr "Toimingud"
 msgid "Body"
 msgstr "Sisu"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3791
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3807
 #, elixir-autogen, elixir-format
 msgid "Close"
 msgstr "Sulge"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3827
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3843
 #, elixir-autogen, elixir-format
 msgid "Discard the changes"
 msgstr "Loobu muudatustest"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3779
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3795
 #, elixir-autogen, elixir-format
 msgid "Made from the body when you save; it is not edited by hand."
 msgstr "Tehakse sisust salvestamisel; seda ei muudeta käsitsi."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3817
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3833
 #, elixir-autogen, elixir-format
 msgid "Stay"
 msgstr "Jää siia"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3703
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3777
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3719
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3793
 #, elixir-autogen, elixir-format
 msgid "Text version"
 msgstr "Tekstiversioon"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:4053
+#: lib/phoenix_kit_templates_editor/web/editor.ex:4069
 #, elixir-autogen, elixir-format
 msgid "This letter’s HTML is written by hand: Leaf does not edit it, and it is what the recipient sees."
 msgstr "Selle kirja HTML on käsitsi kirjutatud: Leaf seda ei muuda ja just seda näeb saaja."
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3803
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3819
 #, elixir-autogen, elixir-format
 msgid "Unsaved changes"
 msgstr "Salvestamata muudatused"
@@ -999,12 +985,24 @@ msgstr "tekstiversiooni ei õnnestunud teha: %{reason}"
 msgid "Body: %{reason}"
 msgstr "Sisu: %{reason}"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3806
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3822
 #, elixir-autogen, elixir-format
 msgid "There are changes that are not saved. Leave without saving them?"
 msgstr "On salvestamata muudatusi. Kas lahkuda neid salvestamata?"
 
-#: lib/phoenix_kit_templates_editor/web/editor.ex:3229
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3258
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3259
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3270
 #, elixir-autogen, elixir-format
-msgid "Template"
-msgstr "Mall"
+msgid "New message"
+msgstr "Uus kiri"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3609
+#, elixir-autogen, elixir-format
+msgid "Replace with my own text"
+msgstr "Asenda oma tekstiga"
+
+#: lib/phoenix_kit_templates_editor/web/editor.ex:3630
+#, elixir-autogen, elixir-format
+msgid "This email is protected and shown read only. Which emails may be replaced here is set in the application's configuration (the `overridable` key)."
+msgstr "See kiri on kaitstud ja kuvatakse ainult lugemiseks. Milliseid kirju saab siin asendada, määratakse rakenduse seadistuses (võti `overridable`)."
