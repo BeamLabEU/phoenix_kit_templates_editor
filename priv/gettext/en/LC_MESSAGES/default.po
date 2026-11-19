@@ -17,7 +17,7 @@ msgstr ""
 msgid "Edit email templates"
 msgstr ""
 
-#: lib/phoenix_kit_templates_editor.ex:151
+#: lib/phoenix_kit_templates_editor.ex:156
 #: lib/phoenix_kit_templates_editor/web/settings_live.ex:32
 #, elixir-autogen, elixir-format
 msgid "Email templates"
