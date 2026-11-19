@@ -11,7 +11,9 @@ defmodule PhoenixKitTemplatesEditor.Body do
       there, so a signature of four short lines would run together. `to_editor/1`
       turns the explicit breaks of a stored file (`\\` or two spaces at the end
       of a line) into bare newlines for Leaf, `from_editor/1` writes explicit
-      ones back (`\\`), between two lines of one paragraph only — never before a
+      ones back (`\\`, or two spaces after a line that ends with a bare web
+      address, which the renderer's autolink would take a backslash into),
+      between two lines of one paragraph only — never before a
       list item, a heading, a quote, a table row, a rule or a code fence, where
       a break is no break.
     * **Placeholders.** Leaf's visual mode percent-encodes `{{url}}` in a
@@ -68,6 +70,16 @@ defmodule PhoenixKitTemplatesEditor.Body do
     word_char: {~S"\A[\p{L}\p{N}]\z", "u"}
   ]
 
+  # The same for the patterns a line is asked about first: a list of binaries
+  # given to `:binary.match/2` is compiled at every call, which costs more
+  # than the match.
+  @patterns [
+    braces: ["{{"],
+    dash: ["-"],
+    address_start: ["://", "www.", "WWW.", "Www."],
+    address_word: ["http", "www."]
+  ]
+
   @on_load :compile_regexes
 
   @doc false
@@ -76,10 +88,18 @@ defmodule PhoenixKitTemplatesEditor.Body do
       :persistent_term.put({__MODULE__, name}, Regex.compile!(source, options))
     end
 
+    for {name, patterns} <- @patterns do
+      :persistent_term.put({__MODULE__, name}, :binary.compile_pattern(patterns))
+    end
+
     :ok
   end
 
   defp rx(name), do: :persistent_term.get({__MODULE__, name})
+
+  # Whether `text` holds one of the patterns of `name` (`@patterns`).
+  defp has?(text, name),
+    do: :binary.match(text, :persistent_term.get({__MODULE__, name})) != :nomatch
 
   # A line class can only match when the first character that is no blank is
   # one of a few: asking that first (a byte of the line) spares the regular
@@ -257,7 +277,7 @@ defmodule PhoenixKitTemplatesEditor.Body do
   defp block_edges(_line, []), do: {false, false}
 
   defp block_edges(line, blocks) do
-    if String.contains?(line, "{{"),
+    if has?(line, :braces),
       do: line |> unquote_up_to(3) |> placeholder_edges(blocks),
       else: {false, false}
   end
@@ -352,7 +372,7 @@ defmodule PhoenixKitTemplatesEditor.Body do
   # The last blank-separated word of the line holds `http://`, `https://` or
   # `www.` (any case), not an `<…>` link. Linear in the line's length: one split, one match.
   defp ends_with_address?(line) do
-    :binary.match(line, ["://", "www.", "WWW.", "Www."]) != :nomatch and last_word_address?(line)
+    has?(line, :address_start) and last_word_address?(line)
   end
 
   defp last_word_address?(line) do
@@ -475,7 +495,7 @@ defmodule PhoenixKitTemplatesEditor.Body do
 
   defp escape_line(line) do
     # Only a `-` is told apart by it, so a line without one need not ask.
-    all_dashes? = String.contains?(line, "-") and Regex.match?(rx(:dashes), line)
+    all_dashes? = has?(line, :dash) and Regex.match?(rx(:dashes), line)
 
     line
     |> split_placeholders()
@@ -487,7 +507,7 @@ defmodule PhoenixKitTemplatesEditor.Body do
   end
 
   defp split_placeholders(line),
-    do: if(String.contains?(line, "{{"), do: Substitution.split(line), else: [line])
+    do: if(has?(line, :braces), do: Substitution.split(line), else: [line])
 
   # A web address is left as it is: a renderer takes it from the source
   # with its backslashes, so an escaped `~` or `*` would show in the text.
@@ -503,9 +523,9 @@ defmodule PhoenixKitTemplatesEditor.Body do
   end
 
   defp split_addresses(text) do
-    if :binary.match(text, ["http", "www."]) == :nomatch,
-      do: [text],
-      else: Regex.split(rx(:address), text, include_captures: true)
+    if has?(text, :address_word),
+      do: Regex.split(rx(:address), text, include_captures: true),
+      else: [text]
   end
 
   # The start of a line: what would open a heading, quote, list or rule.
