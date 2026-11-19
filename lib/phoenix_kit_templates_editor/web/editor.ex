@@ -172,6 +172,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       an exception, throw or exit is logged. Default `nil`: complete is a
       subject and a body part (HTML, Markdown or text) in `base_locale`
       itself — the locale-less fallback does not count — none of them blank.
+    * `:list_actions` — a slot drawn at the top right of the list, beside its
+      first heading: the page's own actions (a menu), so they take no row of
+      their own
     * `:show_reload` — `false` where the host puts the Reload action elsewhere
       (it sends the editor `reload` itself). Default `true`.
     * `:email_fallback` — `false` for a host that sends an email only in
@@ -349,6 +352,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
        # (`:detail`). From `lg` up both are always shown.
        pane: :list,
        show_reload: true,
+       list_actions: [],
        draft?: false,
        locale: nil,
        contents: %{},
@@ -507,7 +511,11 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
           value = parts[Atom.to_string(part)]
 
           is_binary(value) and String.valid?(value) and
-            not unchanged?(part, normalize_newlines(value), Map.get(baseline, part, ""))
+            not unchanged?(
+              part,
+              value |> normalize_newlines() |> one_line(part),
+              Map.get(baseline, part, "")
+            )
         end)
 
     {:noreply, assign(socket, form_dirty?: dirty?)}
@@ -917,7 +925,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     changes =
       Enum.flat_map(@parts, fn part ->
         with value when is_binary(value) <- params[Atom.to_string(part)],
-             value = normalize_newlines(value),
+             value = value |> normalize_newlines() |> one_line(part),
              given = Map.get(baseline, part, ""),
              # Left as the form was given it: another session's change to
              # this part since then must not be written back over.
@@ -961,15 +969,22 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     end
   end
 
-  # A one-line field (`label`, `subject`) is an `<input>`: the browser drops
-  # a line break from what it is given, so the file's own trailing newline
+  # A one-line field (`label`, `subject`) is shown in two rows and still is
+  # one line of text: a line break typed at its end is nothing. One inside it
+  # is left for the save to refuse.
+  defp one_line(value, part) when part in @single_line_parts,
+    do: String.trim_trailing(value, "\n")
+
+  defp one_line(value, _part), do: value
+
+  # A one-line field is given without the file's own trailing newline, so it
   # comes back without it — that is no change.
   defp unchanged?(part, value, baseline) when part in @single_line_parts,
     do: value == baseline or value == single_line(baseline)
 
   defp unchanged?(_part, value, baseline), do: value == baseline
 
-  # An `<input>` never sends the line break a file ended with; an edited
+  # A one-line field never sends the line break a file ended with; an edited
   # one-line file gets it back, so the edit is the only difference.
   defp with_final_newline(part, value, given)
        when part in @single_line_parts and value != "" do
@@ -3095,8 +3110,8 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
     assigns =
       assign(assigns,
-        language_items: Languages.items(assigns.tabs, gettext("Default")),
-        module_language_items: Languages.languages(assigns.locales)
+        language_items: Languages.items(assigns.tabs, gettext("Default"), assigns.base_language),
+        module_language_items: Languages.languages(assigns.locales, assigns.base_language)
       )
 
     ~H"""
@@ -3115,10 +3130,13 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
         <aside
           id={"#{@id}-list"}
           class={[
-            "min-w-0 flex-col gap-4 lg:col-span-1",
+            "relative min-w-0 flex-col gap-4 lg:col-span-1",
             if(@detail?, do: "hidden lg:flex", else: "flex")
           ]}
         >
+          <div :if={@list_actions != []} class="absolute -top-1.5 right-0 z-10">
+            {render_slot(@list_actions)}
+          </div>
           <.button
             :if={@can_edit and @show_reload}
             id={"#{@id}-reload"}
@@ -3435,8 +3453,13 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
               on_click="module_locale"
               phx_target={@myself}
               variant={:tabs}
-              display={:full}
+              size={:sm}
+              display={:auto}
+              auto_threshold={5}
               show_flags
+              show_primary
+              primary_divider
+              class="w-full"
             />
             <.sources_box
               :if={@module_view.sources}
@@ -3716,8 +3739,13 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             on_click="locale"
             phx_target={@myself}
             variant={:tabs}
-            display={:full}
+            size={:sm}
+            display={:auto}
+            auto_threshold={5}
             show_flags
+            show_primary
+            primary_divider
+            class="w-full"
           />
 
           <div
@@ -4253,14 +4281,19 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
           {gettext("changed %{time}", time: Calendar.strftime(@file.mtime, "%Y-%m-%d %H:%M UTC"))}
         </span>
       </label>
-      <.input
+      <%!-- `!min-h-0`: core's textarea has a floor of six rem, three rows more
+           than these two. --%>
+      <%!-- Two rows: a subject with its placeholders does not fit one row on
+           a phone. Still one line of text — a line break typed at the end
+           is dropped, one inside a subject is refused on a save. --%>
+      <.textarea
         :if={@single_line?}
         id={@id}
-        type="text"
         name={"parts[#{@part}]"}
         value={single_line(@value)}
+        rows={2}
         data-form-rev={@rev}
-        class="font-mono text-sm"
+        class="!min-h-0 font-mono text-sm"
       />
       <.textarea
         :if={!@single_line?}

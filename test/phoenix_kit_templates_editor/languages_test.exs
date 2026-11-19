@@ -30,6 +30,17 @@ defmodule PhoenixKitTemplatesEditor.LanguagesTest do
     end
   end
 
+  test "the primary language is marked, the Default never" do
+    assert [
+             %{code: "et", is_primary: true},
+             %{code: "ru", is_primary: false},
+             %{code: "", is_primary: false}
+           ] =
+             Languages.items(["et", "ru", nil], "Default", "et")
+
+    assert [%{is_primary: false}] = Languages.items(["et"], "Default")
+  end
+
   test "languages/1 has no Default" do
     assert [%{code: "et"}, %{code: "en"}] = Languages.languages(["et", "en"])
   end

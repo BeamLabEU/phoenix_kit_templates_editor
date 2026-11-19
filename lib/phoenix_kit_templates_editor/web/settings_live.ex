@@ -53,12 +53,6 @@ defmodule PhoenixKitTemplatesEditor.Web.SettingsLive do
     ~H"""
     <div id="templates-editor-page" class="flex flex-col gap-4 px-4 py-6">
       <div :if={!@accessible} class="flex flex-col gap-4">
-        <.admin_page_header
-          back={Routes.path("/admin/settings")}
-          back_label={gettext("Settings")}
-          title={gettext("Email templates")}
-          class="mb-0"
-        />
         <div id="templates-editor-no-access" role="alert" class="alert alert-error">
           {gettext("You do not have access to the email templates.")}
         </div>

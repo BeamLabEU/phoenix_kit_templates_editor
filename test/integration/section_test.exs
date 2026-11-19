@@ -260,13 +260,15 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionTest do
   end
 
   describe "the actions menu" do
-    test "a writer: one «⋯» menu in the page header holds Reload and the git check" do
+    test "a writer: one «⋯» menu at the top of the list holds Reload and the git check" do
       view = mount_section(scope: writer())
 
       assert has_element?(view, "#templates-editor-actions")
       assert has_element?(view, "#templates-editor-actions #templates-editor-reload")
       assert has_element?(view, "#templates-editor-actions #templates-editor-uncommitted-check")
-      refute has_element?(view, "#templates-editor-list #templates-editor-reload")
+      assert has_element?(view, "#templates-editor-list #templates-editor-actions")
+      # the editor's own Reload button is not drawn beside the menu
+      refute has_element?(view, "#templates-editor-list > #templates-editor-reload")
     end
 
     test "Reload from the menu reads the files again", %{root: root} do
@@ -282,7 +284,8 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionTest do
 
       assert has_element?(
                view,
-               "#templates-editor-parts input[name='parts[subject]'][value='Changed by hand']"
+               "#templates-editor-parts textarea[name='parts[subject]']",
+               "Changed by hand"
              )
     end
 

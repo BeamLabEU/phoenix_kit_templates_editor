@@ -192,45 +192,9 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
   def render(assigns) do
     ~H"""
     <div id="templates-editor-section" class="flex flex-col gap-4">
-      <%!-- The title row stays one row on a phone too: the actions menu is laid
-           over its right end instead of taking the admin header's `actions` row. --%>
-      <div class="relative pr-12">
-        <.admin_page_header
-          back={Routes.path("/admin/settings")}
-          back_label={gettext("Settings")}
-          title={gettext("Email templates")}
-          class="mb-0"
-        />
-        <div
-          :if={@config != nil and @config.editable and @can_write}
-          class="absolute inset-y-0 right-0 flex items-center"
-        >
-          <.table_row_menu
-            id="templates-editor-actions"
-            label={gettext("Actions")}
-            trigger_size="md"
-          >
-            <.table_row_menu_button
-              id="templates-editor-reload"
-              phx-click="reload"
-              phx-target="#templates-editor"
-              icon="hero-arrow-path"
-              label={gettext("Reload")}
-              title={
-                gettext("Read the templates again from disk: after a change by hand or a git pull.")
-              }
-            />
-            <.table_row_menu_button
-              id="templates-editor-uncommitted-check"
-              phx-click="check_uncommitted"
-              phx-target={@myself}
-              icon="hero-code-bracket-square"
-              label={gettext("Show what is not committed to git")}
-            />
-          </.table_row_menu>
-        </div>
-      </div>
-
+      <%!-- No title, no back chip, no header row of the page's own: the admin
+           bar above names the page and its "Settings" crumb is the way back, as
+           on the other modules' pages. The actions menu sits in the list. --%>
       <div :if={@config == nil} role="alert" class="alert alert-error alert-soft">
         <.icon name="hero-exclamation-triangle" class="size-5 shrink-0" />
         <div>
@@ -316,7 +280,33 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
           test_send={@test_send}
           max_templates={@config.max_templates}
           max_root_bytes={@config.max_root_bytes}
-        />
+        >
+          <:list_actions :if={@config.editable and @can_write}>
+            <.table_row_menu
+              id="templates-editor-actions"
+              label={gettext("Actions")}
+              trigger_size="sm"
+            >
+              <.table_row_menu_button
+                id="templates-editor-reload"
+                phx-click="reload"
+                phx-target="#templates-editor"
+                icon="hero-arrow-path"
+                label={gettext("Reload")}
+                title={
+                  gettext("Read the templates again from disk: after a change by hand or a git pull.")
+                }
+              />
+              <.table_row_menu_button
+                id="templates-editor-uncommitted-check"
+                phx-click="check_uncommitted"
+                phx-target={@myself}
+                icon="hero-code-bracket-square"
+                label={gettext("Show what is not committed to git")}
+              />
+            </.table_row_menu>
+          </:list_actions>
+        </.live_component>
       <% end %>
     </div>
     """

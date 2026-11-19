@@ -54,8 +54,10 @@ defmodule PhoenixKitTemplatesEditor.Integration.SettingsLiveTest do
     test "a writer: the page, the editor, its forms" do
       view = mount!(writer())
 
-      assert has_element?(view, "#templates-editor-page header h1", "Email templates")
-      assert has_element?(view, "#templates-editor-page header a[href$='/admin/settings']")
+      # The admin bar names the page and leads back to Settings: the page has
+      # no title and no back control of its own.
+      refute has_element?(view, "#templates-editor-page header")
+      refute has_element?(view, "#templates-editor-page a[href$='/admin/settings']")
       assert has_element?(view, "#templates-editor")
       assert has_element?(view, "#templates-editor-create")
       refute has_element?(view, "#templates-editor-no-access")

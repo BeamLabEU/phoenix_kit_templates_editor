@@ -376,15 +376,14 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorScreenTest do
   end
 
   describe "one-line fields" do
-    test "the label and the subject are single-line inputs; a letter's body is Leaf, a header's parts textareas",
+    test "the label and the subject are two-row fields; a letter's body is Leaf, a header's parts textareas",
          %{tmp_dir: root} do
       seed(root)
       view = mount_editor(root)
       select(view, "order_offer")
 
       for part <- ~w(label subject) do
-        assert has_element?(view, "#editor-parts input[type=text][name='parts[#{part}]']")
-        refute has_element?(view, "#editor-parts textarea[name='parts[#{part}]']")
+        assert has_element?(view, "#editor-parts textarea[rows='2'][name='parts[#{part}]']")
       end
 
       for part <- ~w(text markdown html) do

@@ -27,8 +27,8 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorLetterTest do
          %{tmp_dir: root} do
       view = letter(root, %{convert: @convert})
 
-      assert has_element?(view, "#editor-parts input[name='parts[label]']")
-      assert has_element?(view, "#editor-parts input[name='parts[subject]']")
+      assert has_element?(view, "#editor-parts textarea[name='parts[label]'][rows='2']")
+      assert has_element?(view, "#editor-parts textarea[name='parts[subject]'][rows='2']")
       assert has_element?(view, "#editor-parts #editor-body [phx-hook=Leaf]")
 
       for part <- ~w(text markdown html) do
@@ -970,6 +970,25 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorLetterTest do
       tab(view, "ru")
 
       refute has_element?(view, "#editor-confirm-switch")
+    end
+  end
+
+  describe "a line break typed in the two-row label or subject" do
+    test "at the end is not a change: no question, nothing written", %{tmp_dir: root} do
+      view = letter(root)
+
+      type(view, %{subject: "Pakkumine {{order_number}}\n"})
+      tab(view, "ru")
+
+      refute has_element?(view, "#editor-confirm-switch")
+    end
+
+    test "at the end of an edited subject is dropped: the file keeps its one line",
+         %{tmp_dir: root} do
+      view = letter(root)
+
+      assert save(view, %{subject: "Uus pakkumine\n\n"}) =~ "Saved"
+      assert read(root, "subject.et.txt") == {:ok, "Uus pakkumine\n"}
     end
   end
 
