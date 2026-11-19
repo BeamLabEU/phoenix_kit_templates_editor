@@ -208,7 +208,8 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorModuleEmailsTest do
       view = mount_modules(root)
       select(view, "order_offer")
 
-      assert has_element?(view, "#editor-sent-by-host")
+      # nothing is said about it: that is the ordinary case
+      refute has_element?(view, "#editor-sent-by-host")
       refute has_element?(view, "#editor-sources")
     end
 
@@ -217,7 +218,6 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorModuleEmailsTest do
       view = mount_modules(root, %{sent_by: fn _name -> :core end})
       select(view, "order_offer")
 
-      refute has_element?(view, "#editor-sent-by-host")
       assert view |> element("#editor-sources") |> render() =~ "this file"
     end
   end

@@ -3286,104 +3286,114 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
               </:actions>
             </.modal>
 
-            <.form_section
+            <.accordion
               :if={@can_edit && @layout_sources != []}
-              title={gettext("New layout")}
-              body_class="gap-2 p-4"
+              id={"#{@id}-layouts-create-box"}
+              title_class="!py-2 !min-h-0"
             >
-              <form
-                id={"#{@id}-layouts-create"}
-                phx-submit="create_layout"
-                phx-target={@myself}
-                class="flex flex-col gap-2"
-              >
-                <.input
-                  type="text"
-                  name="layout_create[name]"
-                  value=""
-                  aria-label={gettext("Layout name")}
-                  class="input-sm font-mono"
-                  placeholder={List.first(Names.namespaces(@rules), gettext("name"))}
-                  autocomplete="off"
-                />
-                <.select
-                  name="layout_create[copy_from]"
-                  aria-label={gettext("Start from")}
-                  class="select-sm"
-                  options={
-                    for group <- @layout_sources,
-                        do: {gettext("Copy of layout %{name}", name: group), group}
-                  }
-                  value={nil}
-                />
-                <.button type="submit" variant="outline" size="sm">
-                  {gettext("Create layout")}
-                </.button>
-              </form>
-            </.form_section>
+              <:title>{gettext("New layout")}</:title>
+              <:content>
+                <form
+                  id={"#{@id}-layouts-create"}
+                  phx-submit="create_layout"
+                  phx-target={@myself}
+                  class="flex flex-col gap-2"
+                >
+                  <.input
+                    type="text"
+                    name="layout_create[name]"
+                    value=""
+                    aria-label={gettext("Layout name")}
+                    class="input-sm font-mono"
+                    placeholder={List.first(Names.namespaces(@rules), gettext("name"))}
+                    autocomplete="off"
+                  />
+                  <.select
+                    name="layout_create[copy_from]"
+                    aria-label={gettext("Start from")}
+                    class="select-sm"
+                    options={
+                      for group <- @layout_sources,
+                          do: {gettext("Copy of layout %{name}", name: group), group}
+                    }
+                    value={nil}
+                  />
+                  <.button type="submit" variant="outline" size="sm">
+                    {gettext("Create layout")}
+                  </.button>
+                </form>
+              </:content>
+            </.accordion>
           </div>
 
-          <div
+          <%!-- Folded: the emails core and the modules send are looked at
+               rarely, and the list is long. Open when one of them is. --%>
+          <.accordion
             :if={@module_list != [] or @module_layouts != []}
             id={"#{@id}-module-emails"}
-            class="flex min-w-0 flex-col gap-2"
+            open={@module_selected != nil}
+            title_class="!py-2 !min-h-0"
           >
-            <span class="text-sm font-semibold">{gettext("Module emails")}</span>
-            <ul :if={@module_list != []} class={list_class()}>
-              <li :for={item <- @module_list} class="min-w-0">
-                <button
-                  type="button"
-                  phx-click={if(item.template?, do: "select", else: "select_module")}
-                  phx-value-name={item.name}
-                  phx-target={@myself}
-                  class={[
-                    list_button_class(),
-                    item.name in [@selected, @module_selected] && "menu-active"
-                  ]}
+            <:title>{gettext("Module emails")}</:title>
+            <:content>
+              <div class="flex min-w-0 flex-col gap-2">
+                <ul :if={@module_list != []} class={list_class()}>
+                  <li :for={item <- @module_list} class="min-w-0">
+                    <button
+                      type="button"
+                      phx-click={if(item.template?, do: "select", else: "select_module")}
+                      phx-value-name={item.name}
+                      phx-target={@myself}
+                      class={[
+                        list_button_class(),
+                        item.name in [@selected, @module_selected] && "menu-active"
+                      ]}
+                    >
+                      <span class="w-full break-words">{item.label}</span>
+                      <span class="w-full break-all font-mono text-xs opacity-60">{item.name}</span>
+                      <span>
+                        <.status_badge
+                          status={if(item.file?, do: "file", else: "built_in")}
+                          label={if(item.file?, do: gettext("file"), else: gettext("built-in text"))}
+                          size={:xs}
+                        />
+                      </span>
+                    </button>
+                  </li>
+                </ul>
+                <div
+                  :for={layout <- @module_layouts}
+                  id={"#{@id}-module-layout-#{layout.group}"}
+                  class="flex min-w-0 flex-col gap-1 rounded-box border border-base-300 p-2"
                 >
-                  <span class="w-full break-words">{item.label}</span>
-                  <span class="w-full break-all font-mono text-xs opacity-60">{item.name}</span>
-                  <span>
-                    <.status_badge
-                      status={if(item.file?, do: "file", else: "built_in")}
-                      label={if(item.file?, do: gettext("file"), else: gettext("built-in text"))}
-                      size={:xs}
-                    />
-                  </span>
-                </button>
-              </li>
-            </ul>
-            <div
-              :for={layout <- @module_layouts}
-              id={"#{@id}-module-layout-#{layout.group}"}
-              class="flex min-w-0 flex-col gap-1 rounded-box border border-base-300 p-2"
-            >
-              <span class="break-all font-mono text-sm font-semibold">{layout.group}</span>
-              <div
-                :for={part <- layout.parts}
-                class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
-              >
-                <span class="opacity-70">{kind_title(part.kind)}</span>
-                <span :if={part.file?} class="text-xs opacity-60">{gettext("has its own file")}</span>
-                <span :if={!part.file?} class="text-xs opacity-60">
-                  {part_source(part.inherited)}
-                </span>
-                <.button
-                  :if={!part.file? && @can_edit && part.overridable?}
-                  id={"#{@id}-module-layout-#{layout.group}-#{part.kind}-create"}
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  class="ml-auto"
-                  phx-click="override_layout"
-                  phx-value-name={part.name}
-                  phx-target={@myself}
-                >
-                  {gettext("Create file")}
-                </.button>
+                  <span class="break-all font-mono text-sm font-semibold">{layout.group}</span>
+                  <div
+                    :for={part <- layout.parts}
+                    class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
+                  >
+                    <span class="opacity-70">{kind_title(part.kind)}</span>
+                    <span :if={part.file?} class="text-xs opacity-60">{gettext("has its own file")}</span>
+                    <span :if={!part.file?} class="text-xs opacity-60">
+                      {part_source(part.inherited)}
+                    </span>
+                    <.button
+                      :if={!part.file? && @can_edit && part.overridable?}
+                      id={"#{@id}-module-layout-#{layout.group}-#{part.kind}-create"}
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      class="ml-auto"
+                      phx-click="override_layout"
+                      phx-value-name={part.name}
+                      phx-target={@myself}
+                    >
+                      {gettext("Create file")}
+                    </.button>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            </:content>
+          </.accordion>
 
           <.template_group
             :if={@shared != []}
@@ -3394,59 +3404,64 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             myself={@myself}
           />
 
-          <.form_section :if={@can_edit} title={gettext("New template")} body_class="gap-2 p-4">
-            <form
-              id={"#{@id}-create"}
-              phx-submit="create"
-              phx-change="create_change"
-              phx-target={@myself}
-              class="flex flex-col gap-2"
-            >
-              <.input
-                type="text"
-                name="create[name]"
-                aria-label={gettext("Template name")}
-                class="input-sm font-mono"
-                placeholder={List.first(@name_prefixes, gettext("name"))}
-                autocomplete="off"
-                value={@create_name}
-              />
-              <.select
-                name="create[copy_from]"
-                aria-label={gettext("Start from")}
-                class="select-sm"
-                options={
-                  [{gettext("Empty"), ""}] ++
-                    for(
-                      template <- @templates,
-                      do: {gettext("Copy of %{name}", name: template.name), template.name}
-                    )
-                }
-                value={@create_from || ""}
-              />
-              <fieldset
-                :if={@create_extras != []}
-                id={"#{@id}-create-extras"}
-                class="fieldset min-w-0 text-sm"
+          <.accordion :if={@can_edit} id={"#{@id}-create-box"} title_class="!py-2 !min-h-0">
+            <:title>{gettext("New template")}</:title>
+            <:content>
+              <form
+                id={"#{@id}-create"}
+                phx-submit="create"
+                phx-change="create_change"
+                phx-target={@myself}
+                class="flex flex-col gap-2"
               >
-                <legend class="fieldset-legend">{gettext("Also copy the host’s own files:")}</legend>
-                <input type="hidden" name="create[keep_for]" value={@create_from} />
-                <input type="hidden" name="create[keep][]" value="" />
-                <.checkbox
-                  :for={file <- @create_extras}
-                  name="create[keep][]"
-                  value={file}
-                  unchecked_value={nil}
-                  checked
-                  class="checkbox-xs"
-                  wrapper_class="font-mono text-xs break-all"
+                <.input
+                  type="text"
+                  name="create[name]"
+                  aria-label={gettext("Template name")}
+                  class="input-sm font-mono"
+                  placeholder={List.first(@name_prefixes, gettext("name"))}
+                  autocomplete="off"
+                  value={@create_name}
+                />
+                <.select
+                  name="create[copy_from]"
+                  aria-label={gettext("Start from")}
+                  class="select-sm"
+                  options={
+                    [{gettext("Empty"), ""}] ++
+                      for(
+                        template <- @templates,
+                        do: {gettext("Copy of %{name}", name: template.name), template.name}
+                      )
+                  }
+                  value={@create_from || ""}
+                />
+                <fieldset
+                  :if={@create_extras != []}
+                  id={"#{@id}-create-extras"}
+                  class="fieldset min-w-0 text-sm"
                 >
-                  {file}
-                </.checkbox>
-              </fieldset>
-              <.button type="submit" variant="outline" size="sm">{gettext("Create")}</.button>
-            </form>
-          </.form_section>
+                  <legend class="fieldset-legend">
+                    {gettext("Also copy the host’s own files:")}
+                  </legend>
+                  <input type="hidden" name="create[keep_for]" value={@create_from} />
+                  <input type="hidden" name="create[keep][]" value="" />
+                  <.checkbox
+                    :for={file <- @create_extras}
+                    name="create[keep][]"
+                    value={file}
+                    unchecked_value={nil}
+                    checked
+                    class="checkbox-xs"
+                    wrapper_class="font-mono text-xs break-all"
+                  >
+                    {file}
+                  </.checkbox>
+                </fieldset>
+                <.button type="submit" variant="outline" size="sm">{gettext("Create")}</.button>
+              </form>
+            </:content>
+          </.accordion>
         </aside>
 
         <section
@@ -3664,42 +3679,6 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             </div>
           </div>
 
-          <form
-            :if={@email && @can_edit}
-            id={"#{@id}-email-layout"}
-            phx-change="set_layout"
-            phx-target={@myself}
-            class="flex flex-wrap items-center gap-x-2 gap-y-1"
-          >
-            <label for={"#{@id}-email-layout-group"} class="text-sm font-semibold">
-              {gettext("Layout")}
-            </label>
-            <.select
-              id={"#{@id}-email-layout-group"}
-              name="email_layout[group]"
-              class="select-sm"
-              options={
-                [{default_layout_label(@layout_group), ""}] ++
-                  for(group <- layout_options(@layouts, @email.layout), do: {group, group})
-              }
-              value={@email.layout || ""}
-            />
-          </form>
-          <p :if={@email && !@can_edit} id={"#{@id}-email-layout-current"} class="text-sm">
-            <span class="font-semibold">{gettext("Layout")}:</span>
-            {@email.layout || default_layout_label(@layout_group)}
-          </p>
-
-          <p
-            :if={
-              @selected && !@draft? && @var_context && @var_context.kind == :email &&
-                @var_context.sent_by == :host
-            }
-            id={"#{@id}-sent-by-host"}
-            class="text-sm opacity-70"
-          >
-            {gettext("Sent by the application itself: these files are what it sends.")}
-          </p>
           <.sources_box
             :if={@selected && @sources}
             id={"#{@id}-sources"}
@@ -3801,22 +3780,55 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             </:actions>
           </.modal>
 
-          <LanguageSwitcher.language_switcher
+          <%!-- One row: the languages, and beside them the layout the email
+               goes out in (its header and footer). The row sits close to the
+               form it switches. --%>
+          <div
             :if={@selected}
-            id={"#{@id}-languages"}
-            languages={@language_items}
-            current_language={@locale || ""}
-            on_click="locale"
-            phx_target={@myself}
-            variant={:tabs}
-            size={:sm}
-            display={:auto}
-            auto_threshold={5}
-            show_flags
-            show_primary
-            primary_divider
-            class="-mb-2 w-full"
-          />
+            id={"#{@id}-language-row"}
+            class="-mb-3 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2"
+          >
+            <LanguageSwitcher.language_switcher
+              id={"#{@id}-languages"}
+              languages={@language_items}
+              current_language={@locale || ""}
+              on_click="locale"
+              phx_target={@myself}
+              variant={:tabs}
+              size={:sm}
+              display={:auto}
+              auto_threshold={5}
+              show_flags
+              show_primary
+              primary_divider
+              class="w-full sm:w-auto sm:min-w-0 sm:flex-1"
+            />
+            <form
+              :if={@email && @can_edit}
+              id={"#{@id}-email-layout"}
+              phx-change="set_layout"
+              phx-target={@myself}
+              class="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1"
+            >
+              <label for={"#{@id}-email-layout-group"} class="text-sm font-semibold">
+                {gettext("Layout")}
+              </label>
+              <.select
+                id={"#{@id}-email-layout-group"}
+                name="email_layout[group]"
+                class="select-sm"
+                options={
+                  [{default_layout_label(@layout_group), ""}] ++
+                    for(group <- layout_options(@layouts, @email.layout), do: {group, group})
+                }
+                value={@email.layout || ""}
+              />
+            </form>
+            <p :if={@email && !@can_edit} id={"#{@id}-email-layout-current"} class="shrink-0 text-sm">
+              <span class="font-semibold">{gettext("Layout")}:</span>
+              {@email.layout || default_layout_label(@layout_group)}
+            </p>
+          </div>
 
           <div
             :if={@fallback_unused}
@@ -3952,7 +3964,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             phx-hook={if(@form_shown and not @letter?, do: "PhoenixKitTemplatesEditorInsertVariable")}
             class="flex min-w-0 flex-col gap-4"
           >
-            <.form_section :if={@form_shown} body_class="px-4 pb-4 pt-3">
+            <.form_section :if={@form_shown} body_class="px-4 pb-4 pt-2">
               <form
                 id={"#{@id}-parts"}
                 phx-submit="save"
