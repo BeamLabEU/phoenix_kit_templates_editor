@@ -71,8 +71,11 @@ defmodule PhoenixKitTemplatesEditor.HtmlText do
     |> String.replace(~r/<li\b[^>]*>/i, "- ")
     |> String.replace(@tag, "")
     |> decode_entities()
+    # The blanks of a line are one space: over the whole text at once (a line
+    # has no newline), not a pattern built again for each of a long text's lines.
+    |> String.replace(~r/[ \t]+/, " ")
     |> String.split("\n")
-    |> Enum.map_join("\n", &(&1 |> String.replace(~r/[ \t]+/, " ") |> String.trim()))
+    |> Enum.map_join("\n", &String.trim/1)
     |> String.replace(~r/\n{3,}/, "\n\n")
     |> String.trim()
   end
