@@ -27,8 +27,8 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorLetterTest do
          %{tmp_dir: root} do
       view = letter(root, %{convert: @convert})
 
-      assert has_element?(view, "#editor-parts textarea[name='parts[label]'][rows='2']")
-      assert has_element?(view, "#editor-parts textarea[name='parts[subject]'][rows='2']")
+      assert has_element?(view, "#editor-parts input[name='parts[label]']")
+      assert has_element?(view, "#editor-parts input[name='parts[subject]']")
       assert has_element?(view, "#editor-parts #editor-body [phx-hook=Leaf]")
 
       for part <- ~w(text markdown html) do
@@ -381,8 +381,8 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorLetterTest do
       seed(root)
       view = mount_editor(root)
 
-      edit_body(view, "Nobody's", doc: "editor-leaf-1")
       select(view, "_header-shop")
+      edit_body(view, "Nobody's", doc: "editor-leaf-1")
       edit_body(view, "Not a letter's", doc: "editor-leaf-2")
       tab(view, "")
 
@@ -973,7 +973,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorLetterTest do
     end
   end
 
-  describe "a line break typed in the two-row label or subject" do
+  describe "a line break reaching the server with the label or subject" do
     test "at the end is not a change: no question, nothing written", %{tmp_dir: root} do
       view = letter(root)
 

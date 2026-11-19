@@ -253,6 +253,8 @@ defmodule PhoenixKitTemplatesEditor.Web.Section do
         <.live_component
           module={Editor}
           id="templates-editor"
+          open={assigns[:open]}
+          patch_path={assigns[:path]}
           root={@config.root}
           editable={@can_write}
           show_reload={false}

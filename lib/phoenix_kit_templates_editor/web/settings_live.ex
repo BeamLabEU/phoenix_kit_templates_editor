@@ -27,6 +27,8 @@ defmodule PhoenixKitTemplatesEditor.Web.SettingsLive do
     if PhoenixKitTemplatesEditor.accessible?(socket.assigns[:phoenix_kit_current_scope]) do
       {:ok,
        assign(socket,
+         open: nil,
+         path: nil,
          page_title: gettext("Email templates"),
          page_section: gettext("Settings"),
          page_section_path: Routes.path("/admin/settings")
@@ -34,9 +36,20 @@ defmodule PhoenixKitTemplatesEditor.Web.SettingsLive do
     else
       {:ok,
        socket
+       |> assign(open: nil, path: nil)
        |> put_flash(:error, gettext("You do not have access to the email templates."))
        |> push_navigate(to: Routes.path("/admin"), replace: true)}
     end
+  end
+
+  # The address may name the template to open (`?template=`): taken once,
+  # when the page opens — the editor keeps the address after that itself, and
+  # its later patches change nothing here, so nothing is drawn again.
+  @impl true
+  def handle_params(params, uri, socket) do
+    if socket.assigns.path,
+      do: {:noreply, socket},
+      else: {:noreply, assign(socket, open: params["template"], path: URI.parse(uri).path)}
   end
 
   @impl true
@@ -63,6 +76,8 @@ defmodule PhoenixKitTemplatesEditor.Web.SettingsLive do
         module={Section}
         id={:templates_editor}
         phoenix_kit_current_scope={@phoenix_kit_current_scope}
+        open={@open}
+        path={@path}
       />
     </div>
     """

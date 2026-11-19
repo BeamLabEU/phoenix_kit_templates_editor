@@ -351,6 +351,12 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
        # What a phone shows: the list (`:list`) or the open template
        # (`:detail`). From `lg` up both are always shown.
        pane: :list,
+       # The template the page's address asks for (`?template=`), taken once,
+       # and the page's own path: with it the open template is kept in the
+       # address, so a reload returns to it.
+       open: nil,
+       patch_path: nil,
+       opened?: false,
        show_reload: true,
        list_actions: [],
        draft?: false,
@@ -432,8 +438,66 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       if editable?(socket.assigns), do: socket, else: no_confirmations(socket)
 
     socket = socket |> load_templates() |> settle_draft() |> keep_selection()
-    {:ok, refresh_preview(socket, previous_files)}
+
+    if nothing_open?(socket),
+      do: {:ok, open_initial(socket)},
+      else:
+        {:ok, socket |> assign(opened?: true) |> refresh_preview(previous_files) |> described()}
   end
+
+  # The host's word about the open template (what its variables are, who
+  # sends it) may come with a later render than the one that opened it.
+  defp described(%{assigns: %{selected: nil}} = socket), do: socket
+  defp described(socket), do: socket |> assign_var_context() |> assign_sources()
+
+  defp nothing_open?(%{assigns: %{selected: nil, module_selected: nil}}), do: true
+  defp nothing_open?(_socket), do: false
+
+  # An empty pane beside the list reads as a failure: with nothing chosen the
+  # template the address names is opened — once, on the first render — else
+  # the first message of the list. A phone still starts from the list unless
+  # the address names a template.
+  defp open_initial(socket) do
+    wanted = if socket.assigns.opened?, do: nil, else: socket.assigns.open
+    socket = assign(socket, opened?: true)
+
+    if is_binary(wanted) and visible?(socket, wanted),
+      do: select(socket, wanted),
+      else: open_first(socket)
+  end
+
+  defp open_first(socket) do
+    case first_message(socket.assigns) do
+      nil -> socket
+      %{name: name} -> socket |> select(name) |> assign(pane: :list)
+    end
+  end
+
+  defp first_message(assigns), do: List.first(messages(assigns))
+
+  defp messages(assigns) do
+    Enum.reject(
+      assigns.templates,
+      &(String.starts_with?(&1.name, "_") or module_name?(assigns, &1.name))
+    )
+  end
+
+  # The open template in the page's address (replacing the entry: the list
+  # is not a history to walk back through).
+  defp patch_address(%{assigns: %{patch_path: path}} = socket) when is_binary(path) do
+    query =
+      case socket.assigns do
+        %{selected: name, pane: :detail} when is_binary(name) ->
+          "?" <> URI.encode_query(%{"template" => name})
+
+        _other ->
+          ""
+      end
+
+    push_patch(socket, to: path <> query, replace: true)
+  end
+
+  defp patch_address(socket), do: socket
 
   # What changes the open document, with something unsaved in a letter (its
   # body in Leaf, its label or subject in the form): asked first, in a dialog,
@@ -532,11 +596,11 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   # The open template or language clicked again keeps the form (unsaved values
   # included) and only clears what is transient: a notice, a pending delete.
   def handle_event("select", %{"name" => name}, %{assigns: %{selected: name}} = socket),
-    do: {:noreply, socket |> assign(pane: :detail) |> clear_transient()}
+    do: {:noreply, socket |> assign(pane: :detail) |> clear_transient() |> patch_address()}
 
   def handle_event("select", %{"name" => name}, socket) do
     if visible?(socket, name) do
-      {:noreply, socket |> assign(notice: nil, draft?: false) |> select(name)}
+      {:noreply, socket |> assign(notice: nil, draft?: false) |> select(name) |> patch_address()}
     else
       {:noreply, socket}
     end
@@ -544,7 +608,8 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
 
   # The phone's way back to the list: the open template, and what is typed
   # in it, stay.
-  def handle_event("back", _params, socket), do: {:noreply, assign(socket, pane: :list)}
+  def handle_event("back", _params, socket),
+    do: {:noreply, socket |> assign(pane: :list) |> patch_address()}
 
   # From the language switcher (`phx-value-language`); the files without a
   # language are its entry with the empty code.
@@ -632,9 +697,14 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   # template here, else shown read only with its built-in text.
   def handle_event("select_module", %{"name" => name}, socket) when is_binary(name) do
     cond do
-      module_email(socket.assigns, name) == nil -> {:noreply, socket}
-      exists?(socket, name) -> {:noreply, socket |> assign(notice: nil) |> select(name)}
-      true -> {:noreply, socket |> assign(notice: nil) |> open_module(name)}
+      module_email(socket.assigns, name) == nil ->
+        {:noreply, socket}
+
+      exists?(socket, name) ->
+        {:noreply, socket |> assign(notice: nil) |> select(name) |> patch_address()}
+
+      true ->
+        {:noreply, socket |> assign(notice: nil) |> open_module(name) |> patch_address()}
     end
   end
 
@@ -969,9 +1039,10 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
     end
   end
 
-  # A one-line field (`label`, `subject`) is shown in two rows and still is
-  # one line of text: a line break typed at its end is nothing. One inside it
-  # is left for the save to refuse.
+  # A one-line field (`label`, `subject`) is an `<input>`; a value that
+  # reaches the server with a line break at its end (pasted, or sent by
+  # another client) is the same line. One inside it is left for the save to
+  # refuse.
   defp one_line(value, part) when part in @single_line_parts,
     do: String.trim_trailing(value, "\n")
 
@@ -1729,7 +1800,10 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
       end
 
     socket = socket |> assign(notice: notice) |> no_confirmations() |> load_templates()
-    if result == :ok, do: deselect(socket), else: keep_selection(socket)
+
+    if result == :ok,
+      do: socket |> deselect() |> open_first() |> patch_address(),
+      else: keep_selection(socket)
   end
 
   # The open email's locale-less parts, which nothing reads: the files go,
@@ -3076,11 +3150,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   def render(assigns) do
     assigns =
       assign(assigns,
-        messages:
-          Enum.reject(
-            assigns.templates,
-            &(String.starts_with?(&1.name, "_") or module_name?(assigns, &1.name))
-          ),
+        messages: messages(assigns),
         module_list: module_list(assigns),
         module_layouts: module_layouts(assigns),
         auth_warning: (assigns.selected || assigns.module_selected) in Names.auth_emails(),
@@ -3745,7 +3815,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             show_flags
             show_primary
             primary_divider
-            class="w-full"
+            class="-mb-2 w-full"
           />
 
           <div
@@ -3882,7 +3952,7 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
             phx-hook={if(@form_shown and not @letter?, do: "PhoenixKitTemplatesEditorInsertVariable")}
             class="flex min-w-0 flex-col gap-4"
           >
-            <.form_section :if={@form_shown} body_class="p-4">
+            <.form_section :if={@form_shown} body_class="px-4 pb-4 pt-3">
               <form
                 id={"#{@id}-parts"}
                 phx-submit="save"
@@ -4281,19 +4351,14 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
           {gettext("changed %{time}", time: Calendar.strftime(@file.mtime, "%Y-%m-%d %H:%M UTC"))}
         </span>
       </label>
-      <%!-- `!min-h-0`: core's textarea has a floor of six rem, three rows more
-           than these two. --%>
-      <%!-- Two rows: a subject with its placeholders does not fit one row on
-           a phone. Still one line of text — a line break typed at the end
-           is dropped, one inside a subject is refused on a save. --%>
-      <.textarea
+      <.input
         :if={@single_line?}
         id={@id}
+        type="text"
         name={"parts[#{@part}]"}
         value={single_line(@value)}
-        rows={2}
         data-form-rev={@rev}
-        class="!min-h-0 font-mono text-sm"
+        class="font-mono text-sm"
       />
       <.textarea
         :if={!@single_line?}

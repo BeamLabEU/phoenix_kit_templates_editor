@@ -77,7 +77,7 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorAccessTest do
       assert create(view, "order_new") =~ @refused
       assert_received {:authorize, :create}
       refute render(view) =~ "not saved yet"
-      refute has_element?(view, "#editor-parts")
+      refute has_element?(view, "#editor-list .menu-active", "order_new")
 
       assert create(view, "order_copy", "order_offer") =~ @refused
       refute File.exists?(Path.join(root, "order_copy"))

@@ -284,8 +284,7 @@ defmodule PhoenixKitTemplatesEditor.Integration.SectionTest do
 
       assert has_element?(
                view,
-               "#templates-editor-parts textarea[name='parts[subject]']",
-               "Changed by hand"
+               "#templates-editor-parts input[name='parts[subject]'][value='Changed by hand']"
              )
     end
 

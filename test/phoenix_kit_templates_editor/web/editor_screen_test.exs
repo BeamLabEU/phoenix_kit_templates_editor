@@ -88,6 +88,38 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorScreenTest do
       assert lg_hidden?(view, "#editor-detail")
     end
 
+    # An empty pane beside the list reads as a failure on a wide screen.
+    test "the first message is open from the start, behind the list", %{tmp_dir: root} do
+      seed(root)
+      put(root, "order_zebra", "text.et.txt", "Zebra\n")
+      view = mount_editor(root)
+
+      assert has_element?(view, "#editor-list .menu-active[phx-value-name=order_offer]")
+      assert has_element?(view, "#editor-parts")
+      assert has_element?(view, "#editor-preview")
+      refute lg_hidden?(view, "#editor-list")
+    end
+
+    test "the template the page's address names opens instead, on its own screen",
+         %{tmp_dir: root} do
+      seed(root)
+      put(root, "order_zebra", "text.et.txt", "Zebra\n")
+      view = mount_editor(root, %{open: "order_zebra"})
+
+      assert has_element?(view, "#editor-list .menu-active[phx-value-name=order_zebra]")
+      assert lg_hidden?(view, "#editor-list")
+      refute lg_hidden?(view, "#editor-detail")
+    end
+
+    test "a name the address gives that is not a template here: the first message",
+         %{tmp_dir: root} do
+      seed(root)
+      view = mount_editor(root, %{open: "secret_other"})
+
+      assert has_element?(view, "#editor-list .menu-active[phx-value-name=order_offer]")
+      refute lg_hidden?(view, "#editor-list")
+    end
+
     test "choosing a template shows its screen, the list gives way, with a back control",
          %{tmp_dir: root} do
       seed(root)
@@ -376,14 +408,15 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorScreenTest do
   end
 
   describe "one-line fields" do
-    test "the label and the subject are two-row fields; a letter's body is Leaf, a header's parts textareas",
+    test "the label and the subject are single-line inputs; a letter's body is Leaf, a header's parts textareas",
          %{tmp_dir: root} do
       seed(root)
       view = mount_editor(root)
       select(view, "order_offer")
 
       for part <- ~w(label subject) do
-        assert has_element?(view, "#editor-parts textarea[rows='2'][name='parts[#{part}]']")
+        assert has_element?(view, "#editor-parts input[type=text][name='parts[#{part}]']")
+        refute has_element?(view, "#editor-parts textarea[name='parts[#{part}]']")
       end
 
       for part <- ~w(text markdown html) do
