@@ -358,6 +358,21 @@ defmodule PhoenixKitTemplatesEditor.Web.EditorTest do
 
       assert view |> element("#editor-missing") |> render() =~ "order_numbr"
     end
+
+    # A header is the layout's: `site_url` is one of its variables, an
+    # email's `order_number` is not.
+    test "a header is checked against the layout's variables, not an email's", %{tmp_dir: root} do
+      seed(root)
+      put(root, "_header-shop", "html.html", ~s(<img src="{{site_url}}/logo.png">\n))
+      view = mount_editor(root)
+      select(view, "_header-shop")
+      refute has_element?(view, "#editor-missing")
+
+      put(root, "_footer-shop", "html.html", "<p>{{order_number}}</p>\n")
+      view = mount_editor(root)
+      select(view, "_footer-shop")
+      assert view |> element("#editor-missing") |> render() =~ "order_number"
+    end
   end
 
   describe "creating" do

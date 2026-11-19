@@ -2626,7 +2626,16 @@ defmodule PhoenixKitTemplatesEditor.Web.Editor do
   end
 
   defp load_missing(socket) do
-    %{root: root, selected: name, locale: locale, sample_variables: variables} = socket.assigns
+    %{root: root, selected: name, locale: locale} = socket.assigns
+
+    # What the template may use is its own kind's: an email's variables in an
+    # email, the layout's (`site_url`, `logo_url`, …) in a header, a footer
+    # and a page layout — a header is not checked against an email's.
+    variables =
+      case Variables.kind(name) do
+        :email -> email_variables(socket.assigns, name, locale)
+        _layout_part -> socket.assigns.layout_values || %{}
+      end
 
     # A template with no files (a draft) has nothing to check, and looking it
     # up would leave cache entries behind for a name that may never be saved.
