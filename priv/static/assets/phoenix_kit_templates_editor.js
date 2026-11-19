@@ -66,3 +66,59 @@
     }
   };
 })();
+
+// PhoenixKitTemplatesEditorFolds sits on the list of templates. Its sections
+// fold (<details>); which of them the reader left open is kept in this
+// browser, so the list opens the way it was left. The section holding the
+// open template is always shown open.
+(function () {
+  "use strict";
+
+  window.PhoenixKitTemplatesEditorHooks = window.PhoenixKitTemplatesEditorHooks || {};
+  if (window.PhoenixKitTemplatesEditorHooks.PhoenixKitTemplatesEditorFolds) return;
+
+  var KEY = "phoenix_kit_templates_editor:folds";
+
+  function read() {
+    try {
+      return JSON.parse(window.localStorage.getItem(KEY) || "{}") || {};
+    } catch (_error) {
+      return {};
+    }
+  }
+
+  function write(state) {
+    try {
+      window.localStorage.setItem(KEY, JSON.stringify(state));
+    } catch (_error) {
+      // Private mode, a full store: the list just opens on its defaults.
+    }
+  }
+
+  window.PhoenixKitTemplatesEditorHooks.PhoenixKitTemplatesEditorFolds = {
+    mounted() {
+      var saved = read();
+
+      this.el.querySelectorAll("details[id]").forEach(function (section) {
+        if (Object.prototype.hasOwnProperty.call(saved, section.id)) {
+          section.open = saved[section.id] === true;
+        }
+        if (section.querySelector(".menu-active")) section.open = true;
+      });
+
+      // `toggle` does not bubble: caught on the way down.
+      this._toggle = (event) => {
+        var section = event.target;
+        if (!section || section.tagName !== "DETAILS" || !section.id) return;
+        var state = read();
+        state[section.id] = section.open;
+        write(state);
+      };
+      this.el.addEventListener("toggle", this._toggle, true);
+    },
+
+    destroyed() {
+      this.el.removeEventListener("toggle", this._toggle, true);
+    }
+  };
+})();
