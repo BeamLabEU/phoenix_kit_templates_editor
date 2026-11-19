@@ -58,7 +58,8 @@ defmodule PhoenixKitTemplatesEditor.Body do
     html_block: {~S"\A {0,3}(?:<\/?[A-Za-z][A-Za-z0-9-]*(?:[ \t\/>]|\z)|<[!?])", ""},
     table_row: {~S"\A[ \t]*\|", ""},
     target: {~S"(\]\()(<[^<>\n]*>|(?:[^\s()]|\([^\s()]*\))*)", ""},
-    encoded: {~S"((?:%7B){2,3})([A-Za-z0-9_.\-]*)((?:%7D){2,3})", "i"},
+    encoded: {~S"((?:%7B){2,3})((?:%20)*[A-Za-z0-9_.\-]*(?:%20)*)((?:%7D){2,3})", "i"},
+    reference: {~S"^( {0,3}\[[^\]\n]*\]:[ \t]*)(<[^<>\n]*>|\S+)", "m"},
     braced: {~S"\{\{\{?(?:[^{}\n])*?\}\}\}?", ""},
     escape: {~S"\\([!-\/:-@\[-`{-~])", ""},
     room: {~S"\n(?:[ \t]*\n){2,}", ""},
@@ -139,7 +140,8 @@ defmodule PhoenixKitTemplatesEditor.Body do
 
   @doc """
   `markdown` with the placeholders Leaf damaged put back: `%7B%7B…%7D%7D`
-  (any case of the hex digits) in a link or image target becomes `{{…}}`
+  (any case of the hex digits, blanks inside as `%20`) in a link or image
+  target, or in the address of a reference definition, becomes `{{…}}`
   (`{{{…}}}` for three), and a backslash before a character inside a
   `{{…}}` or `{{{…}}}` that is a placeholder once it is gone is removed.
   Nothing else is changed; applying it twice changes nothing more.
@@ -149,19 +151,29 @@ defmodule PhoenixKitTemplatesEditor.Body do
     markdown |> decode_targets() |> unescape_placeholders()
   end
 
+  # A link or image target `](…)`, and the address of a reference definition
+  # (`[1]: …`).
   defp decode_targets(markdown) do
-    Regex.replace(rx(:target), markdown, fn _whole, open, target ->
-      open <> Regex.replace(rx(:encoded), target, &decode_braces/4)
-    end)
+    markdown
+    |> then(
+      &Regex.replace(rx(:target), &1, fn _whole, open, target -> open <> decode(target) end)
+    )
+    |> then(
+      &Regex.replace(rx(:reference), &1, fn _whole, open, target -> open <> decode(target) end)
+    )
   end
+
+  defp decode(target), do: Regex.replace(rx(:encoded), target, &decode_braces/4)
 
   defp decode_braces(whole, open, name, close) do
     count = div(byte_size(open), 3)
 
     if count == div(byte_size(close), 3),
-      do: String.duplicate("{", count) <> name <> String.duplicate("}", count),
+      do: String.duplicate("{", count) <> decode_blanks(name) <> String.duplicate("}", count),
       else: whole
   end
+
+  defp decode_blanks(name), do: String.replace(name, ["%20"], " ")
 
   defp unescape_placeholders(markdown) do
     Regex.replace(rx(:braced), markdown, fn span ->

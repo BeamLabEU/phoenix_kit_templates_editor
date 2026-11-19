@@ -30,6 +30,34 @@ defmodule PhoenixKitTemplatesEditor.BodyTest do
       assert Body.restore_placeholders("![Logo](%7B%7Blogo_url%7D%7D)") == "![Logo]({{logo_url}})"
     end
 
+    test "a placeholder written with blanks inside the braces" do
+      assert Body.restore_placeholders("[Open](%7B%7B%20url%20%7D%7D)") == "[Open]({{ url }})"
+
+      assert Body.restore_placeholders("[Open](%7b%7b%20order.id%20%20%7d%7d)") ==
+               "[Open]({{ order.id  }})"
+
+      assert Body.restore_placeholders("[x](https://a.ee/?id=%7B%7B%20id%20%7D%7D)") ==
+               "[x](https://a.ee/?id={{ id }})"
+    end
+
+    test "the address of a reference definition" do
+      assert Body.restore_placeholders("See [the page][1].\n\n[1]: %7B%7Burl%7D%7D") ==
+               "See [the page][1].\n\n[1]: {{url}}"
+
+      assert Body.restore_placeholders("[1]: %7B%7B%20url%20%7D%7D \"Title\"") ==
+               "[1]: {{ url }} \"Title\""
+
+      assert Body.restore_placeholders("  [Logo]: <%7B%7Blogo_url%7D%7D>") ==
+               "  [Logo]: <{{logo_url}}>"
+    end
+
+    test "text that only looks like a definition, or sits outside a target, is left alone" do
+      assert Body.restore_placeholders("a [1]: not at the start %7B%7Burl%7D%7D") ==
+               "a [1]: not at the start %7B%7Burl%7D%7D"
+
+      assert Body.restore_placeholders("%7B%7Burl%7D%7D") == "%7B%7Burl%7D%7D"
+    end
+
     test "a mailto address" do
       assert Body.restore_placeholders("[Write](mailto:%7B%7Bemail%7D%7D)") ==
                "[Write](mailto:{{email}})"
