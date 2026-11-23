@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.3.0 - 2026-11-23
+
+### Added
+
+- **The editor has a page of its own**, Settings › Email templates
+  (`/admin/settings/email-templates`): a Settings item (`settings_tabs/0`)
+  that core routes for the `templates_editor` permission, with the page
+  asking the whole rule itself (`accessible?/1` — the module on, `settings`
+  and `templates_editor`) at mount and on every render. Core's email settings
+  page keeps no section of this module (`email_settings_sections/0` is `[]`).
+- **A letter's body is one Leaf editor** (new dependency `leaf`,
+  `~> 0.11.0 or ~> 0.12.0 or ~> 0.13.0`; core 3.5 and later loads its
+  JavaScript itself, through its lazy `Leaf` hook in
+  `window.PhoenixKitHooks`): visual or Markdown mode, never hybrid or HTML.
+  A save writes the Markdown file and derives the text file from it; a
+  text-only letter opens with its text turned into Markdown, and nothing is
+  written until Save. `PhoenixKitTemplatesEditor.Body` keeps the round trip
+  exact: line breaks, the placeholders Leaf percent-encodes or
+  backslash-escapes, and the room a frame letter leaves on purpose.
+- **The open template in the page's address** (`?template=`), language tabs
+  as on other forms, folding list sections whose state the browser keeps,
+  create forms and the layout choice in small panels, a back button on
+  phones, and the module's three JS hooks
+  (`PhoenixKitTemplatesEditorInsertVariable`,
+  `PhoenixKitTemplatesEditorKeepFocus`, `PhoenixKitTemplatesEditorFolds`).
+
+### Changed
+
+- **The page shows no introduction, hints or `README.<language>.md` notes**,
+  and the scope comes from the page's own assign:
+  `PhoenixKitTemplatesEditor.Web.ScopeHook` is no longer used by the page
+  (the module stays, so a host config naming it still compiles).
+- **The editor's internals are split**: the layouts, module emails, variables
+  and preview panels are function-component modules, and the save, conflict
+  and layout actions plain modules; the controls are core's components.
+
+### Fixed
+
+- **Core 3.7's `app_connected` notice is a sign-in email**
+  (`Names.auth_emails/0`): it tells an account that an application was
+  connected to it through the OAuth sign-in, and `overridable: :all` no
+  longer lets a host replace it.
+- **A save or a document switch waits for Leaf's final edit**: the editor
+  asks the focused Leaf to flush and runs the action on the matching
+  acknowledgement, so a debounced last keystroke can no longer be lost or
+  carried into the next document.
+- **A letter's text version is made in one bounded task** (not one per
+  section, each with its own deadline), and **a layout copy counts its
+  source files against the root's byte limit before creating anything**.
+
 ## 0.2.1 - 2026-11-15
 
 ### Fixed
