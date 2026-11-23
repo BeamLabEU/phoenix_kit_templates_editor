@@ -26,14 +26,19 @@ defmodule PhoenixKitTemplatesEditor.NamesOverrideTest do
                ~w(register reset_password update_email magic_link magic_link_registration
                   organization_invitation organization_manager_invitation
                   organization_link_invitation new_login_alert failed_login_alert
-                  passkey_added passkey_removed)
+                  passkey_added passkey_removed app_connected)
 
       core = for %{name: name} <- CoreTemplates.entries(), do: name
-      # Core added the passkey notices after the supported 3.5 floor.
+      # Core added the passkey notices in 3.6 and the connected-app notice
+      # in 3.7, both after the supported 3.5 floor.
+      vsn = to_string(Application.spec(:phoenix_kit, :vsn))
+
       expected_missing =
-        if Version.match?(to_string(Application.spec(:phoenix_kit, :vsn)), "< 3.6.0"),
-          do: ~w(passkey_added passkey_removed),
-          else: []
+        cond do
+          Version.match?(vsn, "< 3.6.0") -> ~w(passkey_added passkey_removed app_connected)
+          Version.match?(vsn, "< 3.7.0") -> ~w(app_connected)
+          true -> []
+        end
 
       assert Names.auth_emails() -- core == expected_missing
     end
@@ -50,7 +55,8 @@ defmodule PhoenixKitTemplatesEditor.NamesOverrideTest do
 
     test "an email with a sign-in, registration or security link is one of them" do
       links =
-        ~w(confirmation_url reset_url update_url magic_link_url registration_url security_url)
+        ~w(confirmation_url reset_url update_url magic_link_url registration_url security_url
+           connections_url)
 
       for %{name: name, variables: variables} <- CoreTemplates.entries(),
           variables = if(is_function(variables, 0), do: variables.(), else: variables),
@@ -70,6 +76,7 @@ defmodule PhoenixKitTemplatesEditor.NamesOverrideTest do
       refute Names.overridable?("magic_link", :all)
       refute Names.overridable?("passkey_added", :all)
       refute Names.overridable?("passkey_removed", :all)
+      refute Names.overridable?("app_connected", :all)
     end
 
     test "a list is exactly its names, a sign-in email included when named" do
